@@ -9,15 +9,18 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 let button;
 
 class RecordingDialog {
-  constructor() {
+  constructor(onStop) {
+    this.onStop = onStop;
+
     // Create main container
     this.container = new St.Widget({
       style_class: "recording-dialog",
       style: `
-        background-color: rgba(0, 0, 0, 0.8);
-        border-radius: 15px;
-        padding: 25px;
+        background-color: rgba(0, 0, 0, 0.85);
+        border-radius: 12px;
+        padding: 30px;
         border: 2px solid #ff8c00;
+        min-width: 300px;
       `,
       layout_manager: new Clutter.BinLayout(),
       reactive: true,
@@ -26,10 +29,10 @@ class RecordingDialog {
     // Create content box
     let contentBox = new St.BoxLayout({
       vertical: true,
-      style: "spacing: 15px;",
+      style: "spacing: 20px;",
     });
 
-    // Recording icon and text
+    // Recording header
     let headerBox = new St.BoxLayout({
       vertical: false,
       style: "spacing: 15px;",
@@ -43,36 +46,44 @@ class RecordingDialog {
 
     let recordingLabel = new St.Label({
       text: "🎤 Recording...",
-      style: "font-size: 18px; font-weight: bold; color: white;",
+      style: "font-size: 20px; font-weight: bold; color: white;",
     });
 
     headerBox.add_child(recordingIcon);
     headerBox.add_child(recordingLabel);
 
-    // Audio wave visualization area
-    this.waveBox = new St.BoxLayout({
-      vertical: false,
-      style: "height: 60px; spacing: 2px; margin: 10px 0;",
+    // Instructions
+    let instructionLabel = new St.Label({
+      text: "Speak now",
+      style: "font-size: 16px; color: #ccc; text-align: center;",
     });
 
-    // Create initial wave bars
-    this.waveBars = [];
-    for (let i = 0; i < 20; i++) {
-      let bar = new St.Widget({
-        style: `width: 8px; height: 10px; background-color: #ff8c00; margin: 0 1px; border-radius: 4px;`,
-      });
-      this.waveBox.add_child(bar);
-      this.waveBars.push(bar);
-    }
+    // Stop button
+    this.stopButton = new St.Button({
+      label: "Stop Recording",
+      style_class: "button",
+      style: `
+        background-color: #ff4444;
+        color: white;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: bold;
+        border: none;
+      `,
+      reactive: true,
+    });
 
-    let instructionLabel = new St.Label({
-      text: "Speak now... Click to stop",
-      style: "font-size: 14px; color: #ccc;",
+    this.stopButton.connect("clicked", () => {
+      this.close();
+      if (this.onStop) {
+        this.onStop();
+      }
     });
 
     contentBox.add_child(headerBox);
-    contentBox.add_child(this.waveBox);
     contentBox.add_child(instructionLabel);
+    contentBox.add_child(this.stopButton);
 
     this.container.add_child(contentBox);
 
@@ -86,15 +97,6 @@ class RecordingDialog {
         );
       }
     });
-
-    // Start wave animation
-    this.startWaveAnimation();
-
-    // Close dialog when clicked
-    this.container.connect("button-press-event", () => {
-      this.close();
-      return true;
-    });
   }
 
   open() {
@@ -102,24 +104,7 @@ class RecordingDialog {
     this.container.show();
   }
 
-  startWaveAnimation() {
-    this.animationId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-      // Animate wave bars with random heights
-      this.waveBars.forEach((bar, index) => {
-        let height = Math.random() * 40 + 10; // Random height between 10-50px
-        bar.set_style(
-          `width: 8px; height: ${height}px; background-color: #ff8c00; margin: 0 1px; border-radius: 4px;`
-        );
-      });
-      return true; // Continue animation
-    });
-  }
-
   close() {
-    if (this.animationId) {
-      GLib.source_remove(this.animationId);
-      this.animationId = null;
-    }
     if (this.container && this.container.get_parent()) {
       Main.uiGroup.remove_child(this.container);
     }
@@ -131,6 +116,7 @@ export default class WhisperTypingExtension extends Extension {
   constructor(metadata) {
     super(metadata);
     this.recordingDialog = null;
+    this.recordingProcess = null;
   }
 
   enable() {
@@ -147,22 +133,62 @@ export default class WhisperTypingExtension extends Extension {
       this.icon.set_style("color: #ff8c00;");
 
       // Show recording dialog
-      this.recordingDialog = new RecordingDialog();
+      this.recordingDialog = new RecordingDialog(() => {
+        // Stop callback - terminate the python process if running
+        if (this.recordingProcess) {
+          try {
+            GLib.spawn_close_pid(this.recordingProcess);
+          } catch (e) {
+            log(`Error stopping recording process: ${e}`);
+          }
+          this.recordingProcess = null;
+        }
+        this.recordingDialog = null;
+        this.icon.set_style("");
+      });
       this.recordingDialog.open();
 
       // Start the whisper script
-      GLib.spawn_command_line_async(
-        `${this.path}/venv/bin/python3 ${this.path}/whisper_typing.py`
-      );
+      try {
+        let [success, pid] = GLib.spawn_async(
+          null, // working directory
+          [`${this.path}/venv/bin/python3`, `${this.path}/whisper_typing.py`],
+          null, // environment
+          GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+          null // child setup
+        );
 
-      // Auto-close dialog and reset color after 6 seconds
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 6000, () => {
+        if (success) {
+          this.recordingProcess = pid;
+
+          // Watch for process completion
+          GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
+            // Process completed
+            this.recordingProcess = null;
+            if (this.recordingDialog) {
+              this.recordingDialog.close();
+              this.recordingDialog = null;
+            }
+            this.icon.set_style("");
+          });
+        }
+      } catch (e) {
+        log(`Error starting recording: ${e}`);
         if (this.recordingDialog) {
           this.recordingDialog.close();
           this.recordingDialog = null;
         }
         this.icon.set_style("");
-        return false; // Don't repeat the timeout
+      }
+
+      // Fallback auto-close after 8 seconds
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 8000, () => {
+        if (this.recordingDialog) {
+          this.recordingDialog.close();
+          this.recordingDialog = null;
+        }
+        this.icon.set_style("");
+        return false;
       });
     });
     Main.panel.addToStatusArea("WhisperTyping", button);

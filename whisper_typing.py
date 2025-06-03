@@ -5,17 +5,19 @@ import tempfile
 import os
 import sys
 import whisper
+import signal
+import time
 
 def record_audio(duration=5, sample_rate=16000):
-    """Record audio using ffmpeg instead of pyaudio"""
-    print(f"🎤 Recording for {duration} seconds...")
+    """Record audio using ffmpeg with minimal delay"""
+    print("🎤 Recording started - speak now!", flush=True)
     
     # Create temporary file for audio
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
         audio_file = tmp_file.name
     
     try:
-        # Use ffmpeg to record audio from default microphone
+        # Use ffmpeg with minimal buffering for faster startup
         cmd = [
             'ffmpeg', '-y',  # -y to overwrite output file
             '-f', 'pulse',   # Use PulseAudio input
@@ -24,21 +26,31 @@ def record_audio(duration=5, sample_rate=16000):
             '-ar', str(sample_rate),  # Sample rate
             '-ac', '1',      # Mono
             '-f', 'wav',     # Output format
+            '-loglevel', 'error',  # Reduce ffmpeg output
             audio_file
         ]
         
-        # Run ffmpeg with minimal output
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Run ffmpeg 
+        process = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         
-        if result.returncode != 0:
-            print(f"❌ Error recording audio: {result.stderr}")
+        # Wait for recording to complete or be interrupted
+        try:
+            process.wait()
+        except KeyboardInterrupt:
+            process.terminate()
+            process.wait()
+            print("🛑 Recording stopped by user", flush=True)
+            return audio_file if os.path.exists(audio_file) and os.path.getsize(audio_file) > 0 else None
+        
+        if process.returncode == 0:
+            print("✅ Recording complete!", flush=True)
+            return audio_file
+        else:
+            print("❌ Error recording audio", flush=True)
             return None
             
-        print("✅ Recording complete!")
-        return audio_file
-        
     except Exception as e:
-        print(f"❌ Error during recording: {e}")
+        print("❌ Error during recording: {}".format(e), flush=True)
         return None
 
 def transcribe_audio(audio_file):
@@ -46,7 +58,7 @@ def transcribe_audio(audio_file):
     if not audio_file or not os.path.exists(audio_file):
         return None
         
-    print("🧠 Transcribing audio...")
+    print("🧠 Transcribing audio...", flush=True)
     
     try:
         # Load Whisper model (using base model for speed)
@@ -56,11 +68,11 @@ def transcribe_audio(audio_file):
         result = model.transcribe(audio_file)
         text = result["text"].strip()
         
-        print(f"📝 Transcribed: '{text}'")
+        print("📝 Transcribed: '{}'".format(text), flush=True)
         return text
         
     except Exception as e:
-        print(f"❌ Error during transcription: {e}")
+        print("❌ Error during transcription: {}".format(e), flush=True)
         return None
     finally:
         # Clean up temporary file
@@ -74,36 +86,45 @@ def type_text(text):
     if not text:
         return
         
-    print("⌨️ Typing text...")
+    print("⌨️ Typing text...", flush=True)
     
     try:
         # Use xdotool to type the text
         subprocess.run(['xdotool', 'type', '--delay', '10', text], check=True)
-        print("✅ Text typed successfully!")
+        print("✅ Text typed successfully!", flush=True)
         
     except Exception as e:
-        print(f"❌ Error typing text: {e}")
+        print("❌ Error typing text: {}".format(e), flush=True)
+
+def signal_handler(signum, frame):
+    """Handle termination signals gracefully"""
+    print("🛑 Recording interrupted", flush=True)
+    sys.exit(0)
 
 def main():
     """Main function to orchestrate recording, transcription, and typing"""
-    print("🎙️ Whisper Typing Extension Started")
+    # Set up signal handlers for graceful termination
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
     
-    # Record audio
+    print("🎙️ Whisper Typing Extension Started", flush=True)
+    
+    # Record audio 
     audio_file = record_audio(duration=5)
     if not audio_file:
-        print("❌ Failed to record audio")
+        print("❌ Failed to record audio", flush=True)
         return
     
     # Transcribe audio
     text = transcribe_audio(audio_file)
     if not text:
-        print("❌ Failed to transcribe audio")
+        print("❌ Failed to transcribe audio", flush=True)
         return
     
     # Type the transcribed text
     type_text(text)
     
-    print("🎉 Done!")
+    print("🎉 Done!", flush=True)
 
 if __name__ == "__main__":
     main()
