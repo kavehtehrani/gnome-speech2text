@@ -12,6 +12,9 @@ let button;
 class RecordingDialog {
   constructor(onStop) {
     this.onStop = onStop;
+    this.pulseAnimationId = null;
+    this.pulseDirection = 1; // 1 for growing, -1 for shrinking
+    this.pulseScale = 1.0;
 
     // Create modal barrier that covers the entire screen
     this.modalBarrier = new St.Widget({
@@ -47,7 +50,7 @@ class RecordingDialog {
       style: "spacing: 15px;",
     });
 
-    let recordingIcon = new St.Icon({
+    this.recordingIcon = new St.Icon({
       icon_name: "audio-input-microphone-symbolic",
       icon_size: 32,
       style: "color: #ff8c00;",
@@ -58,7 +61,7 @@ class RecordingDialog {
       style: "font-size: 20px; font-weight: bold; color: white;",
     });
 
-    headerBox.add_child(recordingIcon);
+    headerBox.add_child(this.recordingIcon);
     headerBox.add_child(recordingLabel);
 
     // Instructions
@@ -105,9 +108,8 @@ class RecordingDialog {
       return Clutter.EVENT_STOP; // Stop event propagation
     });
 
-    // Add hover effects - visual feedback and cursor
+    // Add hover effects
     this.stopButton.connect("enter-event", () => {
-      // Set hover style
       this.stopButton.set_style(`
         background-color: #ff6666 !important;
         color: white;
@@ -118,35 +120,9 @@ class RecordingDialog {
         border: none;
         min-width: 150px;
       `);
-
-      // Try to set cursor to pointer using Clutter backend
-      try {
-        let backend = Clutter.get_default_backend();
-        let seat = backend.get_default_seat();
-        let pointer = seat.get_pointer();
-        pointer.set_cursor(
-          Clutter.Cursor.new_for_display(
-            global.display,
-            Meta.Cursor.POINTING_HAND
-          )
-        );
-      } catch (e) {
-        // Fallback - try setting on the button itself
-        try {
-          this.stopButton.set_cursor(
-            Clutter.Cursor.new_for_display(
-              global.display,
-              Meta.Cursor.POINTING_HAND
-            )
-          );
-        } catch (e2) {
-          log("Could not set cursor: " + e2);
-        }
-      }
     });
 
     this.stopButton.connect("leave-event", () => {
-      // Reset to normal style
       this.stopButton.set_style(`
         background-color: #ff4444;
         color: white;
@@ -157,20 +133,6 @@ class RecordingDialog {
         border: none;
         min-width: 150px;
       `);
-
-      // Reset cursor
-      try {
-        let backend = Clutter.get_default_backend();
-        let seat = backend.get_default_seat();
-        let pointer = seat.get_pointer();
-        pointer.set_cursor(null);
-      } catch (e) {
-        try {
-          this.stopButton.set_cursor(null);
-        } catch (e2) {
-          // Ignore cursor reset errors
-        }
-      }
     });
 
     this.container.add_child(headerBox);
@@ -206,14 +168,60 @@ class RecordingDialog {
 
     // Give focus to the stop button
     this.stopButton.grab_key_focus();
+
+    // Start the pulse animation
+    this.startPulseAnimation();
   }
 
   close() {
+    // Stop the pulse animation
+    this.stopPulseAnimation();
+
     if (this.modalBarrier && this.modalBarrier.get_parent()) {
       Main.uiGroup.remove_child(this.modalBarrier);
     }
     this.modalBarrier = null;
     this.container = null;
+  }
+
+  startPulseAnimation() {
+    // Stop any existing animation
+    this.stopPulseAnimation();
+
+    this.pulseAnimationId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
+      // Pulse between 0.8 and 1.2 scale
+      this.pulseScale += this.pulseDirection * 0.04;
+
+      if (this.pulseScale >= 1.2) {
+        this.pulseScale = 1.2;
+        this.pulseDirection = -1;
+      } else if (this.pulseScale <= 0.8) {
+        this.pulseScale = 0.8;
+        this.pulseDirection = 1;
+      }
+
+      // Apply the pulsing effect to the microphone icon
+      this.recordingIcon.set_style(`
+        color: #ff8c00;
+        transform: scale(${this.pulseScale});
+        transition: transform 0.1s ease-in-out;
+      `);
+
+      return true; // Continue animation
+    });
+  }
+
+  stopPulseAnimation() {
+    if (this.pulseAnimationId) {
+      GLib.source_remove(this.pulseAnimationId);
+      this.pulseAnimationId = null;
+    }
+    // Reset icon to normal state
+    if (this.recordingIcon) {
+      this.recordingIcon.set_style("color: #ff8c00;");
+    }
+    this.pulseScale = 1.0;
+    this.pulseDirection = 1;
   }
 }
 
@@ -234,7 +242,7 @@ export default class WhisperTypingExtension extends Extension {
     });
     button.add_child(this.icon);
     button.connect("button-press-event", () => {
-      // Change color to orange
+      // Change panel icon to orange to indicate active recording
       this.icon.set_style("color: #ff8c00;");
 
       // Show recording dialog
@@ -249,6 +257,7 @@ export default class WhisperTypingExtension extends Extension {
           }
         }
         this.recordingDialog = null;
+        // Reset panel icon color
         this.icon.set_style("");
       });
       this.recordingDialog.open();
@@ -324,12 +333,13 @@ export default class WhisperTypingExtension extends Extension {
 
           // Watch for process completion
           GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
-            // Process completed
+            // Process completed - reset panel icon
             this.recordingProcess = null;
             if (this.recordingDialog) {
               this.recordingDialog.close();
               this.recordingDialog = null;
             }
+            // Reset panel icon color
             this.icon.set_style("");
             log("Whisper process completed");
           });
@@ -340,6 +350,7 @@ export default class WhisperTypingExtension extends Extension {
           this.recordingDialog.close();
           this.recordingDialog = null;
         }
+        // Reset panel icon color
         this.icon.set_style("");
       }
     });
