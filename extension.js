@@ -10,17 +10,27 @@ let button;
 export default class WhisperTypingExtension extends Extension {
   enable() {
     button = new PanelMenu.Button(0.0, "WhisperTyping");
-    let icon = new St.Icon({
+    this.icon = new St.Icon({
       gicon: Gio.icon_new_for_string(
         this.path + "/icons/microphone-symbolic.svg"
       ),
       style_class: "system-status-icon",
     });
-    button.add_child(icon);
+    button.add_child(this.icon);
     button.connect("button-press-event", () => {
+      // Change color to orange
+      this.icon.set_style("color: #ff8c00;");
+
+      // Start the whisper script
       GLib.spawn_command_line_async(
         `${this.path}/venv/bin/python3 ${this.path}/whisper_typing.py`
       );
+
+      // Reset color after 6 seconds (5 seconds recording + 1 second buffer)
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 6000, () => {
+        this.icon.set_style("");
+        return false; // Don't repeat the timeout
+      });
     });
     Main.panel.addToStatusArea("WhisperTyping", button);
   }
