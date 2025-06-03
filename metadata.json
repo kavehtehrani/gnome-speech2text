@@ -1,0 +1,8 @@
+{
+  "uuid": "whisper-typing@kaveh.page",
+  "name": "Whisper Typing",
+  "description": "Adds a microphone button to transcribe speech using Whisper.",
+  "shell-version": ["46"],
+  "version": 1,
+  "type": "extension"
+}
