@@ -122,8 +122,8 @@ def record_audio_with_vad(max_duration=30, silence_duration=2.0, sample_rate=160
             print("🛑 Recording stopped by user", flush=True)
             return audio_file if os.path.exists(audio_file) and os.path.getsize(audio_file) > 0 else None
         
-        if process.returncode == 0 or process.returncode == -15:  # -15 is SIGTERM (our termination)
-            print("✅ Recording complete!", flush=True)
+        if process.returncode == 0 or process.returncode == -15 or process.returncode == 255:  # 255 is ffmpeg interrupted
+            print("✅ Recording complete! (return code: {})".format(process.returncode), flush=True)
             # Check if we have a valid audio file
             if os.path.exists(audio_file):
                 file_size = os.path.getsize(audio_file)
