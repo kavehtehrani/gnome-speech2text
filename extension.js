@@ -63,7 +63,7 @@ class RecordingDialog {
 
     // Instructions
     let instructionLabel = new St.Label({
-      text: "Speak now\n(Auto-stops after 2 seconds of silence)",
+      text: "Speak now\nClick 'Stop Recording' when done",
       style: "font-size: 16px; color: #ccc; text-align: center;",
     });
 
