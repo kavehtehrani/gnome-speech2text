@@ -4,6 +4,7 @@ import St from "gi://St";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import Clutter from "gi://Clutter";
+import Meta from "gi://Meta";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 let button;
@@ -12,7 +13,17 @@ class RecordingDialog {
   constructor(onStop) {
     this.onStop = onStop;
 
-    // Create main container
+    // Create modal barrier that covers the entire screen
+    this.modalBarrier = new St.Widget({
+      style: `
+        background-color: rgba(0, 0, 0, 0.3);
+      `,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Create main dialog container
     this.container = new St.Widget({
       style_class: "recording-dialog",
       style: `
@@ -22,14 +33,12 @@ class RecordingDialog {
         border: 2px solid #ff8c00;
         min-width: 300px;
       `,
-      layout_manager: new Clutter.BinLayout(),
+      layout_manager: new Clutter.BoxLayout({
+        orientation: Clutter.Orientation.VERTICAL,
+        spacing: 20,
+      }),
       reactive: true,
-    });
-
-    // Create content box
-    let contentBox = new St.BoxLayout({
-      vertical: true,
-      style: "spacing: 20px;",
+      can_focus: true,
     });
 
     // Recording header
@@ -54,11 +63,11 @@ class RecordingDialog {
 
     // Instructions
     let instructionLabel = new St.Label({
-      text: "Speak now",
+      text: "Speak now\n(Auto-stops after 2 seconds of silence)",
       style: "font-size: 16px; color: #ccc; text-align: center;",
     });
 
-    // Stop button
+    // Stop button with proper styling and event handling
     this.stopButton = new St.Button({
       label: "Stop Recording",
       style_class: "button",
@@ -70,44 +79,140 @@ class RecordingDialog {
         font-size: 14px;
         font-weight: bold;
         border: none;
+        min-width: 150px;
       `,
       reactive: true,
+      can_focus: true,
+      track_hover: true,
     });
 
+    // Make sure the button receives clicks
     this.stopButton.connect("clicked", () => {
+      log("Stop button clicked!");
       this.close();
       if (this.onStop) {
         this.onStop();
       }
     });
 
-    contentBox.add_child(headerBox);
-    contentBox.add_child(instructionLabel);
-    contentBox.add_child(this.stopButton);
-
-    this.container.add_child(contentBox);
-
-    // Position the dialog in the center of the screen
-    this.container.connect("notify::mapped", () => {
-      if (this.container.mapped) {
-        let monitor = Main.layoutManager.primaryMonitor;
-        this.container.set_position(
-          monitor.x + (monitor.width - this.container.width) / 2,
-          monitor.y + (monitor.height - this.container.height) / 2
-        );
+    // Also handle button-press-event as backup
+    this.stopButton.connect("button-press-event", () => {
+      log("Stop button pressed!");
+      this.close();
+      if (this.onStop) {
+        this.onStop();
       }
+      return Clutter.EVENT_STOP; // Stop event propagation
+    });
+
+    // Add hover effects - visual feedback and cursor
+    this.stopButton.connect("enter-event", () => {
+      // Set hover style
+      this.stopButton.set_style(`
+        background-color: #ff6666 !important;
+        color: white;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: bold;
+        border: none;
+        min-width: 150px;
+      `);
+
+      // Try to set cursor to pointer using Clutter backend
+      try {
+        let backend = Clutter.get_default_backend();
+        let seat = backend.get_default_seat();
+        let pointer = seat.get_pointer();
+        pointer.set_cursor(
+          Clutter.Cursor.new_for_display(
+            global.display,
+            Meta.Cursor.POINTING_HAND
+          )
+        );
+      } catch (e) {
+        // Fallback - try setting on the button itself
+        try {
+          this.stopButton.set_cursor(
+            Clutter.Cursor.new_for_display(
+              global.display,
+              Meta.Cursor.POINTING_HAND
+            )
+          );
+        } catch (e2) {
+          log("Could not set cursor: " + e2);
+        }
+      }
+    });
+
+    this.stopButton.connect("leave-event", () => {
+      // Reset to normal style
+      this.stopButton.set_style(`
+        background-color: #ff4444;
+        color: white;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: bold;
+        border: none;
+        min-width: 150px;
+      `);
+
+      // Reset cursor
+      try {
+        let backend = Clutter.get_default_backend();
+        let seat = backend.get_default_seat();
+        let pointer = seat.get_pointer();
+        pointer.set_cursor(null);
+      } catch (e) {
+        try {
+          this.stopButton.set_cursor(null);
+        } catch (e2) {
+          // Ignore cursor reset errors
+        }
+      }
+    });
+
+    this.container.add_child(headerBox);
+    this.container.add_child(instructionLabel);
+    this.container.add_child(this.stopButton);
+
+    // Add the dialog to the modal barrier
+    this.modalBarrier.add_child(this.container);
+
+    // Prevent clicks from passing through the modal barrier
+    this.modalBarrier.connect("button-press-event", (actor, event) => {
+      // Only allow clicks on the dialog container and its children
+      return Clutter.EVENT_STOP;
     });
   }
 
   open() {
-    Main.uiGroup.add_child(this.container);
-    this.container.show();
+    // Add to UI and make it cover the full screen
+    Main.uiGroup.add_child(this.modalBarrier);
+
+    // Set barrier to cover entire screen
+    let monitor = Main.layoutManager.primaryMonitor;
+    this.modalBarrier.set_position(monitor.x, monitor.y);
+    this.modalBarrier.set_size(monitor.width, monitor.height);
+
+    // Center the dialog container within the barrier
+    this.container.set_position(
+      (monitor.width - 300) / 2, // Approximate width
+      (monitor.height - 200) / 2 // Approximate height
+    );
+
+    this.modalBarrier.show();
+
+    // Give focus to the stop button
+    this.stopButton.grab_key_focus();
   }
 
   close() {
-    if (this.container && this.container.get_parent()) {
-      Main.uiGroup.remove_child(this.container);
+    if (this.modalBarrier && this.modalBarrier.get_parent()) {
+      Main.uiGroup.remove_child(this.modalBarrier);
     }
+    this.modalBarrier = null;
     this.container = null;
   }
 }
@@ -134,14 +239,14 @@ export default class WhisperTypingExtension extends Extension {
 
       // Show recording dialog
       this.recordingDialog = new RecordingDialog(() => {
-        // Stop callback - terminate the python process if running
+        // Stop callback - send gentle signal to stop recording but allow processing
         if (this.recordingProcess) {
           try {
-            GLib.spawn_close_pid(this.recordingProcess);
+            // Send SIGUSR1 to gracefully stop recording but allow transcription
+            GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
           } catch (e) {
-            log(`Error stopping recording process: ${e}`);
+            log(`Error sending stop signal: ${e}`);
           }
-          this.recordingProcess = null;
         }
         this.recordingDialog = null;
         this.icon.set_style("");
@@ -150,7 +255,7 @@ export default class WhisperTypingExtension extends Extension {
 
       // Start the whisper script
       try {
-        let [success, pid] = GLib.spawn_async(
+        let [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
           null, // working directory
           [`${this.path}/venv/bin/python3`, `${this.path}/whisper_typing.py`],
           null, // environment
@@ -161,6 +266,62 @@ export default class WhisperTypingExtension extends Extension {
         if (success) {
           this.recordingProcess = pid;
 
+          // Set up stdout reading to capture Python output
+          let stdoutStream = new Gio.DataInputStream({
+            base_stream: new Gio.UnixInputStream({ fd: stdout }),
+          });
+
+          // Set up stderr reading to capture Python errors
+          let stderrStream = new Gio.DataInputStream({
+            base_stream: new Gio.UnixInputStream({ fd: stderr }),
+          });
+
+          // Function to read lines from stdout
+          const readOutput = () => {
+            stdoutStream.read_line_async(
+              GLib.PRIORITY_DEFAULT,
+              null,
+              (stream, result) => {
+                try {
+                  let [line] = stream.read_line_finish(result);
+                  if (line) {
+                    let lineStr = new TextDecoder().decode(line);
+                    log(`Whisper stdout: ${lineStr}`);
+                    // Continue reading
+                    readOutput();
+                  }
+                } catch (e) {
+                  log(`Error reading stdout: ${e}`);
+                }
+              }
+            );
+          };
+
+          // Function to read lines from stderr
+          const readErrors = () => {
+            stderrStream.read_line_async(
+              GLib.PRIORITY_DEFAULT,
+              null,
+              (stream, result) => {
+                try {
+                  let [line] = stream.read_line_finish(result);
+                  if (line) {
+                    let lineStr = new TextDecoder().decode(line);
+                    log(`Whisper stderr: ${lineStr}`);
+                    // Continue reading
+                    readErrors();
+                  }
+                } catch (e) {
+                  log(`Error reading stderr: ${e}`);
+                }
+              }
+            );
+          };
+
+          // Start reading both streams
+          readOutput();
+          readErrors();
+
           // Watch for process completion
           GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
             // Process completed
@@ -170,6 +331,7 @@ export default class WhisperTypingExtension extends Extension {
               this.recordingDialog = null;
             }
             this.icon.set_style("");
+            log("Whisper process completed");
           });
         }
       } catch (e) {
@@ -180,16 +342,6 @@ export default class WhisperTypingExtension extends Extension {
         }
         this.icon.set_style("");
       }
-
-      // Fallback auto-close after 8 seconds
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 8000, () => {
-        if (this.recordingDialog) {
-          this.recordingDialog.close();
-          this.recordingDialog = null;
-        }
-        this.icon.set_style("");
-        return false;
-      });
     });
     Main.panel.addToStatusArea("WhisperTyping", button);
   }
