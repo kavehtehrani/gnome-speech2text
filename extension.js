@@ -5,6 +5,7 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import Clutter from "gi://Clutter";
 import Meta from "gi://Meta";
+import Shell from "gi://Shell";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 let button;
@@ -230,9 +231,14 @@ export default class WhisperTypingExtension extends Extension {
     super(metadata);
     this.recordingDialog = null;
     this.recordingProcess = null;
+    this.settings = null;
   }
 
   enable() {
+    // Initialize settings
+    this.settings = this.getSettings();
+
+    // Create panel button
     button = new PanelMenu.Button(0.0, "WhisperTyping");
     this.icon = new St.Icon({
       gicon: Gio.icon_new_for_string(
@@ -241,120 +247,155 @@ export default class WhisperTypingExtension extends Extension {
       style_class: "system-status-icon",
     });
     button.add_child(this.icon);
-    button.connect("button-press-event", () => {
-      // Change panel icon to orange to indicate active recording
-      this.icon.set_style("color: #ff8c00;");
 
-      // Show recording dialog
-      this.recordingDialog = new RecordingDialog(() => {
-        // Stop callback - send gentle signal to stop recording but allow processing
-        if (this.recordingProcess) {
-          try {
-            // Send SIGUSR1 to gracefully stop recording but allow transcription
-            GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
-          } catch (e) {
-            log(`Error sending stop signal: ${e}`);
-          }
-        }
-        this.recordingDialog = null;
-        // Reset panel icon color
-        this.icon.set_style("");
-      });
-      this.recordingDialog.open();
-
-      // Start the whisper script
-      try {
-        let [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
-          null, // working directory
-          [`${this.path}/venv/bin/python3`, `${this.path}/whisper_typing.py`],
-          null, // environment
-          GLib.SpawnFlags.DO_NOT_REAP_CHILD,
-          null // child setup
-        );
-
-        if (success) {
-          this.recordingProcess = pid;
-
-          // Set up stdout reading to capture Python output
-          let stdoutStream = new Gio.DataInputStream({
-            base_stream: new Gio.UnixInputStream({ fd: stdout }),
-          });
-
-          // Set up stderr reading to capture Python errors
-          let stderrStream = new Gio.DataInputStream({
-            base_stream: new Gio.UnixInputStream({ fd: stderr }),
-          });
-
-          // Function to read lines from stdout
-          const readOutput = () => {
-            stdoutStream.read_line_async(
-              GLib.PRIORITY_DEFAULT,
-              null,
-              (stream, result) => {
-                try {
-                  let [line] = stream.read_line_finish(result);
-                  if (line) {
-                    let lineStr = new TextDecoder().decode(line);
-                    log(`Whisper stdout: ${lineStr}`);
-                    // Continue reading
-                    readOutput();
-                  }
-                } catch (e) {
-                  log(`Error reading stdout: ${e}`);
-                }
-              }
-            );
-          };
-
-          // Function to read lines from stderr
-          const readErrors = () => {
-            stderrStream.read_line_async(
-              GLib.PRIORITY_DEFAULT,
-              null,
-              (stream, result) => {
-                try {
-                  let [line] = stream.read_line_finish(result);
-                  if (line) {
-                    let lineStr = new TextDecoder().decode(line);
-                    log(`Whisper stderr: ${lineStr}`);
-                    // Continue reading
-                    readErrors();
-                  }
-                } catch (e) {
-                  log(`Error reading stderr: ${e}`);
-                }
-              }
-            );
-          };
-
-          // Start reading both streams
-          readOutput();
-          readErrors();
-
-          // Watch for process completion
-          GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
-            // Process completed - reset panel icon
-            this.recordingProcess = null;
-            if (this.recordingDialog) {
-              this.recordingDialog.close();
-              this.recordingDialog = null;
-            }
-            // Reset panel icon color
-            this.icon.set_style("");
-            log("Whisper process completed");
-          });
-        }
-      } catch (e) {
-        log(`Error starting recording: ${e}`);
+    // Function to handle recording toggle
+    const toggleRecording = () => {
+      if (this.recordingProcess) {
+        // If recording, stop it
         if (this.recordingDialog) {
           this.recordingDialog.close();
           this.recordingDialog = null;
         }
-        // Reset panel icon color
+        try {
+          GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
+        } catch (e) {
+          log(`Error sending stop signal: ${e}`);
+        }
+        this.recordingProcess = null;
         this.icon.set_style("");
+      } else {
+        // If not recording, start it
+        this.icon.set_style("color: #ff8c00;");
+        this.startRecording();
       }
-    });
+    };
+
+    // Connect button click to toggle recording
+    button.connect("button-press-event", () => toggleRecording());
+
+    // Set up keyboard shortcut using Main.wm.addKeybinding
+    Main.wm.addKeybinding(
+      "toggle-recording",
+      this.settings,
+      Meta.KeyBindingFlags.NONE,
+      Shell.ActionMode.NORMAL,
+      () => toggleRecording()
+    );
+
     Main.panel.addToStatusArea("WhisperTyping", button);
+  }
+
+  startRecording() {
+    try {
+      let [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
+        null,
+        [`${this.path}/venv/bin/python3`, `${this.path}/whisper_typing.py`],
+        null,
+        GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+        null
+      );
+
+      if (success) {
+        this.recordingProcess = pid;
+
+        // Show recording dialog immediately as fallback
+        this.recordingDialog = new RecordingDialog(() => {
+          // Stop callback - send gentle signal to stop recording but allow processing
+          if (this.recordingProcess) {
+            try {
+              GLib.spawn_command_line_sync(
+                `kill -USR1 ${this.recordingProcess}`
+              );
+            } catch (e) {
+              log(`Error sending stop signal: ${e}`);
+            }
+          }
+          this.recordingDialog = null;
+          this.recordingProcess = null;
+          this.icon.set_style("");
+        });
+        this.recordingDialog.open();
+
+        // Set up stdout reading
+        let stdoutStream = new Gio.DataInputStream({
+          base_stream: new Gio.UnixInputStream({ fd: stdout }),
+        });
+
+        // Set up stderr reading
+        let stderrStream = new Gio.DataInputStream({
+          base_stream: new Gio.UnixInputStream({ fd: stderr }),
+        });
+
+        // Function to read lines from stdout
+        const readOutput = () => {
+          stdoutStream.read_line_async(
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (stream, result) => {
+              try {
+                let [line] = stream.read_line_finish(result);
+                if (line) {
+                  let lineStr = new TextDecoder().decode(line);
+                  log(`Whisper stdout: ${lineStr}`);
+
+                  // Continue reading
+                  readOutput();
+                }
+              } catch (e) {
+                log(`Error reading stdout: ${e}`);
+              }
+            }
+          );
+        };
+
+        // Function to read lines from stderr
+        const readErrors = () => {
+          stderrStream.read_line_async(
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (stream, result) => {
+              try {
+                let [line] = stream.read_line_finish(result);
+                if (line) {
+                  let lineStr = new TextDecoder().decode(line);
+                  log(`Whisper stderr: ${lineStr}`);
+
+                  // Continue reading
+                  readErrors();
+                }
+              } catch (e) {
+                log(`Error reading stderr: ${e}`);
+              }
+            }
+          );
+        };
+
+        // Start reading both streams
+        readOutput();
+        readErrors();
+
+        // Watch for process completion
+        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
+          // Process completed - reset panel icon
+          this.recordingProcess = null;
+          if (this.recordingDialog) {
+            this.recordingDialog.close();
+            this.recordingDialog = null;
+          }
+          // Reset panel icon color
+          this.icon.set_style("");
+          log("Whisper process completed");
+        });
+      }
+    } catch (e) {
+      log(`Error starting recording: ${e}`);
+      if (this.recordingDialog) {
+        this.recordingDialog.close();
+        this.recordingDialog = null;
+      }
+      // Reset panel icon color
+      this.icon.set_style("");
+    }
   }
 
   disable() {
@@ -362,6 +403,17 @@ export default class WhisperTypingExtension extends Extension {
       this.recordingDialog.close();
       this.recordingDialog = null;
     }
+    if (this.recordingProcess) {
+      try {
+        GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
+      } catch (e) {
+        log(`Error sending stop signal: ${e}`);
+      }
+      this.recordingProcess = null;
+    }
+    // Remove keyboard shortcut
+    Main.wm.removeKeybinding("toggle-recording");
+
     if (button) {
       button.destroy();
       button = null;

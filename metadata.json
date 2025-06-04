@@ -4,5 +4,15 @@
   "description": "Adds a microphone button to transcribe speech using Whisper.",
   "shell-version": ["46"],
   "version": 1,
-  "type": "extension"
+  "type": "extension",
+  "settings-schema": "org.gnome.shell.extensions.whisper-typing",
+  "gettext-domain": "whisper-typing",
+  "url": "https://github.com/kaveh808/whisper-typing",
+  "settings": {
+    "toggle-recording": {
+      "type": "keybinding",
+      "description": "Toggle recording",
+      "default": "<Control><Shift><Alt>c"
+    }
+  }
 }
