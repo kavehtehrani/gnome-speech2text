@@ -209,7 +209,7 @@ class RecordingDialog {
     this.container.add_child(this.stopButton);
     this.container.add_child(this.cancelButton);
 
-    // Add the dialog to the modal barrier
+    // Add the dialog to the modal barrierOkay, let's try this.
     this.modalBarrier.add_child(this.container);
 
     // Prevent clicks from passing through the modal barrier, but allow clicks on the dialog
@@ -234,8 +234,8 @@ class RecordingDialog {
   }
 
   open() {
-    // Add to UI and make it cover the full screen
-    Main.uiGroup.add_child(this.modalBarrier);
+    // Add to UI using the same method as settings window
+    Main.layoutManager.addTopChrome(this.modalBarrier);
 
     // Set barrier to cover entire screen
     let monitor = Main.layoutManager.primaryMonitor;
@@ -262,7 +262,7 @@ class RecordingDialog {
     this.stopPulseAnimation();
 
     if (this.modalBarrier && this.modalBarrier.get_parent()) {
-      Main.uiGroup.remove_child(this.modalBarrier);
+      Main.layoutManager.removeChrome(this.modalBarrier);
     }
     this.modalBarrier = null;
     this.container = null;
@@ -375,14 +375,12 @@ export default class WhisperTypingExtension extends Extension {
   }
 
   createPopupMenu() {
-    // Add menu item for keyboard shortcut customization
-    let shortcutItem = new PopupMenu.PopupMenuItem(
-      "Customize Keyboard Shortcut"
-    );
-    shortcutItem.connect("activate", () => {
-      this.showShortcutDialog();
+    // Add menu item for settings
+    let settingsItem = new PopupMenu.PopupMenuItem("Settings");
+    settingsItem.connect("activate", () => {
+      this.showSettingsWindow();
     });
-    button.menu.addMenuItem(shortcutItem);
+    button.menu.addMenuItem(settingsItem);
 
     // Add separator
     button.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -397,32 +395,39 @@ export default class WhisperTypingExtension extends Extension {
     let shortcuts = this.settings.get_strv("toggle-recording");
     let shortcut =
       shortcuts.length > 0 ? shortcuts[0] : "<Control><Shift><Alt>c";
-    this.shortcutLabel.label.text = `Current: ${shortcut}`;
+    this.shortcutLabel.label.text = `Shortcut: ${shortcut}`;
   }
 
-  showShortcutDialog() {
-    // Create a modal dialog for capturing keyboard shortcut
-    let dialog = new St.BoxLayout({
-      style_class: "modal-dialog",
+  showSettingsWindow() {
+    // Create settings window
+    let settingsWindow = new St.BoxLayout({
+      style_class: "settings-window",
       vertical: true,
       style: `
-        background-color: rgba(0, 0, 0, 0.9);
+        background-color: rgba(20, 20, 20, 0.95);
         border-radius: 12px;
-        padding: 24px;
-        min-width: 350px;
+        padding: 30px;
+        min-width: 450px;
+        min-height: 300px;
         border: 2px solid #ff8c00;
       `,
     });
 
-    // Header with close button
+    // Header
     let headerBox = new St.BoxLayout({
       vertical: false,
-      style: "spacing: 10px; margin-bottom: 15px;",
+      style: "spacing: 15px; margin-bottom: 30px;",
+    });
+
+    let titleIcon = new St.Icon({
+      icon_name: "audio-input-microphone-symbolic",
+      icon_size: 32,
+      style: "color: #ff8c00;",
     });
 
     let title = new St.Label({
-      text: "Keyboard Shortcut",
-      style: "font-size: 18px; font-weight: bold; color: white;",
+      text: "Whisper Typing Settings",
+      style: "font-size: 22px; font-weight: bold; color: white;",
     });
 
     let closeButton = new St.Button({
@@ -443,64 +448,140 @@ export default class WhisperTypingExtension extends Extension {
       track_hover: true,
     });
 
+    headerBox.add_child(titleIcon);
     headerBox.add_child(title);
     headerBox.add_child(new St.Widget({ x_expand: true })); // Spacer
     headerBox.add_child(closeButton);
 
-    let instruction = new St.Label({
-      text: "Press the key combination you want to use for recording",
+    // Keyboard shortcut section
+    let shortcutSection = new St.BoxLayout({
+      vertical: true,
+      style: "spacing: 15px; margin-bottom: 20px;",
+    });
+
+    let shortcutLabel = new St.Label({
+      text: "Keyboard Shortcut",
+      style:
+        "font-size: 18px; font-weight: bold; color: white; margin-bottom: 10px;",
+    });
+
+    let shortcutDescription = new St.Label({
+      text: "Set the keyboard combination to toggle recording on/off",
       style: "font-size: 14px; color: #ccc; margin-bottom: 15px;",
     });
 
-    let currentLabel = new St.Label({
-      text: `Current: ${
-        this.settings.get_strv("toggle-recording")[0] ||
-        "<Control><Shift><Alt>c"
-      }`,
-      style: "font-size: 12px; color: #888; margin-bottom: 15px;",
+    // Current shortcut display and edit
+    let currentShortcutBox = new St.BoxLayout({
+      vertical: false,
+      style: "spacing: 15px; margin-bottom: 15px;",
     });
 
-    let cancelButton = new St.Button({
-      label: "Cancel",
+    let currentShortcutLabel = new St.Label({
+      text: "Current:",
+      style: "font-size: 14px; color: white; min-width: 80px;",
+    });
+
+    this.currentShortcutDisplay = new St.Label({
+      text:
+        this.settings.get_strv("toggle-recording")[0] ||
+        "<Control><Shift><Alt>c",
       style: `
-        background-color: #666;
+        font-size: 14px; 
+        color: #ff8c00; 
+        background-color: rgba(255, 140, 0, 0.1);
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #ff8c00;
+        min-width: 200px;
+      `,
+    });
+
+    currentShortcutBox.add_child(currentShortcutLabel);
+    currentShortcutBox.add_child(this.currentShortcutDisplay);
+
+    // Change shortcut button
+    let changeShortcutButton = new St.Button({
+      label: "Change Shortcut",
+      style: `
+        background-color: #0066cc;
         color: white;
         border-radius: 6px;
-        padding: 10px 20px;
+        padding: 12px 20px;
         font-size: 14px;
         border: none;
-        min-width: 80px;
+        margin-bottom: 15px;
       `,
       reactive: true,
       can_focus: true,
       track_hover: true,
     });
 
-    dialog.add_child(headerBox);
-    dialog.add_child(instruction);
-    dialog.add_child(currentLabel);
-    dialog.add_child(cancelButton);
+    // Instructions
+    let instructionsLabel = new St.Label({
+      text: "Click 'Change Shortcut' and then press the key combination you want to use.\nPress Escape to cancel the change.",
+      style: "font-size: 12px; color: #888; margin-bottom: 20px;",
+    });
+
+    shortcutSection.add_child(shortcutLabel);
+    shortcutSection.add_child(shortcutDescription);
+    shortcutSection.add_child(currentShortcutBox);
+    shortcutSection.add_child(changeShortcutButton);
+    shortcutSection.add_child(instructionsLabel);
+
+    // Separator line
+    let separator = new St.Widget({
+      style: "background-color: #444; height: 1px; margin: 20px 0;",
+    });
+
+    // About section
+    let aboutSection = new St.BoxLayout({
+      vertical: true,
+      style: "spacing: 10px;",
+    });
+
+    let aboutLabel = new St.Label({
+      text: "About",
+      style:
+        "font-size: 18px; font-weight: bold; color: white; margin-bottom: 10px;",
+    });
+
+    let aboutText = new St.Label({
+      text: "Whisper Typing extension for GNOME Shell\nUses OpenAI Whisper for speech-to-text transcription",
+      style: "font-size: 14px; color: #ccc;",
+    });
+
+    aboutSection.add_child(aboutLabel);
+    aboutSection.add_child(aboutText);
+
+    settingsWindow.add_child(headerBox);
+    settingsWindow.add_child(shortcutSection);
+    settingsWindow.add_child(separator);
+    settingsWindow.add_child(aboutSection);
 
     // Create modal overlay
     let overlay = new St.Widget({
-      style: "background-color: rgba(0, 0, 0, 0.5);",
+      style: "background-color: rgba(0, 0, 0, 0.7);",
       reactive: true,
       can_focus: true,
     });
 
-    overlay.add_child(dialog);
+    overlay.add_child(settingsWindow);
 
     // Get proper screen dimensions
     let monitor = Main.layoutManager.primaryMonitor;
     overlay.set_size(monitor.width, monitor.height);
+    overlay.set_position(monitor.x, monitor.y);
 
-    // Center the dialog
-    dialog.set_position((monitor.width - 350) / 2, (monitor.height - 250) / 2);
+    // Center the settings window
+    settingsWindow.set_position(
+      (monitor.width - 450) / 2,
+      (monitor.height - 300) / 2
+    );
 
     Main.layoutManager.addTopChrome(overlay);
 
-    // Function to close dialog
-    const closeDialog = () => {
+    // Function to close settings window
+    const closeSettings = () => {
       if (keyPressId) {
         overlay.disconnect(keyPressId);
         keyPressId = null;
@@ -508,40 +589,75 @@ export default class WhisperTypingExtension extends Extension {
       Main.layoutManager.removeChrome(overlay);
     };
 
-    // Close button handlers
-    closeButton.connect("clicked", closeDialog);
-    cancelButton.connect("clicked", closeDialog);
+    // Close button handler
+    closeButton.connect("clicked", closeSettings);
 
     // Click outside to close
     overlay.connect("button-press-event", (actor, event) => {
       let [x, y] = event.get_coords();
-      let [dialogX, dialogY] = dialog.get_position();
-      let [dialogW, dialogH] = dialog.get_size();
+      let [windowX, windowY] = settingsWindow.get_position();
+      let [windowW, windowH] = settingsWindow.get_size();
 
-      // If click is outside dialog area, close it
+      // If click is outside settings window area, close it
       if (
-        x < dialogX ||
-        x > dialogX + dialogW ||
-        y < dialogY ||
-        y > dialogY + dialogH
+        x < windowX ||
+        x > windowX + windowW ||
+        y < windowY ||
+        y > windowY + windowH
       ) {
-        closeDialog();
+        closeSettings();
         return Clutter.EVENT_STOP;
       }
       return Clutter.EVENT_PROPAGATE;
     });
 
-    overlay.grab_key_focus();
-
-    // Handle key press
+    // Escape key to close
     let keyPressId = overlay.connect("key-press-event", (actor, event) => {
-      let keycode = event.get_key_code();
+      if (event.get_key_symbol() === Clutter.KEY_Escape) {
+        closeSettings();
+        return Clutter.EVENT_STOP;
+      }
+      return Clutter.EVENT_PROPAGATE;
+    });
+
+    // Change shortcut button handler
+    changeShortcutButton.connect("clicked", () => {
+      this.startShortcutCapture(changeShortcutButton);
+    });
+
+    overlay.grab_key_focus();
+  }
+
+  startShortcutCapture(button) {
+    // Change button appearance to indicate capture mode
+    button.set_label("Press key combination...");
+    button.set_style(`
+      background-color: #ff8c00;
+      color: white;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-size: 14px;
+      border: none;
+      animation: pulse 1s infinite;
+    `);
+
+    // Capture next key combination
+    let captureId = global.stage.connect("key-press-event", (actor, event) => {
       let keyval = event.get_key_symbol();
       let state = event.get_state();
 
       // Handle Escape to cancel
       if (keyval === Clutter.KEY_Escape) {
-        closeDialog();
+        global.stage.disconnect(captureId);
+        button.set_label("Change Shortcut");
+        button.set_style(`
+          background-color: #0066cc;
+          color: white;
+          border-radius: 6px;
+          padding: 12px 20px;
+          font-size: 14px;
+          border: none;
+        `);
         return Clutter.EVENT_STOP;
       }
 
@@ -558,20 +674,29 @@ export default class WhisperTypingExtension extends Extension {
       if (state & Clutter.ModifierType.SUPER_MASK) shortcut += "<Super>";
 
       let keyname = Clutter.keyval_name(keyval);
-      if (keyname) {
+      if (keyname && shortcut) {
         shortcut += keyname.toLowerCase();
 
         // Save the new shortcut
         this.updateKeybinding(shortcut);
 
-        // Close dialog
-        closeDialog();
+        // Update display
+        this.currentShortcutDisplay.set_text(shortcut);
+
+        // Reset button
+        global.stage.disconnect(captureId);
+        button.set_label("Change Shortcut");
+        button.set_style(`
+          background-color: #0066cc;
+          color: white;
+          border-radius: 6px;
+          padding: 12px 20px;
+          font-size: 14px;
+          border: none;
+        `);
 
         // Show confirmation
-        Main.notify(
-          "Whisper Typing",
-          `Keyboard shortcut changed to: ${shortcut}`
-        );
+        Main.notify("Whisper Typing", `Shortcut changed to: ${shortcut}`);
       }
 
       return Clutter.EVENT_STOP;
