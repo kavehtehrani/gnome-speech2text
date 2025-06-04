@@ -358,15 +358,26 @@ export default class WhisperTypingExtension extends Extension {
       }
     };
 
-    // Connect button click to toggle recording (left click)
+    // Connect button click to handle left vs right clicks differently
     button.connect("button-press-event", (actor, event) => {
-      if (event.get_button() === 1) {
-        // Left click
+      let buttonPressed = event.get_button();
+
+      if (buttonPressed === 1) {
+        // Left click - toggle recording and prevent menu from opening
         toggleRecording();
         return Clutter.EVENT_STOP;
+      } else if (buttonPressed === 3) {
+        // Right click - allow menu to open
+        return Clutter.EVENT_PROPAGATE;
       }
+
       return Clutter.EVENT_PROPAGATE;
     });
+
+    // Disable the menu's default reactivity to clicks on the main button
+    // This prevents the menu from opening on left clicks
+    button.set_reactive(true);
+    button.menu.actor.set_reactive(true);
 
     // Set up keyboard shortcut
     this.setupKeybinding();
