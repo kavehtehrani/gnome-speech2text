@@ -430,7 +430,7 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     let title = new St.Label({
-      text: "Whisper Typing Settings",
+      text: "Whisper Speech2Text Settings",
       style: "font-size: 22px; font-weight: bold; color: white;",
     });
 
@@ -486,18 +486,38 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     this.currentShortcutDisplay = new St.Label({
-      text:
-        this.settings.get_strv("toggle-recording")[0] ||
-        "<Control><Shift><Alt>c",
-      style: `
-        font-size: 14px; 
-        color: #ff8c00; 
-        background-color: rgba(255, 140, 0, 0.1);
-        padding: 8px 12px;
-        border-radius: 6px;
-        border: 1px solid #ff8c00;
-        min-width: 200px;
-      `,
+      text: (() => {
+        let shortcuts = this.settings.get_strv("toggle-recording");
+        if (shortcuts.length > 0) {
+          return shortcuts[0];
+        } else {
+          return "No shortcut set";
+        }
+      })(),
+      style: (() => {
+        let shortcuts = this.settings.get_strv("toggle-recording");
+        if (shortcuts.length > 0) {
+          return `
+            font-size: 14px; 
+            color: #ff8c00; 
+            background-color: rgba(255, 140, 0, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #ff8c00;
+            min-width: 200px;
+          `;
+        } else {
+          return `
+            font-size: 14px; 
+            color: #dc3545; 
+            background-color: rgba(220, 53, 69, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #dc3545;
+            min-width: 200px;
+          `;
+        }
+      })(),
     });
 
     currentShortcutBox.add_child(currentShortcutLabel);
