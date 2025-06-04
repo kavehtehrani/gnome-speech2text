@@ -393,9 +393,13 @@ export default class WhisperTypingExtension extends Extension {
 
   updateShortcutLabel() {
     let shortcuts = this.settings.get_strv("toggle-recording");
-    let shortcut =
-      shortcuts.length > 0 ? shortcuts[0] : "<Control><Shift><Alt>c";
-    this.shortcutLabel.label.text = `Shortcut: ${shortcut}`;
+    let shortcut = shortcuts.length > 0 ? shortcuts[0] : null;
+
+    if (shortcut) {
+      this.shortcutLabel.label.text = `Shortcut: ${shortcut}`;
+    } else {
+      this.shortcutLabel.label.text = "Shortcut: None";
+    }
   }
 
   showSettingsWindow() {
@@ -499,6 +503,12 @@ export default class WhisperTypingExtension extends Extension {
     currentShortcutBox.add_child(currentShortcutLabel);
     currentShortcutBox.add_child(this.currentShortcutDisplay);
 
+    // Button container for all shortcut-related buttons
+    let shortcutButtonsBox = new St.BoxLayout({
+      vertical: false,
+      style: "spacing: 10px; margin-bottom: 15px;",
+    });
+
     // Change shortcut button
     let changeShortcutButton = new St.Button({
       label: "Change Shortcut",
@@ -509,12 +519,48 @@ export default class WhisperTypingExtension extends Extension {
         padding: 12px 20px;
         font-size: 14px;
         border: none;
-        margin-bottom: 15px;
       `,
       reactive: true,
       can_focus: true,
       track_hover: true,
     });
+
+    // Reset to default button
+    let resetShortcutButton = new St.Button({
+      label: "Reset to Default",
+      style: `
+        background-color: #ff8c00;
+        color: white;
+        border-radius: 6px;
+        padding: 12px 20px;
+        font-size: 14px;
+        border: none;
+      `,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Remove shortcut button
+    let removeShortcutButton = new St.Button({
+      label: "Remove Shortcut",
+      style: `
+        background-color: #dc3545;
+        color: white;
+        border-radius: 6px;
+        padding: 12px 20px;
+        font-size: 14px;
+        border: none;
+      `,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Add buttons to the container
+    shortcutButtonsBox.add_child(changeShortcutButton);
+    shortcutButtonsBox.add_child(resetShortcutButton);
+    shortcutButtonsBox.add_child(removeShortcutButton);
 
     // Instructions
     let instructionsLabel = new St.Label({
@@ -525,7 +571,7 @@ export default class WhisperTypingExtension extends Extension {
     shortcutSection.add_child(shortcutLabel);
     shortcutSection.add_child(shortcutDescription);
     shortcutSection.add_child(currentShortcutBox);
-    shortcutSection.add_child(changeShortcutButton);
+    shortcutSection.add_child(shortcutButtonsBox);
     shortcutSection.add_child(instructionsLabel);
 
     // Separator line
@@ -563,6 +609,7 @@ export default class WhisperTypingExtension extends Extension {
       style: "background-color: rgba(0, 0, 0, 0.7);",
       reactive: true,
       can_focus: true,
+      track_hover: true,
     });
 
     overlay.add_child(settingsWindow);
@@ -580,11 +627,19 @@ export default class WhisperTypingExtension extends Extension {
 
     Main.layoutManager.addTopChrome(overlay);
 
+    // Store handler IDs so we can disconnect them during shortcut capture
+    let clickHandlerId = null;
+    let keyPressHandlerId = null;
+
     // Function to close settings window
     const closeSettings = () => {
-      if (keyPressId) {
-        overlay.disconnect(keyPressId);
-        keyPressId = null;
+      if (keyPressHandlerId) {
+        overlay.disconnect(keyPressHandlerId);
+        keyPressHandlerId = null;
+      }
+      if (clickHandlerId) {
+        overlay.disconnect(clickHandlerId);
+        clickHandlerId = null;
       }
       Main.layoutManager.removeChrome(overlay);
     };
@@ -592,8 +647,8 @@ export default class WhisperTypingExtension extends Extension {
     // Close button handler
     closeButton.connect("clicked", closeSettings);
 
-    // Click outside to close
-    overlay.connect("button-press-event", (actor, event) => {
+    // Click outside to close - but make sure to block all background clicks
+    clickHandlerId = overlay.connect("button-press-event", (actor, event) => {
       let [x, y] = event.get_coords();
       let [windowX, windowY] = settingsWindow.get_position();
       let [windowW, windowH] = settingsWindow.get_size();
@@ -611,26 +666,161 @@ export default class WhisperTypingExtension extends Extension {
       return Clutter.EVENT_PROPAGATE;
     });
 
-    // Escape key to close
-    let keyPressId = overlay.connect("key-press-event", (actor, event) => {
+    // Escape key to close and block all other keyboard events from going to background
+    keyPressHandlerId = overlay.connect("key-press-event", (actor, event) => {
       if (event.get_key_symbol() === Clutter.KEY_Escape) {
         closeSettings();
         return Clutter.EVENT_STOP;
       }
-      return Clutter.EVENT_PROPAGATE;
+      // Block other keys from reaching background applications
+      return Clutter.EVENT_STOP;
     });
 
     // Change shortcut button handler
     changeShortcutButton.connect("clicked", () => {
-      this.startShortcutCapture(changeShortcutButton);
+      this.startShortcutCapture(
+        changeShortcutButton,
+        overlay,
+        clickHandlerId,
+        keyPressHandlerId,
+        closeSettings
+      );
     });
 
+    // Reset to default button handler
+    resetShortcutButton.connect("clicked", () => {
+      const defaultShortcut = "<Control><Shift><Alt>c";
+
+      // Remove existing keybinding first
+      try {
+        Main.wm.removeKeybinding("toggle-recording");
+      } catch (e) {
+        // Ignore errors if keybinding doesn't exist
+      }
+
+      // Update settings
+      this.settings.set_strv("toggle-recording", [defaultShortcut]);
+
+      // Update current keybinding
+      this.currentKeybinding = defaultShortcut;
+
+      // Re-register keybinding
+      try {
+        Main.wm.addKeybinding(
+          "toggle-recording",
+          this.settings,
+          Meta.KeyBindingFlags.NONE,
+          Shell.ActionMode.NORMAL,
+          () => {
+            if (this.recordingProcess) {
+              // If recording, stop it (with transcription)
+              if (this.recordingDialog) {
+                this.recordingDialog.close();
+                this.recordingDialog = null;
+              }
+              try {
+                GLib.spawn_command_line_sync(
+                  `kill -USR1 ${this.recordingProcess}`
+                );
+              } catch (e) {
+                log(`Error sending stop signal: ${e}`);
+              }
+              this.recordingProcess = null;
+              this.icon.set_style("");
+            } else {
+              // If not recording, start it
+              this.icon.set_style("color: #ff8c00;");
+              this.startRecording();
+            }
+          }
+        );
+      } catch (e) {
+        log(`Error registering keybinding: ${e}`);
+      }
+
+      // Update display
+      this.currentShortcutDisplay.set_text(defaultShortcut);
+      this.currentShortcutDisplay.set_style(`
+        font-size: 14px; 
+        color: #ff8c00; 
+        background-color: rgba(255, 140, 0, 0.1);
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #ff8c00;
+        min-width: 200px;
+      `);
+
+      // Update menu label
+      this.updateShortcutLabel();
+
+      // Show confirmation
+      Main.notify(
+        "Whisper Typing",
+        "Shortcut reset to default: Ctrl+Shift+Alt+C"
+      );
+    });
+
+    // Remove shortcut button handler
+    removeShortcutButton.connect("clicked", () => {
+      // Remove the keybinding
+      try {
+        Main.wm.removeKeybinding("toggle-recording");
+        this.currentKeybinding = null;
+
+        // Clear the settings
+        this.settings.set_strv("toggle-recording", []);
+
+        // Update display
+        this.currentShortcutDisplay.set_text("No shortcut set");
+        this.currentShortcutDisplay.set_style(`
+          font-size: 14px; 
+          color: #dc3545; 
+          background-color: rgba(220, 53, 69, 0.1);
+          padding: 8px 12px;
+          border-radius: 6px;
+          border: 1px solid #dc3545;
+          min-width: 200px;
+        `);
+
+        // Update menu label
+        this.updateShortcutLabel();
+
+        // Show confirmation
+        Main.notify("Whisper Typing", "Keyboard shortcut removed");
+      } catch (e) {
+        log(`Error removing keybinding: ${e}`);
+        Main.notify("Whisper Typing", "Error removing keyboard shortcut");
+      }
+    });
+
+    // Ensure the overlay grabs focus and blocks input to background
     overlay.grab_key_focus();
+    overlay.set_reactive(true);
   }
 
-  startShortcutCapture(button) {
+  startShortcutCapture(
+    button,
+    overlay,
+    clickHandlerId,
+    keyPressHandlerId,
+    closeSettings
+  ) {
+    // Store original shortcut for potential restoration
+    let originalShortcut = this.currentShortcutDisplay.get_text();
+    let lastKeyCombo = null;
+    let lastShortcut = null;
+    let saveButtonClickId = null;
+
+    // Temporarily disconnect the overlay's normal event handlers
+    if (clickHandlerId) {
+      overlay.disconnect(clickHandlerId);
+    }
+    if (keyPressHandlerId) {
+      overlay.disconnect(keyPressHandlerId);
+    }
+
     // Change button appearance to indicate capture mode
-    button.set_label("Press key combination...");
+    button.set_label("Save Shortcut");
     button.set_style(`
       background-color: #ff8c00;
       color: white;
@@ -638,65 +828,228 @@ export default class WhisperTypingExtension extends Extension {
       padding: 12px 20px;
       font-size: 14px;
       border: none;
-      animation: pulse 1s infinite;
     `);
 
-    // Capture next key combination
-    let captureId = global.stage.connect("key-press-event", (actor, event) => {
+    // Update the display to show capture mode
+    this.currentShortcutDisplay.set_text("Press a key combination...");
+    this.currentShortcutDisplay.set_style(`
+      font-size: 14px; 
+      color: #ff8c00; 
+      background-color: rgba(255, 140, 0, 0.2);
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 2px solid #ff8c00;
+      min-width: 200px;
+    `);
+
+    // Ensure the overlay has focus and can capture keyboard events
+    overlay.grab_key_focus();
+
+    // Function to restore original handlers
+    const restoreHandlers = () => {
+      // Get reference to settingsWindow from the overlay's children
+      let settingsWindow = overlay.get_first_child();
+
+      // Reconnect original click handler
+      clickHandlerId = overlay.connect("button-press-event", (actor, event) => {
+        let [x, y] = event.get_coords();
+        let [windowX, windowY] = settingsWindow.get_position();
+        let [windowW, windowH] = settingsWindow.get_size();
+
+        // If click is outside settings window area, close it
+        if (
+          x < windowX ||
+          x > windowX + windowW ||
+          y < windowY ||
+          y > windowY + windowH
+        ) {
+          closeSettings();
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      });
+
+      // Reconnect original key handler
+      keyPressHandlerId = overlay.connect("key-press-event", (actor, event) => {
+        if (event.get_key_symbol() === Clutter.KEY_Escape) {
+          closeSettings();
+          return Clutter.EVENT_STOP;
+        }
+        // Block other keys from reaching background applications
+        return Clutter.EVENT_STOP;
+      });
+    };
+
+    // Function to reset button and display on cancel
+    const resetOnCancel = () => {
+      // Disconnect save button handler if it exists
+      if (saveButtonClickId) {
+        button.disconnect(saveButtonClickId);
+        saveButtonClickId = null;
+      }
+
+      button.set_label("Change Shortcut");
+      button.set_style(`
+        background-color: #0066cc;
+        color: white;
+        border-radius: 6px;
+        padding: 12px 20px;
+        font-size: 14px;
+        border: none;
+      `);
+
+      // Restore original shortcut display
+      this.currentShortcutDisplay.set_text(originalShortcut);
+      this.currentShortcutDisplay.set_style(`
+        font-size: 14px; 
+        color: #ff8c00; 
+        background-color: rgba(255, 140, 0, 0.1);
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #ff8c00;
+        min-width: 200px;
+      `);
+    };
+
+    // Function to show success state
+    const showSuccess = (shortcut, displayText) => {
+      // Disconnect save button handler if it exists
+      if (saveButtonClickId) {
+        button.disconnect(saveButtonClickId);
+        saveButtonClickId = null;
+      }
+
+      button.set_label("Shortcut Changed!");
+      button.set_style(`
+        background-color: #28a745;
+        color: white;
+        border-radius: 6px;
+        padding: 12px 20px;
+        font-size: 14px;
+        border: none;
+      `);
+
+      // Update display with new shortcut
+      this.currentShortcutDisplay.set_text(displayText);
+      this.currentShortcutDisplay.set_style(`
+        font-size: 14px; 
+        color: #28a745; 
+        background-color: rgba(40, 167, 69, 0.1);
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #28a745;
+        min-width: 200px;
+      `);
+
+      // Reset button after 2 seconds
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+        button.set_label("Change Shortcut");
+        button.set_style(`
+          background-color: #0066cc;
+          color: white;
+          border-radius: 6px;
+          padding: 12px 20px;
+          font-size: 14px;
+          border: none;
+        `);
+
+        // Reset display to normal style but keep new shortcut
+        this.currentShortcutDisplay.set_style(`
+          font-size: 14px; 
+          color: #ff8c00; 
+          background-color: rgba(255, 140, 0, 0.1);
+          padding: 8px 12px;
+          border-radius: 6px;
+          border: 1px solid #ff8c00;
+          min-width: 200px;
+        `);
+
+        return false; // Don't repeat
+      });
+    };
+
+    // Connect the Save Shortcut button handler
+    saveButtonClickId = button.connect("clicked", () => {
+      log(
+        `Save shortcut clicked! lastShortcut: ${lastShortcut}, lastKeyCombo: ${lastKeyCombo}`
+      );
+
+      if (lastShortcut) {
+        // Save the new shortcut
+        this.updateKeybinding(lastShortcut);
+
+        // Show success state
+        showSuccess(lastShortcut, lastKeyCombo);
+
+        // Reset everything
+        overlay.disconnect(captureId);
+        restoreHandlers();
+
+        // Show confirmation notification
+        Main.notify("Whisper Typing", `Shortcut changed to: ${lastKeyCombo}`);
+      } else {
+        // No valid shortcut was captured
+        Main.notify(
+          "Whisper Typing",
+          "Please press a valid key combination first"
+        );
+      }
+    });
+
+    // Capture key combinations on the overlay
+    let captureId = overlay.connect("key-press-event", (actor, event) => {
       let keyval = event.get_key_symbol();
       let state = event.get_state();
 
       // Handle Escape to cancel
       if (keyval === Clutter.KEY_Escape) {
-        global.stage.disconnect(captureId);
-        button.set_label("Change Shortcut");
-        button.set_style(`
-          background-color: #0066cc;
-          color: white;
-          border-radius: 6px;
-          padding: 12px 20px;
-          font-size: 14px;
-          border: none;
-        `);
+        overlay.disconnect(captureId);
+        restoreHandlers();
+        resetOnCancel();
         return Clutter.EVENT_STOP;
       }
 
-      // Ignore modifier-only presses
-      if (keyval >= Clutter.KEY_Shift_L && keyval <= Clutter.KEY_Hyper_R) {
-        return Clutter.EVENT_STOP;
-      }
-
-      // Build shortcut string
-      let shortcut = "";
-      if (state & Clutter.ModifierType.CONTROL_MASK) shortcut += "<Control>";
-      if (state & Clutter.ModifierType.SHIFT_MASK) shortcut += "<Shift>";
-      if (state & Clutter.ModifierType.MOD1_MASK) shortcut += "<Alt>";
-      if (state & Clutter.ModifierType.SUPER_MASK) shortcut += "<Super>";
+      // Show current key combination being pressed (real-time feedback)
+      let currentCombo = "";
+      if (state & Clutter.ModifierType.CONTROL_MASK) currentCombo += "Ctrl+";
+      if (state & Clutter.ModifierType.SHIFT_MASK) currentCombo += "Shift+";
+      if (state & Clutter.ModifierType.MOD1_MASK) currentCombo += "Alt+";
+      if (state & Clutter.ModifierType.SUPER_MASK) currentCombo += "Super+";
 
       let keyname = Clutter.keyval_name(keyval);
-      if (keyname && shortcut) {
+      if (
+        keyname &&
+        keyname !== "Control_L" &&
+        keyname !== "Control_R" &&
+        keyname !== "Shift_L" &&
+        keyname !== "Shift_R" &&
+        keyname !== "Alt_L" &&
+        keyname !== "Alt_R" &&
+        keyname !== "Super_L" &&
+        keyname !== "Super_R"
+      ) {
+        currentCombo += keyname;
+
+        // Show the current combination in the display
+        this.currentShortcutDisplay.set_text(`${currentCombo}`);
+
+        // Store the last valid key combination
+        lastKeyCombo = currentCombo;
+
+        // Build shortcut string for saving
+        let shortcut = "";
+        if (state & Clutter.ModifierType.CONTROL_MASK) shortcut += "<Control>";
+        if (state & Clutter.ModifierType.SHIFT_MASK) shortcut += "<Shift>";
+        if (state & Clutter.ModifierType.MOD1_MASK) shortcut += "<Alt>";
+        if (state & Clutter.ModifierType.SUPER_MASK) shortcut += "<Super>";
+
+        // Always add the key name (even if no modifiers)
         shortcut += keyname.toLowerCase();
+        lastShortcut = shortcut;
 
-        // Save the new shortcut
-        this.updateKeybinding(shortcut);
-
-        // Update display
-        this.currentShortcutDisplay.set_text(shortcut);
-
-        // Reset button
-        global.stage.disconnect(captureId);
-        button.set_label("Change Shortcut");
-        button.set_style(`
-          background-color: #0066cc;
-          color: white;
-          border-radius: 6px;
-          padding: 12px 20px;
-          font-size: 14px;
-          border: none;
-        `);
-
-        // Show confirmation
-        Main.notify("Whisper Typing", `Shortcut changed to: ${shortcut}`);
+        log(
+          `Key pressed: ${keyname}, shortcut: ${shortcut}, combo: ${currentCombo}`
+        );
       }
 
       return Clutter.EVENT_STOP;
@@ -704,9 +1057,11 @@ export default class WhisperTypingExtension extends Extension {
   }
 
   setupKeybinding() {
-    // Remove existing keybinding if any
-    if (this.currentKeybinding) {
+    // Always remove existing keybinding first
+    try {
       Main.wm.removeKeybinding("toggle-recording");
+    } catch (e) {
+      // Ignore errors if keybinding doesn't exist
     }
 
     // Get shortcut from settings
@@ -742,16 +1097,23 @@ export default class WhisperTypingExtension extends Extension {
     };
 
     // Set up keyboard shortcut using Main.wm.addKeybinding
-    Main.wm.addKeybinding(
-      "toggle-recording",
-      this.settings,
-      Meta.KeyBindingFlags.NONE,
-      Shell.ActionMode.NORMAL,
-      () => toggleRecording()
-    );
+    try {
+      Main.wm.addKeybinding(
+        "toggle-recording",
+        this.settings,
+        Meta.KeyBindingFlags.NONE,
+        Shell.ActionMode.NORMAL,
+        () => toggleRecording()
+      );
+      log(`Keybinding registered: ${this.currentKeybinding}`);
+    } catch (e) {
+      log(`Error registering keybinding: ${e}`);
+    }
   }
 
   updateKeybinding(newShortcut) {
+    log(`Updating keybinding from ${this.currentKeybinding} to ${newShortcut}`);
+
     // Save to settings
     this.settings.set_strv("toggle-recording", [newShortcut]);
 
@@ -763,6 +1125,8 @@ export default class WhisperTypingExtension extends Extension {
 
     // Update menu label
     this.updateShortcutLabel();
+
+    log(`Keybinding updated to: ${newShortcut}`);
   }
 
   startRecording() {
