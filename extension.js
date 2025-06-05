@@ -522,21 +522,48 @@ export default class WhisperTypingExtension extends Extension {
       style: "font-size: 22px; font-weight: bold; color: white;",
     });
 
+    // Close button (X)
     let closeButton = new St.Button({
-      label: "✕",
+      label: "×",
       style: `
-        background-color: transparent;
-        color: #ccc;
-        border-radius: 50%;
-        padding: 8px 12px;
-        font-size: 16px;
-        font-weight: bold;
-        min-width: 32px;
-        min-height: 32px;
+        color: #666;
+        font-size: 24px;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
       `,
       reactive: true,
       can_focus: true,
       track_hover: true,
+    });
+
+    // Add hover effect to close button
+    closeButton.connect("enter-event", () => {
+      closeButton.set_style(`
+        color: #ff4444;
+        font-size: 24px;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+      `);
+    });
+
+    closeButton.connect("leave-event", () => {
+      closeButton.set_style(`
+        color: #666;
+        font-size: 24px;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+      `);
+    });
+
+    // Add hand cursor effect to close button
+    addHandCursorToButton(closeButton);
+
+    closeButton.connect("clicked", () => {
+      log("🎯 Close button clicked!");
+      this.close();
     });
 
     headerBox.add_child(titleIcon);
