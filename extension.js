@@ -55,12 +55,20 @@ class RecordingDialog {
 
         log(`🎯 KEYBOARD EVENT RECEIVED: ${keyname} (${keyval})`);
 
-        if (
-          keyval === Clutter.KEY_Escape ||
+        if (keyval === Clutter.KEY_Escape) {
+          // Escape = Cancel (no transcription)
+          log(`🎯 Canceling recording via keyboard: ${keyname}`);
+          this.close();
+          if (this.onCancel) {
+            this.onCancel();
+          }
+          return Clutter.EVENT_STOP;
+        } else if (
           keyval === Clutter.KEY_space ||
           keyval === Clutter.KEY_Return ||
           keyval === Clutter.KEY_KP_Enter
         ) {
+          // Enter/Space = Stop and process (with transcription)
           log(`🎯 Stopping recording via keyboard: ${keyname}`);
           this.close();
           if (this.onStop) {
@@ -113,7 +121,7 @@ class RecordingDialog {
 
     let recordingLabel = new St.Label({
       text: "Recording...",
-      style: "font-size: 20px; font-weight: bold; color: white;",
+      style: "font-size: 20px; font-weight: bold; color: white; ",
     });
 
     headerBox.add_child(this.recordingIcon);
@@ -121,7 +129,7 @@ class RecordingDialog {
 
     // Instructions
     let instructionLabel = new St.Label({
-      text: "Speak now\nPress Space/Enter/Escape to stop",
+      text: "Speak now\nPress Enter to process, Escape to cancel.",
       style: "font-size: 16px; color: #ccc; text-align: center;",
     });
 
