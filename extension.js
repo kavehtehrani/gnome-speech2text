@@ -1,22 +1,27 @@
-import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
-import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
-import St from "gi://St";
+import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import Clutter from "gi://Clutter";
 import Meta from "gi://Meta";
 import Shell from "gi://Shell";
+import St from "gi://St";
+
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
+import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
+
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 let button;
 
+// Simple recording dialog using custom modal barrier
 class RecordingDialog {
   constructor(onStop, onCancel) {
+    log("🎯 RecordingDialog constructor called");
+
     this.onStop = onStop;
     this.onCancel = onCancel;
     this.pulseAnimationId = null;
-    this.pulseDirection = 1; // 1 for growing, -1 for shrinking
+    this.pulseDirection = 1;
     this.pulseScale = 1.0;
 
     // Create modal barrier that covers the entire screen
@@ -29,6 +34,36 @@ class RecordingDialog {
       track_hover: true,
     });
 
+    // Set up keyboard event handling for the modal barrier
+    this.modalBarrier.connect("key-press-event", (actor, event) => {
+      let keyval = event.get_key_symbol();
+      let keyname = Clutter.get_key_name(keyval);
+
+      log(`🎯 KEYBOARD EVENT RECEIVED: ${keyname} (${keyval})`);
+
+      if (
+        keyval === Clutter.KEY_Escape ||
+        keyval === Clutter.KEY_space ||
+        keyval === Clutter.KEY_Return ||
+        keyval === Clutter.KEY_KP_Enter
+      ) {
+        log(`🎯 Stopping recording via keyboard: ${keyname}`);
+        this.close();
+        if (this.onStop) {
+          this.onStop();
+        }
+        return Clutter.EVENT_STOP;
+      }
+
+      return Clutter.EVENT_PROPAGATE;
+    });
+
+    this._buildDialog();
+
+    log("🎯 RecordingDialog constructor completed successfully");
+  }
+
+  _buildDialog() {
     // Create main dialog container
     this.container = new St.Widget({
       style_class: "recording-dialog",
@@ -69,11 +104,11 @@ class RecordingDialog {
 
     // Instructions
     let instructionLabel = new St.Label({
-      text: "Speak now\nClick 'Stop Recording' when done",
+      text: "Speak now\nPress Space/Enter/Escape to stop",
       style: "font-size: 16px; color: #ccc; text-align: center;",
     });
 
-    // Stop button with proper styling and event handling
+    // Buttons
     this.stopButton = new St.Button({
       label: "Stop Recording",
       style_class: "button",
@@ -92,7 +127,6 @@ class RecordingDialog {
       track_hover: true,
     });
 
-    // Cancel button
     this.cancelButton = new St.Button({
       label: "Cancel",
       style_class: "button",
@@ -112,9 +146,9 @@ class RecordingDialog {
       track_hover: true,
     });
 
-    // Make sure the buttons receive clicks
+    // Connect button events
     this.stopButton.connect("clicked", () => {
-      log("Stop button clicked!");
+      log("🎯 Stop button clicked!");
       this.close();
       if (this.onStop) {
         this.onStop();
@@ -122,119 +156,27 @@ class RecordingDialog {
     });
 
     this.cancelButton.connect("clicked", () => {
-      log("Cancel button clicked!");
+      log("🎯 Cancel button clicked!");
       this.close();
       if (this.onCancel) {
         this.onCancel();
       }
     });
 
-    // Also handle button-press-event as backup
-    this.stopButton.connect("button-press-event", () => {
-      log("Stop button pressed!");
-      this.close();
-      if (this.onStop) {
-        this.onStop();
-      }
-      return Clutter.EVENT_STOP; // Stop event propagation
-    });
-
-    this.cancelButton.connect("button-press-event", () => {
-      log("Cancel button pressed!");
-      this.close();
-      if (this.onCancel) {
-        this.onCancel();
-      }
-      return Clutter.EVENT_STOP; // Stop event propagation
-    });
-
-    // Add hover effects for stop button
-    this.stopButton.connect("enter-event", () => {
-      this.stopButton.set_style(`
-        background-color: #ff6666 !important;
-        color: white;
-        border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: bold;
-        border: none;
-        min-width: 150px;
-      `);
-    });
-
-    this.stopButton.connect("leave-event", () => {
-      this.stopButton.set_style(`
-        background-color: #ff4444;
-        color: white;
-        border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: bold;
-        border: none;
-        min-width: 150px;
-      `);
-    });
-
-    // Add hover effects for cancel button
-    this.cancelButton.connect("enter-event", () => {
-      this.cancelButton.set_style(`
-        background-color: #888888 !important;
-        color: white;
-        border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: bold;
-        border: none;
-        min-width: 150px;
-        margin-top: 10px;
-      `);
-    });
-
-    this.cancelButton.connect("leave-event", () => {
-      this.cancelButton.set_style(`
-        background-color: #666666;
-        color: white;
-        border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: bold;
-        border: none;
-        min-width: 150px;
-        margin-top: 10px;
-      `);
-    });
-
+    // Add to content box
     this.container.add_child(headerBox);
     this.container.add_child(instructionLabel);
     this.container.add_child(this.stopButton);
     this.container.add_child(this.cancelButton);
 
-    // Add the dialog to the modal barrierOkay, let's try this.
+    // Add to modal barrier
     this.modalBarrier.add_child(this.container);
-
-    // Prevent clicks from passing through the modal barrier, but allow clicks on the dialog
-    this.modalBarrier.connect("button-press-event", (actor, event) => {
-      let [x, y] = event.get_coords();
-      let [containerX, containerY] = this.container.get_position();
-      let [containerW, containerH] = this.container.get_size();
-
-      // If click is within the dialog container, let it pass through
-      if (
-        x >= containerX &&
-        x <= containerX + containerW &&
-        y >= containerY &&
-        y <= containerY + containerH
-      ) {
-        return Clutter.EVENT_PROPAGATE;
-      }
-
-      // If click is outside the dialog, stop the event (close dialog on outside click could be added here)
-      return Clutter.EVENT_STOP;
-    });
   }
 
   open() {
-    // Add to UI using the same method as settings window
+    log("🎯 Opening custom modal dialog");
+
+    // Add to UI
     Main.layoutManager.addTopChrome(this.modalBarrier);
 
     // Set barrier to cover entire screen
@@ -244,21 +186,63 @@ class RecordingDialog {
 
     // Center the dialog container within the barrier
     this.container.set_position(
-      (monitor.width - 300) / 2, // Approximate width
-      (monitor.height - 200) / 2 // Approximate height
+      (monitor.width - 300) / 2,
+      (monitor.height - 200) / 2
     );
 
     this.modalBarrier.show();
 
-    // Give focus to the stop button
-    this.stopButton.grab_key_focus();
+    // X11 focus solution: Use xdotool to focus GNOME Shell window
+    log("🎯 Attempting X11 focus solution");
 
-    // Start the pulse animation
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      try {
+        // Get GNOME Shell's window ID and focus it
+        let [success, stdout] = GLib.spawn_command_line_sync(
+          'xdotool search --onlyvisible --class "gnome-shell" | head -1'
+        );
+
+        if (success && stdout) {
+          let windowId = new TextDecoder().decode(stdout).trim();
+          log(`🎯 Found GNOME Shell window ID: ${windowId}`);
+
+          if (windowId) {
+            // Focus the GNOME Shell window
+            GLib.spawn_command_line_sync(`xdotool windowfocus ${windowId}`);
+            log(`🎯 Focused GNOME Shell window ${windowId}`);
+
+            // Also try to activate it
+            GLib.spawn_command_line_sync(`xdotool windowactivate ${windowId}`);
+            log(`🎯 Activated GNOME Shell window ${windowId}`);
+          }
+        }
+
+        // Now try to focus our modal barrier
+        this.modalBarrier.grab_key_focus();
+        global.stage.set_key_focus(this.modalBarrier);
+
+        // Debug: Check if it worked
+        let currentFocus = global.stage.get_key_focus();
+        log(
+          `🎯 Final focus check: ${
+            currentFocus ? currentFocus.toString() : "NULL"
+          }`
+        );
+        log(
+          `🎯 Is modal barrier focused? ${currentFocus === this.modalBarrier}`
+        );
+      } catch (e) {
+        log(`⚠️ X11 focus error: ${e}`);
+      }
+
+      return false;
+    });
+
     this.startPulseAnimation();
   }
 
   close() {
-    // Stop the pulse animation
+    log("🎯 Closing custom modal dialog");
     this.stopPulseAnimation();
 
     if (this.modalBarrier && this.modalBarrier.get_parent()) {
@@ -269,29 +253,22 @@ class RecordingDialog {
   }
 
   startPulseAnimation() {
-    // Stop any existing animation
     this.stopPulseAnimation();
 
-    this.pulseAnimationId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
-      // Pulse between 0.8 and 1.2 scale
-      this.pulseScale += this.pulseDirection * 0.04;
+    this.pulseAnimationId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+      this.pulseScale += this.pulseDirection * 0.02;
 
       if (this.pulseScale >= 1.2) {
-        this.pulseScale = 1.2;
         this.pulseDirection = -1;
       } else if (this.pulseScale <= 0.8) {
-        this.pulseScale = 0.8;
         this.pulseDirection = 1;
       }
 
-      // Apply the pulsing effect to the microphone icon
-      this.recordingIcon.set_style(`
-        color: #ff8c00;
-        transform: scale(${this.pulseScale});
-        transition: transform 0.1s ease-in-out;
-      `);
+      if (this.recordingIcon) {
+        this.recordingIcon.set_scale(this.pulseScale, this.pulseScale);
+      }
 
-      return true; // Continue animation
+      return true;
     });
   }
 
@@ -300,12 +277,10 @@ class RecordingDialog {
       GLib.source_remove(this.pulseAnimationId);
       this.pulseAnimationId = null;
     }
-    // Reset icon to normal state
+
     if (this.recordingIcon) {
-      this.recordingIcon.set_style("color: #ff8c00;");
+      this.recordingIcon.set_scale(1.0, 1.0);
     }
-    this.pulseScale = 1.0;
-    this.pulseDirection = 1;
   }
 }
 
@@ -319,11 +294,16 @@ export default class WhisperTypingExtension extends Extension {
   }
 
   enable() {
-    // Initialize settings
     this.settings = this.getSettings();
+    this.recordingProcess = null;
+    this.recordingDialog = null;
 
-    // Create panel button
-    button = new PanelMenu.Button(0.0, "WhisperTyping");
+    // Create button with microphone icon
+    let button = new PanelMenu.Button(0.0, "Whisper Typing");
+
+    // Assign to this.button so createPopupMenu can access it
+    this.button = button;
+
     this.icon = new St.Icon({
       gicon: Gio.icon_new_for_string(
         this.path + "/icons/microphone-symbolic.svg"
@@ -332,46 +312,61 @@ export default class WhisperTypingExtension extends Extension {
     });
     button.add_child(this.icon);
 
-    // Create popup menu
+    // Create popup menu (now this.button is available)
     this.createPopupMenu();
 
-    // Function to handle recording toggle
-    const toggleRecording = () => {
-      if (this.recordingProcess) {
-        // If recording, stop it (with transcription) - same as stop button
-        if (this.recordingDialog) {
-          this.recordingDialog.close();
-          this.recordingDialog = null;
-        }
-        try {
-          // Use USR1 for gentle stop with transcription
-          GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
-        } catch (e) {
-          log(`Error sending stop signal: ${e}`);
-        }
-        this.recordingProcess = null;
-        this.icon.set_style("");
-      } else {
-        // If not recording, start it
-        this.icon.set_style("color: #ff8c00;");
-        this.startRecording();
-      }
-    };
-
-    // Connect button click to handle left vs right clicks differently
+    // Handle button clicks
     button.connect("button-press-event", (actor, event) => {
       let buttonPressed = event.get_button();
+      log(`🖱️ BUTTON CLICK TRIGGERED`);
 
       if (buttonPressed === 1) {
-        // Left click - toggle recording and prevent menu from opening
-        toggleRecording();
-        return Clutter.EVENT_STOP;
+        // Left click - start recording immediately (no delay/timeout)
+        // This ensures Mutter sees this as direct user interaction
+        log("🖱️ Left click detected - starting recording synchronously");
+
+        // Debug: Show current focus state before starting recording
+        try {
+          let currentFocus = global.stage.get_key_focus();
+          log(
+            `🔍 FOCUS DEBUG - Current stage focus: ${
+              currentFocus ? currentFocus.toString() : "NULL"
+            }`
+          );
+
+          // Try to get active window info using xdotool (X11)
+          GLib.spawn_command_line_sync("xdotool getactivewindow getwindowname");
+          let [success, stdout] = GLib.spawn_command_line_sync(
+            "xdotool getactivewindow"
+          );
+          if (success && stdout) {
+            let windowId = new TextDecoder().decode(stdout).trim();
+            log(`🔍 FOCUS DEBUG - Active X11 window ID: ${windowId}`);
+
+            // Get window name
+            let [nameSuccess, nameStdout] = GLib.spawn_command_line_sync(
+              `xdotool getwindowname ${windowId}`
+            );
+            if (nameSuccess && nameStdout) {
+              let windowName = new TextDecoder().decode(nameStdout).trim();
+              log(`🔍 FOCUS DEBUG - Active window name: ${windowName}`);
+            }
+          }
+        } catch (e) {
+          log(`🔍 FOCUS DEBUG - Error getting focus info: ${e}`);
+        }
+
+        // Call toggleRecording immediately, synchronously with the user click
+        this.toggleRecording();
+
+        return Clutter.EVENT_STOP; // Prevent menu from opening
       } else if (buttonPressed === 3) {
-        // Right click - allow menu to open
-        return Clutter.EVENT_PROPAGATE;
+        // Right click - show menu
+        log("🖱️ Right click detected - showing menu");
+        return Clutter.EVENT_PROPAGATE; // Allow menu to open
       }
 
-      return Clutter.EVENT_PROPAGATE;
+      return Clutter.EVENT_STOP;
     });
 
     // Disable the menu's default reactivity to clicks on the main button
@@ -391,15 +386,15 @@ export default class WhisperTypingExtension extends Extension {
     settingsItem.connect("activate", () => {
       this.showSettingsWindow();
     });
-    button.menu.addMenuItem(settingsItem);
+    this.button.menu.addMenuItem(settingsItem);
 
     // Add separator
-    button.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+    this.button.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
     // Add current shortcut display
     this.shortcutLabel = new PopupMenu.PopupMenuItem("", { reactive: false });
     this.updateShortcutLabel();
-    button.menu.addMenuItem(this.shortcutLabel);
+    this.button.menu.addMenuItem(this.shortcutLabel);
   }
 
   updateShortcutLabel() {
@@ -557,7 +552,7 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     // Reset to default button
-    let resetShortcutButton = new St.Button({
+    let resetToDefaultButton = new St.Button({
       label: "Reset to Default",
       style: `
         background-color: #ff8c00;
@@ -590,7 +585,7 @@ export default class WhisperTypingExtension extends Extension {
 
     // Add buttons to the container
     shortcutButtonsBox.add_child(changeShortcutButton);
-    shortcutButtonsBox.add_child(resetShortcutButton);
+    shortcutButtonsBox.add_child(resetToDefaultButton);
     shortcutButtonsBox.add_child(removeShortcutButton);
 
     // Instructions
@@ -719,15 +714,15 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     // Reset to default button handler
-    resetShortcutButton.connect("clicked", () => {
-      const defaultShortcut = "<Control><Shift><Alt>c";
-
-      // Remove existing keybinding first
+    resetToDefaultButton.connect("clicked", () => {
+      // Remove existing keybinding
       try {
         Main.wm.removeKeybinding("toggle-recording");
       } catch (e) {
-        // Ignore errors if keybinding doesn't exist
+        // Ignore errors
       }
+
+      let defaultShortcut = "<Control><Shift><Alt>c";
 
       // Update settings
       this.settings.set_strv("toggle-recording", [defaultShortcut]);
@@ -735,39 +730,8 @@ export default class WhisperTypingExtension extends Extension {
       // Update current keybinding
       this.currentKeybinding = defaultShortcut;
 
-      // Re-register keybinding
-      try {
-        Main.wm.addKeybinding(
-          "toggle-recording",
-          this.settings,
-          Meta.KeyBindingFlags.NONE,
-          Shell.ActionMode.NORMAL,
-          () => {
-            if (this.recordingProcess) {
-              // If recording, stop it (with transcription)
-              if (this.recordingDialog) {
-                this.recordingDialog.close();
-                this.recordingDialog = null;
-              }
-              try {
-                GLib.spawn_command_line_sync(
-                  `kill -USR1 ${this.recordingProcess}`
-                );
-              } catch (e) {
-                log(`Error sending stop signal: ${e}`);
-              }
-              this.recordingProcess = null;
-              this.icon.set_style("");
-            } else {
-              // If not recording, start it
-              this.icon.set_style("color: #ff8c00;");
-              this.startRecording();
-            }
-          }
-        );
-      } catch (e) {
-        log(`Error registering keybinding: ${e}`);
-      }
+      // Re-register keybinding using centralized method
+      this.setupKeybinding();
 
       // Update display
       this.currentShortcutDisplay.set_text(defaultShortcut);
@@ -1104,29 +1068,6 @@ export default class WhisperTypingExtension extends Extension {
       this.settings.set_strv("toggle-recording", [this.currentKeybinding]);
     }
 
-    // Function to handle recording toggle
-    const toggleRecording = () => {
-      if (this.recordingProcess) {
-        // If recording, stop it (with transcription) - same as stop button
-        if (this.recordingDialog) {
-          this.recordingDialog.close();
-          this.recordingDialog = null;
-        }
-        try {
-          // Use USR1 for gentle stop with transcription
-          GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
-        } catch (e) {
-          log(`Error sending stop signal: ${e}`);
-        }
-        this.recordingProcess = null;
-        this.icon.set_style("");
-      } else {
-        // If not recording, start it
-        this.icon.set_style("color: #ff8c00;");
-        this.startRecording();
-      }
-    };
-
     // Set up keyboard shortcut using Main.wm.addKeybinding
     try {
       Main.wm.addKeybinding(
@@ -1134,7 +1075,31 @@ export default class WhisperTypingExtension extends Extension {
         this.settings,
         Meta.KeyBindingFlags.NONE,
         Shell.ActionMode.NORMAL,
-        () => toggleRecording()
+        () => {
+          log(`🎹 KEYBOARD SHORTCUT TRIGGERED`);
+
+          // Debug: Show focus state when keyboard shortcut is used
+          try {
+            let currentFocus = global.stage.get_key_focus();
+            log(
+              `🔍 SHORTCUT FOCUS DEBUG - Stage focus when shortcut triggered: ${
+                currentFocus ? currentFocus.toString() : "NULL"
+              }`
+            );
+
+            let [success, stdout] = GLib.spawn_command_line_sync(
+              "xdotool getactivewindow"
+            );
+            if (success && stdout) {
+              let windowId = new TextDecoder().decode(stdout).trim();
+              log(`🔍 SHORTCUT FOCUS DEBUG - Active X11 window: ${windowId}`);
+            }
+          } catch (e) {
+            log(`🔍 SHORTCUT FOCUS DEBUG - Error: ${e}`);
+          }
+
+          this.toggleRecording();
+        }
       );
       log(`Keybinding registered: ${this.currentKeybinding}`);
     } catch (e) {
@@ -1162,6 +1127,8 @@ export default class WhisperTypingExtension extends Extension {
 
   startRecording() {
     try {
+      log("🎯 startRecording() called - creating recording dialog");
+
       let [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
         null,
         [`${this.path}/venv/bin/python3`, `${this.path}/whisper_typing.py`],
@@ -1172,10 +1139,13 @@ export default class WhisperTypingExtension extends Extension {
 
       if (success) {
         this.recordingProcess = pid;
+        log(`🎯 Process started with PID: ${pid}`);
 
-        // Show recording dialog immediately as fallback
+        // Show recording dialog immediately
+        log("🎯 Creating RecordingDialog instance");
         this.recordingDialog = new RecordingDialog(
           () => {
+            log("🎯 Stop callback triggered");
             // Stop callback - send gentle signal to stop recording but allow processing
             if (this.recordingProcess) {
               try {
@@ -1191,6 +1161,7 @@ export default class WhisperTypingExtension extends Extension {
             this.icon.set_style("");
           },
           () => {
+            log("🎯 Cancel callback triggered");
             // Cancel callback - forcibly terminate process without transcription
             if (this.recordingProcess) {
               try {
@@ -1207,16 +1178,24 @@ export default class WhisperTypingExtension extends Extension {
             this.icon.set_style("");
           }
         );
-        this.recordingDialog.open();
 
-        // Set up stdout reading
+        log(
+          `🎯 RecordingDialog created: ${
+            this.recordingDialog ? "SUCCESS" : "FAILED"
+          }`
+        );
+
+        if (this.recordingDialog) {
+          log("🎯 Attempting to open RecordingDialog");
+          this.recordingDialog.open();
+          log("🎯 RecordingDialog.open() called");
+        } else {
+          log("⚠️ RecordingDialog is null - cannot open");
+        }
+
+        // Set up stdout reading to monitor process
         let stdoutStream = new Gio.DataInputStream({
           base_stream: new Gio.UnixInputStream({ fd: stdout }),
-        });
-
-        // Set up stderr reading
-        let stderrStream = new Gio.DataInputStream({
-          base_stream: new Gio.UnixInputStream({ fd: stderr }),
         });
 
         // Function to read lines from stdout
@@ -1230,8 +1209,6 @@ export default class WhisperTypingExtension extends Extension {
                 if (line) {
                   let lineStr = new TextDecoder().decode(line);
                   log(`Whisper stdout: ${lineStr}`);
-
-                  // Continue reading
                   readOutput();
                 }
               } catch (e) {
@@ -1241,41 +1218,16 @@ export default class WhisperTypingExtension extends Extension {
           );
         };
 
-        // Function to read lines from stderr
-        const readErrors = () => {
-          stderrStream.read_line_async(
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (stream, result) => {
-              try {
-                let [line] = stream.read_line_finish(result);
-                if (line) {
-                  let lineStr = new TextDecoder().decode(line);
-                  log(`Whisper stderr: ${lineStr}`);
-
-                  // Continue reading
-                  readErrors();
-                }
-              } catch (e) {
-                log(`Error reading stderr: ${e}`);
-              }
-            }
-          );
-        };
-
-        // Start reading both streams
+        // Start monitoring output
         readOutput();
-        readErrors();
 
         // Watch for process completion
         GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
-          // Process completed - reset panel icon
           this.recordingProcess = null;
           if (this.recordingDialog) {
             this.recordingDialog.close();
             this.recordingDialog = null;
           }
-          // Reset panel icon color
           this.icon.set_style("");
           log("Whisper process completed");
         });
@@ -1286,7 +1238,6 @@ export default class WhisperTypingExtension extends Extension {
         this.recordingDialog.close();
         this.recordingDialog = null;
       }
-      // Reset panel icon color
       this.icon.set_style("");
     }
   }
@@ -1304,13 +1255,72 @@ export default class WhisperTypingExtension extends Extension {
       }
       this.recordingProcess = null;
     }
-    // Remove keyboard shortcut
     Main.wm.removeKeybinding("toggle-recording");
 
     if (button) {
       button.destroy();
       button = null;
     }
+  }
+
+  // Consolidated toggle recording method
+  toggleRecording() {
+    log(`=== TOGGLE RECORDING DEBUG START ===`);
+    log(`this.recordingProcess = ${this.recordingProcess}`);
+    log(`this.recordingDialog = ${this.recordingDialog ? "EXISTS" : "NULL"}`);
+    log(`Icon style = ${this.icon.get_style()}`);
+
+    let condition1 = this.recordingProcess;
+    let condition2 = this.recordingDialog;
+    let overallCondition = condition1 || condition2;
+
+    log(`Condition 1 (recordingProcess): ${condition1 ? "TRUE" : "FALSE"}`);
+    log(`Condition 2 (recordingDialog): ${condition2 ? "TRUE" : "FALSE"}`);
+    log(
+      `Overall condition (process OR dialog): ${
+        overallCondition ? "TRUE" : "FALSE"
+      }`
+    );
+
+    if (this.recordingProcess || this.recordingDialog) {
+      log(`>>> TAKING STOP PATH <<<`);
+      // If recording or dialog is open, stop it (with transcription)
+      if (this.recordingDialog) {
+        log(`Closing recordingDialog`);
+        this.recordingDialog.close();
+        this.recordingDialog = null;
+        log(`recordingDialog set to null`);
+      } else {
+        log(`No recordingDialog to close`);
+      }
+
+      if (this.recordingProcess) {
+        log(`Killing recordingProcess: ${this.recordingProcess}`);
+        try {
+          // Use USR1 for gentle stop with transcription
+          GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
+          log(`Kill signal sent successfully`);
+        } catch (e) {
+          log(`Error sending stop signal: ${e}`);
+        }
+        this.recordingProcess = null;
+        log(`recordingProcess set to null`);
+      } else {
+        log(`No recordingProcess to kill`);
+      }
+
+      this.icon.set_style("");
+      log(`Icon style reset`);
+    } else {
+      log(`>>> TAKING START PATH <<<`);
+      // If not recording, start it
+      this.icon.set_style("color: #ff8c00;");
+      log(`Icon style set to orange`);
+      log(`About to call startRecording()`);
+      this.startRecording();
+      log(`startRecording() call completed`);
+    }
+    log(`=== TOGGLE RECORDING DEBUG END ===`);
   }
 }
 
