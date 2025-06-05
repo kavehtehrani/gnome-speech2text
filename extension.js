@@ -13,6 +13,53 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 let button;
 
+// Helper function to create button styles
+function createButtonStyle(baseColor, hoverColor) {
+  return {
+    normal: `
+      background-color: ${baseColor};
+      color: white;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-size: 14px;
+      border: none;
+      transition: all 0.2s ease;
+    `,
+    hover: `
+      background-color: ${hoverColor};
+      color: white;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-size: 14px;
+      border: none;
+      transition: all 0.2s ease;
+      transform: scale(1.05);
+    `,
+  };
+}
+
+// Helper function to create a button with hover effects
+function createHoverButton(label, baseColor, hoverColor) {
+  let styles = createButtonStyle(baseColor, hoverColor);
+  let button = new St.Button({
+    label: label,
+    style: styles.normal,
+    reactive: true,
+    can_focus: true,
+    track_hover: true,
+  });
+
+  button.connect("enter-event", () => {
+    button.set_style(styles.hover);
+  });
+
+  button.connect("leave-event", () => {
+    button.set_style(styles.normal);
+  });
+
+  return button;
+}
+
 // Simple recording dialog using custom modal barrier
 class RecordingDialog {
   constructor(onStop, onCancel) {
@@ -589,52 +636,25 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     // Change shortcut button
-    let changeShortcutButton = new St.Button({
-      label: "Change Shortcut",
-      style: `
-        background-color: #0066cc;
-        color: white;
-        border-radius: 6px;
-        padding: 12px 20px;
-        font-size: 14px;
-        border: none;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
+    let changeShortcutButton = createHoverButton(
+      "Change Shortcut",
+      "#0066cc",
+      "#0077ee"
+    );
 
     // Reset to default button
-    let resetToDefaultButton = new St.Button({
-      label: "Reset to Default",
-      style: `
-        background-color: #ff8c00;
-        color: white;
-        border-radius: 6px;
-        padding: 12px 20px;
-        font-size: 14px;
-        border: none;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
+    let resetToDefaultButton = createHoverButton(
+      "Reset to Default",
+      "#ff8c00",
+      "#ff9d1a"
+    );
 
     // Remove shortcut button
-    let removeShortcutButton = new St.Button({
-      label: "Remove Shortcut",
-      style: `
-        background-color: #dc3545;
-        color: white;
-        border-radius: 6px;
-        padding: 12px 20px;
-        font-size: 14px;
-        border: none;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
+    let removeShortcutButton = createHoverButton(
+      "Remove Shortcut",
+      "#dc3545",
+      "#e74c3c"
+    );
 
     // Add buttons to the container
     shortcutButtonsBox.add_child(changeShortcutButton);
