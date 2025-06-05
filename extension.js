@@ -20,9 +20,7 @@ class RecordingDialog {
 
     this.onStop = onStop;
     this.onCancel = onCancel;
-    this.pulseAnimationId = null;
-    this.pulseDirection = 1;
-    this.pulseScale = 1.0;
+    // Pulse animation properties removed - no longer needed
 
     // Create modal barrier that covers the entire screen
     this.modalBarrier = new St.Widget({
@@ -36,26 +34,46 @@ class RecordingDialog {
 
     // Set up keyboard event handling for the modal barrier
     this.modalBarrier.connect("key-press-event", (actor, event) => {
-      let keyval = event.get_key_symbol();
-      let keyname = Clutter.get_key_name(keyval);
+      try {
+        // Get the key symbol safely
+        let keyval = event.get_key_symbol ? event.get_key_symbol() : null;
 
-      log(`🎯 KEYBOARD EVENT RECEIVED: ${keyname} (${keyval})`);
-
-      if (
-        keyval === Clutter.KEY_Escape ||
-        keyval === Clutter.KEY_space ||
-        keyval === Clutter.KEY_Return ||
-        keyval === Clutter.KEY_KP_Enter
-      ) {
-        log(`🎯 Stopping recording via keyboard: ${keyname}`);
-        this.close();
-        if (this.onStop) {
-          this.onStop();
+        if (!keyval) {
+          log(`🎯 KEYBOARD EVENT: Could not get key symbol`);
+          return Clutter.EVENT_PROPAGATE;
         }
+
+        // Try to get key name safely
+        let keyname = "unknown";
+        try {
+          if (Clutter.get_key_name) {
+            keyname = Clutter.get_key_name(keyval) || `keycode-${keyval}`;
+          }
+        } catch (nameError) {
+          keyname = `keycode-${keyval}`;
+        }
+
+        log(`🎯 KEYBOARD EVENT RECEIVED: ${keyname} (${keyval})`);
+
+        if (
+          keyval === Clutter.KEY_Escape ||
+          keyval === Clutter.KEY_space ||
+          keyval === Clutter.KEY_Return ||
+          keyval === Clutter.KEY_KP_Enter
+        ) {
+          log(`🎯 Stopping recording via keyboard: ${keyname}`);
+          this.close();
+          if (this.onStop) {
+            this.onStop();
+          }
+          return Clutter.EVENT_STOP;
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+      } catch (e) {
+        log(`🎯 KEYBOARD EVENT ERROR: ${e}`);
         return Clutter.EVENT_STOP;
       }
-
-      return Clutter.EVENT_PROPAGATE;
     });
 
     this._buildDialog();
@@ -88,14 +106,13 @@ class RecordingDialog {
       style: "spacing: 15px;",
     });
 
-    this.recordingIcon = new St.Icon({
-      icon_name: "audio-input-microphone-symbolic",
-      icon_size: 32,
-      style: "color: #ff8c00;",
+    this.recordingIcon = new St.Label({
+      text: "🎤",
+      style: "font-size: 48px; text-align: center;",
     });
 
     let recordingLabel = new St.Label({
-      text: "🎤 Recording...",
+      text: "Recording...",
       style: "font-size: 20px; font-weight: bold; color: white;",
     });
 
@@ -238,12 +255,12 @@ class RecordingDialog {
       return false;
     });
 
-    this.startPulseAnimation();
+    // Animation removed - no more pulsating
   }
 
   close() {
     log("🎯 Closing custom modal dialog");
-    this.stopPulseAnimation();
+    // Animation removed - no more pulsating
 
     if (this.modalBarrier && this.modalBarrier.get_parent()) {
       Main.layoutManager.removeChrome(this.modalBarrier);
@@ -252,36 +269,7 @@ class RecordingDialog {
     this.container = null;
   }
 
-  startPulseAnimation() {
-    this.stopPulseAnimation();
-
-    this.pulseAnimationId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-      this.pulseScale += this.pulseDirection * 0.02;
-
-      if (this.pulseScale >= 1.2) {
-        this.pulseDirection = -1;
-      } else if (this.pulseScale <= 0.8) {
-        this.pulseDirection = 1;
-      }
-
-      if (this.recordingIcon) {
-        this.recordingIcon.set_scale(this.pulseScale, this.pulseScale);
-      }
-
-      return true;
-    });
-  }
-
-  stopPulseAnimation() {
-    if (this.pulseAnimationId) {
-      GLib.source_remove(this.pulseAnimationId);
-      this.pulseAnimationId = null;
-    }
-
-    if (this.recordingIcon) {
-      this.recordingIcon.set_scale(1.0, 1.0);
-    }
-  }
+  // Pulse animation methods removed - no longer needed
 }
 
 export default class WhisperTypingExtension extends Extension {
@@ -291,6 +279,12 @@ export default class WhisperTypingExtension extends Extension {
     this.recordingProcess = null;
     this.settings = null;
     this.currentKeybinding = null;
+
+    // Remove animation properties since we're not pulsating anymore
+    this.recordingIcon = new St.Label({
+      text: "🎤",
+      style: "font-size: 48px; text-align: center;",
+    });
   }
 
   enable() {
