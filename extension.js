@@ -497,13 +497,12 @@ export default class WhisperTypingExtension extends Extension {
     let closeButton = new St.Button({
       label: "✕",
       style: `
-        background-color: #ff4444;
-        color: white;
+        background-color: transparent;
+        color: #ccc;
         border-radius: 50%;
         padding: 8px 12px;
         font-size: 16px;
         font-weight: bold;
-        border: none;
         min-width: 32px;
         min-height: 32px;
       `,
