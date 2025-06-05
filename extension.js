@@ -38,6 +38,17 @@ function createButtonStyle(baseColor, hoverColor) {
   };
 }
 
+// Helper function to add hand cursor on button hover
+function addHandCursorToButton(button) {
+  button.connect("enter-event", () => {
+    global.display.set_cursor(Meta.Cursor.POINTING_HAND);
+  });
+
+  button.connect("leave-event", () => {
+    global.display.set_cursor(Meta.Cursor.DEFAULT);
+  });
+}
+
 // Helper function to create a button with hover effects
 function createHoverButton(label, baseColor, hoverColor) {
   let styles = createButtonStyle(baseColor, hoverColor);
@@ -56,6 +67,9 @@ function createHoverButton(label, baseColor, hoverColor) {
   button.connect("leave-event", () => {
     button.set_style(styles.normal);
   });
+
+  // Add hand cursor effect
+  addHandCursorToButton(button);
 
   return button;
 }
