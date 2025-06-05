@@ -301,7 +301,7 @@ export default class WhisperTypingExtension extends Extension {
     // Create button with microphone icon
     let button = new PanelMenu.Button(0.0, "Whisper Typing");
 
-    // Assign to this.button so createPopupMenu can access it
+    // Make button referenceable by this object
     this.button = button;
 
     this.icon = new St.Icon({
@@ -312,8 +312,26 @@ export default class WhisperTypingExtension extends Extension {
     });
     button.add_child(this.icon);
 
-    // Create popup menu (now this.button is available)
+    // Create popup menu
     this.createPopupMenu();
+
+    // Override the default menu behavior to prevent left-click menu interference
+    // Store the original vfunc_event method
+    let originalEvent = button.vfunc_event;
+
+    // Override the event handler to prevent menu on left click
+    button.vfunc_event = function (event) {
+      if (
+        event.type() === Clutter.EventType.BUTTON_PRESS &&
+        event.get_button() === 1
+      ) {
+        // For left clicks, don't call the original handler which opens menu
+        // Our custom button-press-event handler will handle it
+        return Clutter.EVENT_STOP;
+      }
+      // For all other events (including right-click), use original behavior
+      return originalEvent.call(this, event);
+    };
 
     // Handle button clicks
     button.connect("button-press-event", (actor, event) => {
@@ -321,9 +339,12 @@ export default class WhisperTypingExtension extends Extension {
       log(`🖱️ BUTTON CLICK TRIGGERED`);
 
       if (buttonPressed === 1) {
-        // Left click - start recording immediately (no delay/timeout)
-        // This ensures Mutter sees this as direct user interaction
+        // Left click - start recording immediately AND prevent menu from opening
         log("🖱️ Left click detected - starting recording synchronously");
+
+        // CRITICAL: Prevent the menu from opening on left click
+        // This was causing the focus issues!
+        button.menu.close(true); // Force close menu if it's trying to open
 
         // Debug: Show current focus state before starting recording
         try {
@@ -335,7 +356,6 @@ export default class WhisperTypingExtension extends Extension {
           );
 
           // Try to get active window info using xdotool (X11)
-          GLib.spawn_command_line_sync("xdotool getactivewindow getwindowname");
           let [success, stdout] = GLib.spawn_command_line_sync(
             "xdotool getactivewindow"
           );
@@ -351,6 +371,38 @@ export default class WhisperTypingExtension extends Extension {
               let windowName = new TextDecoder().decode(nameStdout).trim();
               log(`🔍 FOCUS DEBUG - Active window name: ${windowName}`);
             }
+          } else {
+            // NO ACTIVE WINDOW - this is the problem!
+            log(
+              `🔍 FOCUS DEBUG - No active X11 window found - this will cause focus issues!`
+            );
+
+            // Try to find and focus any available window to establish X11 context
+            let [findSuccess, findStdout] = GLib.spawn_command_line_sync(
+              "xdotool search --onlyvisible '.*' | head -1"
+            );
+            if (findSuccess && findStdout) {
+              let anyWindowId = new TextDecoder().decode(findStdout).trim();
+              if (anyWindowId) {
+                log(
+                  `🔍 FOCUS DEBUG - Found window ${anyWindowId}, focusing it to establish X11 context`
+                );
+                GLib.spawn_command_line_sync(
+                  `xdotool windowfocus ${anyWindowId}`
+                );
+                GLib.spawn_command_line_sync(
+                  `xdotool windowactivate ${anyWindowId}`
+                );
+
+                // Wait a moment for focus to settle
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                  // Now start recording with proper X11 context
+                  this.toggleRecording();
+                  return false;
+                });
+                return Clutter.EVENT_STOP;
+              }
+            }
           }
         } catch (e) {
           log(`🔍 FOCUS DEBUG - Error getting focus info: ${e}`);
@@ -361,8 +413,8 @@ export default class WhisperTypingExtension extends Extension {
 
         return Clutter.EVENT_STOP; // Prevent menu from opening
       } else if (buttonPressed === 3) {
-        // Right click - show menu
-        log("🖱️ Right click detected - showing menu");
+        // Right click - show menu (let normal menu behavior happen)
+        log("🖱️ Right click detected - allowing menu to open");
         return Clutter.EVENT_PROPAGATE; // Allow menu to open
       }
 
