@@ -181,42 +181,9 @@ class RecordingDialog {
     });
 
     // Buttons
-    this.stopButton = new St.Button({
-      label: "Stop Recording",
-      style_class: "button",
-      style: `
-        background-color: #ff4444;
-        color: white;
-        border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: bold;
-        border: none;
-        min-width: 150px;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
+    this.stopButton = createHoverButton("Stop Recording", "#ff4444", "#ff6666");
 
-    this.cancelButton = new St.Button({
-      label: "Cancel",
-      style_class: "button",
-      style: `
-        background-color: #666666;
-        color: white;
-        border-radius: 8px;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: bold;
-        border: none;
-        min-width: 150px;
-        margin-top: 10px;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
+    this.cancelButton = createHoverButton("Cancel", "#666666", "#888888");
 
     // Connect button events
     this.stopButton.connect("clicked", () => {
