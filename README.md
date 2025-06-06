@@ -29,13 +29,13 @@ Before installing the extension, make sure you have the required system packages
 
 ```bash
 sudo apt update
-sudo apt install ffmpeg xdotool
+sudo apt install python3 python3-pip python3-venv ffmpeg xdotool libglib2.0-dev
 ```
 
 ### Fedora
 
 ```bash
-sudo dnf install ffmpeg xdotool
+sudo dnf install python3 python3-pip ffmpeg xdotool glib2-devel
 ```
 
 ## Installation
