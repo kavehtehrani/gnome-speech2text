@@ -248,6 +248,9 @@ class RecordingDialog {
     // X11 focus solution: Use xdotool to focus GNOME Shell window
     log("🎯 Attempting X11 focus solution");
 
+    // Store reference to modalBarrier for the timeout callback
+    let modalBarrierRef = this.modalBarrier;
+
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
       try {
         // Get GNOME Shell's window ID and focus it
@@ -270,28 +273,32 @@ class RecordingDialog {
           }
         }
 
-        // Now try to focus our modal barrier
-        this.modalBarrier.grab_key_focus();
-        global.stage.set_key_focus(this.modalBarrier);
+        // Now try to focus our modal barrier - but only if it still exists
+        if (modalBarrierRef && modalBarrierRef.get_parent()) {
+          modalBarrierRef.grab_key_focus();
+          global.stage.set_key_focus(modalBarrierRef);
 
-        // Debug: Check if it worked
-        let currentFocus = global.stage.get_key_focus();
-        log(
-          `🎯 Final focus check: ${
-            currentFocus ? currentFocus.toString() : "NULL"
-          }`
-        );
-        log(
-          `🎯 Is modal barrier focused? ${currentFocus === this.modalBarrier}`
-        );
+          // Debug: Check if it worked
+          let currentFocus = global.stage.get_key_focus();
+          log(
+            `🎯 Final focus check: ${
+              currentFocus ? currentFocus.toString() : "NULL"
+            }`
+          );
+          log(
+            `🎯 Is modal barrier focused? ${currentFocus === modalBarrierRef}`
+          );
+        } else {
+          log(
+            `🎯 Modal barrier no longer exists or has no parent - skipping focus`
+          );
+        }
       } catch (e) {
         log(`⚠️ X11 focus error: ${e}`);
       }
 
       return false;
     });
-
-    // Animation removed - no more pulsating
   }
 
   close() {
@@ -300,9 +307,17 @@ class RecordingDialog {
 
     if (this.modalBarrier && this.modalBarrier.get_parent()) {
       Main.layoutManager.removeChrome(this.modalBarrier);
+
+      // Add a small delay before nulling the barrier to ensure X11 focus code has time to run
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+        this.modalBarrier = null;
+        this.container = null;
+        return false; // Don't repeat
+      });
+    } else {
+      this.modalBarrier = null;
+      this.container = null;
     }
-    this.modalBarrier = null;
-    this.container = null;
   }
 
   // Pulse animation methods removed - no longer needed
