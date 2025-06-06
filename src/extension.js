@@ -9,10 +9,6 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
-import { ExtensionUtils } from "resource:///org/gnome/shell/misc/extensionUtils.js";
-
-const Me = ExtensionUtils.getCurrentExtension();
-const { Gio, GLib } = imports.gi;
 
 let button;
 
@@ -326,9 +322,9 @@ class RecordingDialog {
   // Pulse animation methods removed - no longer needed
 }
 
-function runSetupScript() {
+function runSetupScript(extensionPath) {
   try {
-    const setupScript = Me.path + "/setup_env.sh";
+    const setupScript = extensionPath + "/setup_env.sh";
     const file = Gio.File.new_for_path(setupScript);
 
     // Make sure the script is executable
@@ -375,8 +371,8 @@ function runSetupScript() {
   }
 }
 
-function checkSetupStatus() {
-  const venvPath = Me.path + "/venv";
+function checkSetupStatus(extensionPath) {
+  const venvPath = extensionPath + "/venv";
   const venvDir = Gio.File.new_for_path(venvPath);
 
   // Check if virtual environment exists
@@ -441,10 +437,10 @@ export default class WhisperTypingExtension extends Extension {
   }
 
   enable() {
-    const setup = checkSetupStatus();
+    const setup = checkSetupStatus(this.path);
     if (setup.needsSetup) {
       this._showSetupDialog(setup.message);
-      if (runSetupScript()) {
+      if (runSetupScript(this.path)) {
         // Show a message that setup is in progress
         this._showSetupDialog(
           "Setup is running in the background. Please wait a moment and then restart GNOME Shell."
