@@ -11,6 +11,9 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
+import { ExtensionUtils } from "resource:///org/gnome/shell/extensions/extensionUtils.js";
+const Me = ExtensionUtils.getCurrentExtension();
+
 let button;
 
 // Helper function to create button styles
@@ -323,6 +326,70 @@ class RecordingDialog {
   // Pulse animation methods removed - no longer needed
 }
 
+function runSetupScript() {
+  try {
+    const setupScript = Me.path + "/setup_env.sh";
+    const file = Gio.File.new_for_path(setupScript);
+
+    // Make sure the script is executable
+    const info = file.query_info(
+      "unix::mode",
+      Gio.FileQueryInfoFlags.NONE,
+      null
+    );
+    const mode = info.get_attribute_uint32("unix::mode");
+    file.set_attribute_uint32(
+      "unix::mode",
+      mode | 0o111,
+      Gio.FileQueryInfoFlags.NONE,
+      null
+    );
+
+    // Run the setup script
+    const [success, pid] = GLib.spawn_async(
+      null, // working directory
+      ["bash", setupScript], // command and args
+      null, // envp
+      GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+      null // child_setup
+    );
+
+    if (!success) {
+      throw new Error("Failed to start setup script");
+    }
+
+    // Wait for the process to complete
+    GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, status) => {
+      if (status !== 0) {
+        log("Setup script failed with status: " + status);
+      } else {
+        log("Setup script completed successfully");
+      }
+      GLib.spawn_close_pid(pid);
+    });
+
+    return true;
+  } catch (e) {
+    log("Error running setup script: " + e.message);
+    return false;
+  }
+}
+
+function checkSetupStatus() {
+  const venvPath = Me.path + "/venv";
+  const venvDir = Gio.File.new_for_path(venvPath);
+
+  // Check if virtual environment exists
+  if (!venvDir.query_exists(null)) {
+    return {
+      needsSetup: true,
+      message: "Python environment not found. Running setup...",
+    };
+  }
+
+  return { needsSetup: false };
+}
+
 export default class WhisperTypingExtension extends Extension {
   constructor(metadata) {
     super(metadata);
@@ -338,7 +405,58 @@ export default class WhisperTypingExtension extends Extension {
     });
   }
 
+  _showSetupDialog(message) {
+    const dialog = new St.Modal();
+    const box = new St.BoxLayout({
+      vertical: true,
+      style_class: "setup-dialog",
+      style: "padding: 20px;",
+    });
+
+    const title = new St.Label({
+      text: "Setting Up Extension",
+      style: "font-size: 18px; font-weight: bold; margin-bottom: 20px;",
+    });
+
+    const messageLabel = new St.Label({
+      text: message,
+      style: "font-size: 14px; margin-bottom: 20px;",
+    });
+
+    const button = new St.Button({
+      label: "OK",
+      style_class: "button",
+      style: "margin-top: 10px;",
+    });
+
+    button.connect("clicked", () => {
+      dialog.close();
+    });
+
+    box.add_child(title);
+    box.add_child(messageLabel);
+    box.add_child(button);
+    dialog.set_content(box);
+    dialog.open();
+  }
+
   enable() {
+    const setup = checkSetupStatus();
+    if (setup.needsSetup) {
+      this._showSetupDialog(setup.message);
+      if (runSetupScript()) {
+        // Show a message that setup is in progress
+        this._showSetupDialog(
+          "Setup is running in the background. Please wait a moment and then restart GNOME Shell."
+        );
+      } else {
+        this._showSetupDialog(
+          "Failed to run setup script. Please try reinstalling the extension."
+        );
+      }
+      return;
+    }
+
     this.settings = this.getSettings();
     this.recordingProcess = null;
     this.recordingDialog = null;
@@ -891,10 +1009,7 @@ export default class WhisperTypingExtension extends Extension {
       this.updateShortcutLabel();
 
       // Show confirmation
-      Main.notify(
-        "Speech2Text",
-        "Shortcut reset to default: Ctrl+Shift+Alt+C"
-      );
+      Main.notify("Speech2Text", "Shortcut reset to default: Ctrl+Shift+Alt+C");
     });
 
     // Remove shortcut button handler
