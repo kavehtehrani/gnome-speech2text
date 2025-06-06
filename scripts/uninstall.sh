@@ -38,7 +38,7 @@ if ! command_exists gnome-shell; then
 fi
 
 # Extension directory
-EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-tts@kaveh.page"
+EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page"
 
 # Check if extension is installed
 if [ ! -d "$EXTENSION_DIR" ]; then
@@ -47,8 +47,8 @@ fi
 
 # Disable the extension
 print_status "Disabling extension..."
-if gnome-extensions list | grep -q "gnome-tts@kaveh.page"; then
-    if ! gnome-extensions disable gnome-tts@kaveh.page; then
+if gnome-extensions list | grep -q "gnome-speech2text@kaveh.page"; then
+    if ! gnome-extensions disable gnome-speech2text@kaveh.page; then
         error_exit "Failed to disable extension. Please disable it manually using GNOME Extensions app"
     fi
 fi
@@ -63,7 +63,7 @@ fi
 print_status "Removing compiled schemas..."
 if command_exists glib-compile-schemas; then
     if [ -d "$HOME/.local/share/glib-2.0/schemas" ]; then
-        rm -f "$HOME/.local/share/glib-2.0/schemas/org.gnome.shell.extensions.gnome-tts.gschema.xml"
+        rm -f "$HOME/.local/share/glib-2.0/schemas/org.gnome.shell.extensions.gnome-speech2text.gschema.xml"
         glib-compile-schemas "$HOME/.local/share/glib-2.0/schemas"
     fi
 fi

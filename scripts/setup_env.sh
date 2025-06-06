@@ -72,7 +72,7 @@ You can install it using:
 fi
 
 # Extension directory
-EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-tts@kaveh.page"
+EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page"
 VENV_DIR="$EXTENSION_DIR/venv"
 
 # Create extension directory if it doesn't exist
@@ -119,4 +119,4 @@ print_status "✅ GNOME TTS environment setup complete!"
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Restart GNOME Shell (Alt+F2, type 'r' and press Enter)"
 echo "2. Enable the extension using GNOME Extensions app or:"
-echo "   gnome-extensions enable gnome-tts@kaveh.page"
+echo "   gnome-extensions enable gnome-speech2text@kaveh.page"
