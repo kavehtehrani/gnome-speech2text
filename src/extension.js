@@ -344,7 +344,7 @@ export default class WhisperTypingExtension extends Extension {
     this.recordingDialog = null;
 
     // Create button with microphone icon
-    let button = new PanelMenu.Button(0.0, "Whisper Typing");
+    let button = new PanelMenu.Button(0.0, "Speech2Text");
 
     // Make button referenceable by this object
     this.button = button;
@@ -720,7 +720,7 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     let aboutText = new St.Label({
-      text: "Whisper Typing extension for GNOME Shell\nUses OpenAI Whisper for speech-to-text transcription",
+      text: "Speech2Text extension for GNOME Shell\nUses OpenAI Whisper for speech-to-text transcription",
       style: "font-size: 14px; color: #ccc;",
     });
 
@@ -892,7 +892,7 @@ export default class WhisperTypingExtension extends Extension {
 
       // Show confirmation
       Main.notify(
-        "Whisper Typing",
+        "Speech2Text",
         "Shortcut reset to default: Ctrl+Shift+Alt+C"
       );
     });
@@ -923,10 +923,10 @@ export default class WhisperTypingExtension extends Extension {
         this.updateShortcutLabel();
 
         // Show confirmation
-        Main.notify("Whisper Typing", "Keyboard shortcut removed");
+        Main.notify("Speech2Text", "Keyboard shortcut removed");
       } catch (e) {
         log(`Error removing keybinding: ${e}`);
-        Main.notify("Whisper Typing", "Error removing keyboard shortcut");
+        Main.notify("Speech2Text", "Error removing keyboard shortcut");
       }
     });
 
@@ -1123,11 +1123,11 @@ export default class WhisperTypingExtension extends Extension {
         restoreHandlers();
 
         // Show confirmation notification
-        Main.notify("Whisper Typing", `Shortcut changed to: ${lastKeyCombo}`);
+        Main.notify("Speech2Text", `Shortcut changed to: ${lastKeyCombo}`);
       } else {
         // No valid shortcut was captured
         Main.notify(
-          "Whisper Typing",
+          "Speech2Text",
           "Please press a valid key combination first"
         );
       }
