@@ -766,6 +766,10 @@ export default class WhisperTypingExtension extends Extension {
 
     // Open GitHub link when clicked
     githubLink.connect("clicked", () => {
+      // Close the settings window first
+      closeSettings();
+
+      // Then open the GitHub link
       Gio.app_info_launch_default_for_uri(
         "https://github.com/kavehtehrani/gnome-speech2text/",
         global.create_app_launch_context(0, -1)
