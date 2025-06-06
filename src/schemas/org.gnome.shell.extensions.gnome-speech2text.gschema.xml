@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="org.gnome.shell.extensions.gnome-speech2text" path="/org/gnome/shell/extensions/gnome-speech2text/">
+        <key name="toggle-recording" type="as">
+            <default>['&lt;Control&gt;&lt;Shift&gt;&lt;Alt&gt;c']</default>
+            <summary>Toggle recording</summary>
+            <description>Keyboard shortcut to toggle recording</description>
+        </key>
+    </schema>
+</schemalist>
