@@ -39,7 +39,7 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-echo -e "${YELLOW}Installing Whisper Typing GNOME Extension...${NC}"
+echo -e "${YELLOW}Installing GNOME Speech2Text Extension...${NC}"
 
 # Check if running as root
 if [ "$EUID" -eq 0 ]; then
@@ -94,12 +94,6 @@ print_status "Setting up environment..."
 cd "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page" || error_exit "Failed to change to extension directory"
 if ! bash setup_env.sh; then
     error_exit "Setup script failed"
-fi
-
-# Enable the extension
-print_status "Enabling extension..."
-if ! gnome-extensions enable gnome-speech2text@kaveh.page; then
-    error_exit "Failed to enable extension. Please enable it manually using GNOME Extensions app"
 fi
 
 # Clean up

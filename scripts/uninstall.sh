@@ -25,7 +25,7 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-echo -e "${YELLOW}Uninstalling Whisper Typing GNOME Extension...${NC}"
+echo -e "${YELLOW}Uninstalling GNOME Speech2Text GNOME Extension...${NC}"
 
 # Check if running as root
 if [ "$EUID" -eq 0 ]; then
