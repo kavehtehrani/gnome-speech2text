@@ -23,47 +23,44 @@ A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Wh
 
 ## Installation
 
-### Option 1: Using the Install Script (Recommended)
+### Option 1: One-Line Install (Recommended)
 
-1. Clone or download the repository:
+Run this single command to download and install everything automatically:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/scripts/install.sh | bash
+```
+
+Then restart GNOME Shell:
+
+- **X11**: Press Alt+F2, type 'r', press Enter
+- **Wayland**: Log out and log back in
+
+### Option 2: From Local Repository
+
+If you prefer to clone the repository first:
 
 ```bash
 git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
-```
-
-2. Run the install script:
-
-```bash
 ./scripts/install.sh
 ```
 
-3. Follow the interactive prompts in the terminal for Python environment setup
+### Option 3: From Local Package
 
-4. Restart GNOME Shell:
-   - **X11**: Press Alt+F2, type 'r', press Enter
-   - **Wayland**: Log out and log back in
-
-### Option 2: From Local Package
-
-1. Clone the repository and build the package:
+Build and install from a packaged version:
 
 ```bash
 git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
 ./scripts/package_zip.sh
-```
-
-2. Extract and install the built package:
-
-```bash
 cd dist
 unzip gnome-speech2text@kaveh.page.zip
 cd gnome-speech2text@kaveh.page
 ./scripts/install.sh
 ```
 
-### Option 3: Manual Installation
+### Option 4: Manual Installation
 
 1. Clone the repository:
 
