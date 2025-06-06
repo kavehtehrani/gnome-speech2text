@@ -11,10 +11,9 @@ useful as it can be but if you're having difficulties please feel free to open a
 ## Features
 
 - 🎤 One-click recording with visual feedback
-- ⌨️ Automatic typing of transcribed text
-- ⚡ Fast and accurate transcription using Whisper
+- ⌨️ Automatic typing of transcribed text in the active cursor location
+- ⚡ Fast and accurate transcription using Whisper (English working best)
 - 🎯 Customizable keyboard shortcuts
-- 🎨 Beautiful and intuitive UI
 
 ## Installation
 
