@@ -8,11 +8,11 @@ import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
-
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import { ExtensionUtils } from "resource:///org/gnome/shell/misc/extensionUtils.js";
 
-import { ExtensionUtils } from "resource:///org/gnome/shell/extensions/extensionUtils.js";
 const Me = ExtensionUtils.getCurrentExtension();
+const { Gio, GLib } = imports.gi;
 
 let button;
 
