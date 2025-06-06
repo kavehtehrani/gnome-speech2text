@@ -15,7 +15,7 @@ A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Wh
 
 ## Requirements
 
-- GNOME Shell 45 or later
+- GNOME Shell 46 or later
 - Python 3.8 or later
 - FFmpeg
 - xdotool
