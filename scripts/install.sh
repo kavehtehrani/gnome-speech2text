@@ -12,6 +12,10 @@ NC='\033[0m' # No Color
 # Function to print error messages and exit
 error_exit() {
     echo -e "${RED}Error:${NC} $1"
+    # Clean up temporary directory if it exists
+    if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+    fi
     exit 1
 }
 
@@ -30,6 +34,11 @@ download_file() {
     fi
 }
 
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 echo -e "${YELLOW}Installing Whisper Typing GNOME Extension...${NC}"
 
 # Check if running as root
@@ -38,7 +47,7 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # Check if GNOME Shell is installed
-if ! command -v gnome-shell &> /dev/null; then
+if ! command_exists gnome-shell; then
     error_exit "GNOME Shell is not installed"
 fi
 
@@ -60,24 +69,25 @@ cd "$TEMP_DIR" || error_exit "Failed to create temporary directory"
 REPO_URL="https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main"
 download_file "$REPO_URL/scripts/setup_env.sh" "setup_env.sh"
 download_file "$REPO_URL/requirements.txt" "requirements.txt"
-download_file "https://github.com/kavehtehrani/gnome-speech2text/releases/latest/download/whisper-typing@kaveh.page.zip" "whisper-typing@kaveh.page.zip"
+download_file "$REPO_URL/dist/whisper-typing@kaveh.page.zip" "whisper-typing@kaveh.page.zip"
 
 # Extract the extension
 print_status "Extracting extension..."
 if ! unzip -q whisper-typing@kaveh.page.zip -d "$EXTENSIONS_DIR"; then
-    rm -rf "$TEMP_DIR"
     error_exit "Failed to extract extension"
 fi
 
 # Verify the extension was extracted correctly
 if [ ! -d "$EXTENSIONS_DIR/whisper-typing@kaveh.page" ]; then
-    rm -rf "$TEMP_DIR"
     error_exit "Extension was not extracted correctly"
 fi
 
 # Copy setup files to extension directory
 cp setup_env.sh "$EXTENSIONS_DIR/whisper-typing@kaveh.page/" || error_exit "Failed to copy setup script"
 cp requirements.txt "$EXTENSIONS_DIR/whisper-typing@kaveh.page/" || error_exit "Failed to copy requirements file"
+
+# Make setup script executable
+chmod +x "$EXTENSIONS_DIR/whisper-typing@kaveh.page/setup_env.sh" || error_exit "Failed to make setup script executable"
 
 # Run the setup script
 print_status "Setting up environment..."
