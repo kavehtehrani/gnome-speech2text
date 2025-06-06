@@ -505,21 +505,27 @@ export default class WhisperTypingExtension extends Extension {
       `,
     });
 
-    // Header
+    // Header box for icon, title, and close button
     let headerBox = new St.BoxLayout({
       vertical: false,
-      style: "spacing: 15px; margin-bottom: 30px;",
+      style: "spacing: 16px; margin-bottom: 18px; align-items: center;",
+      x_align: Clutter.ActorAlign.FILL,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
+    // Icon
     let titleIcon = new St.Icon({
-      icon_name: "audio-input-microphone-symbolic",
-      icon_size: 32,
-      style: "color: #ff8c00;",
+      icon_name: "microphone-sensitivity-high-symbolic",
+      style: "color: orange; font-size: 24px; margin-right: 8px;",
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
-    let title = new St.Label({
-      text: "Whisper Speech2Text Settings",
-      style: "font-size: 22px; font-weight: bold; color: white;",
+    // Title label
+    let titleLabel = new St.Label({
+      text: "Gnome Speech2Text Settings",
+      style: "font-size: 20px; font-weight: bold; color: white;",
+      x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     // Close button (X)
@@ -535,6 +541,7 @@ export default class WhisperTypingExtension extends Extension {
       reactive: true,
       can_focus: true,
       track_hover: true,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     // Add hover effect to close button
@@ -567,8 +574,7 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     headerBox.add_child(titleIcon);
-    headerBox.add_child(title);
-    headerBox.add_child(new St.Widget({ x_expand: true })); // Spacer
+    headerBox.add_child(titleLabel);
     headerBox.add_child(closeButton);
 
     // Keyboard shortcut section
@@ -703,8 +709,57 @@ export default class WhisperTypingExtension extends Extension {
       style: "font-size: 14px; color: #ccc;",
     });
 
+    // GitHub link
+    let githubLink = new St.Button({
+      label: "GitHub Repository",
+      style: `
+        color: #0066cc;
+        font-size: 14px;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+      `,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Add hover effect to GitHub link
+    githubLink.connect("enter-event", () => {
+      githubLink.set_style(`
+        color: #0077ee;
+        font-size: 14px;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+        text-decoration: underline;
+      `);
+    });
+
+    githubLink.connect("leave-event", () => {
+      githubLink.set_style(`
+        color: #0066cc;
+        font-size: 14px;
+        padding: 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+      `);
+    });
+
+    // Add hand cursor effect to GitHub link
+    addHandCursorToButton(githubLink);
+
+    // Open GitHub link when clicked
+    githubLink.connect("clicked", () => {
+      Gio.app_info_launch_default_for_uri(
+        "https://github.com/kavehtehrani/gnome-speech2text/",
+        global.create_app_launch_context(0, -1)
+      );
+    });
+
     aboutSection.add_child(aboutLabel);
     aboutSection.add_child(aboutText);
+    aboutSection.add_child(githubLink);
 
     settingsWindow.add_child(headerBox);
     settingsWindow.add_child(shortcutSection);
