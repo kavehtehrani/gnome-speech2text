@@ -6,6 +6,11 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Get the directory where the script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+SRC_DIR="$PROJECT_ROOT/src"
+
 echo -e "${YELLOW}Building .deb package for Whisper Typing GNOME Extension...${NC}"
 
 # Check if running as root
@@ -87,25 +92,25 @@ chmod 755 "$DEB_DIR/DEBIAN/prerm"
 chmod 755 "$DEB_DIR/DEBIAN/postrm"
 
 # Copy extension files
-cp -r extension.js "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
-cp -r metadata.json "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
-cp -r whisper_typing.py "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
-cp -r requirements.txt "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
-cp -r setup_env.sh "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
-cp -r schemas "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
-cp -r icons "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
+cp -r "$SRC_DIR/extension.js" "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
+cp -r "$SRC_DIR/metadata.json" "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
+cp -r "$SRC_DIR/whisper_typing.py" "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
+cp -r "$PROJECT_ROOT/requirements.txt" "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
+cp -r "$SCRIPT_DIR/setup_env.sh" "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
+cp -r "$SRC_DIR/schemas" "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
+cp -r "$SRC_DIR/icons" "$DEB_DIR/usr/share/gnome-shell/extensions/whisper-typing@kaveh.page/"
 
 # Copy documentation
-cp README.md "$DEB_DIR/usr/share/doc/whisper-typing/"
+cp "$PROJECT_ROOT/README.md" "$DEB_DIR/usr/share/doc/whisper-typing/"
 
 # Build the package
 echo -e "${YELLOW}Building .deb package...${NC}"
-dpkg-deb --build "$DEB_DIR" whisper-typing_1.0-1_all.deb
+dpkg-deb --build "$DEB_DIR" "$PROJECT_ROOT/dist/whisper-typing_1.0-1_all.deb"
 
 # Clean up
 rm -rf "$BUILD_DIR"
 
-echo -e "${GREEN}.deb package built successfully: whisper-typing_1.0-1_all.deb${NC}"
+echo -e "${GREEN}.deb package built successfully: dist/whisper-typing_1.0-1_all.deb${NC}"
 echo -e "${YELLOW}You can install it using:${NC}"
-echo -e "  sudo dpkg -i whisper-typing_1.0-1_all.deb"
+echo -e "  sudo dpkg -i dist/whisper-typing_1.0-1_all.deb"
 echo -e "  sudo apt-get install -f  # Install any missing dependencies" 

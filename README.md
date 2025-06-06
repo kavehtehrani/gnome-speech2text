@@ -24,7 +24,7 @@ Choose one of the following installation methods:
 The easiest way to install the extension. This script will handle everything automatically:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/scripts/install.sh | bash
 ```
 
 ### Method 2: Debian Package
@@ -60,13 +60,13 @@ If you prefer to install manually:
 2. Run the setup script:
 
    ```bash
-   ./setup_env.sh
+   ./scripts/setup_env.sh
    ```
 
 3. Copy the extension to your GNOME extensions directory:
 
    ```bash
-   cp -r whisper-typing@kaveh.page ~/.local/share/gnome-shell/extensions/
+   cp -r dist/whisper-typing@kaveh.page ~/.local/share/gnome-shell/extensions/
    ```
 
 4. Restart GNOME Shell:
