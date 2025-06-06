@@ -514,9 +514,9 @@ export default class WhisperTypingExtension extends Extension {
     });
 
     // Icon
-    let titleIcon = new St.Icon({
-      icon_name: "microphone-sensitivity-high-symbolic",
-      style: "color: orange; font-size: 24px; margin-right: 8px;",
+    let titleIcon = new St.Label({
+      text: "🎤",
+      style: "font-size: 28px; margin-right: 8px;",
       y_align: Clutter.ActorAlign.CENTER,
     });
 
