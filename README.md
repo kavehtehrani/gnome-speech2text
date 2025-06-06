@@ -21,6 +21,23 @@ A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Wh
 - xdotool
 - Internet connection for initial model download (~200-500MB)
 
+## System Requirements Installation
+
+Before installing the extension, make sure you have the required system packages:
+
+### Ubuntu/Debian
+
+```bash
+sudo apt update
+sudo apt install ffmpeg xdotool
+```
+
+### Fedora
+
+```bash
+sudo dnf install ffmpeg xdotool
+```
+
 ## Installation
 
 ### Option 1: One-Line Install (Recommended)
