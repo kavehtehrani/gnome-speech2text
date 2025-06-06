@@ -56,9 +56,9 @@ EXTENSIONS_DIR="$HOME/.local/share/gnome-shell/extensions"
 mkdir -p "$EXTENSIONS_DIR" || error_exit "Failed to create extensions directory"
 
 # Check if extension is already installed
-if [ -d "$EXTENSIONS_DIR/whisper-typing@kaveh.page" ]; then
+if [ -d "$EXTENSIONS_DIR/gnome-tts@kaveh.page" ]; then
     echo -e "${YELLOW}Extension already installed. Updating...${NC}"
-    rm -rf "$EXTENSIONS_DIR/whisper-typing@kaveh.page" || error_exit "Failed to remove existing extension"
+    rm -rf "$EXTENSIONS_DIR/gnome-tts@kaveh.page" || error_exit "Failed to remove existing extension"
 fi
 
 # Create temporary directory for downloads
@@ -69,36 +69,36 @@ cd "$TEMP_DIR" || error_exit "Failed to create temporary directory"
 REPO_URL="https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main"
 download_file "$REPO_URL/scripts/setup_env.sh" "setup_env.sh"
 download_file "$REPO_URL/requirements.txt" "requirements.txt"
-download_file "$REPO_URL/dist/whisper-typing@kaveh.page.zip" "whisper-typing@kaveh.page.zip"
+download_file "$REPO_URL/dist/gnome-tts@kaveh.page.zip" "gnome-tts@kaveh.page.zip"
 
 # Extract the extension
 print_status "Extracting extension..."
-if ! unzip -q whisper-typing@kaveh.page.zip -d "$EXTENSIONS_DIR"; then
+if ! unzip -q gnome-tts@kaveh.page.zip -d "$EXTENSIONS_DIR"; then
     error_exit "Failed to extract extension"
 fi
 
 # Verify the extension was extracted correctly
-if [ ! -d "$EXTENSIONS_DIR/whisper-typing@kaveh.page" ]; then
+if [ ! -d "$EXTENSIONS_DIR/gnome-tts@kaveh.page" ]; then
     error_exit "Extension was not extracted correctly"
 fi
 
 # Copy setup files to extension directory
-cp setup_env.sh "$EXTENSIONS_DIR/whisper-typing@kaveh.page/" || error_exit "Failed to copy setup script"
-cp requirements.txt "$EXTENSIONS_DIR/whisper-typing@kaveh.page/" || error_exit "Failed to copy requirements file"
+cp setup_env.sh "$EXTENSIONS_DIR/gnome-tts@kaveh.page/" || error_exit "Failed to copy setup script"
+cp requirements.txt "$EXTENSIONS_DIR/gnome-tts@kaveh.page/" || error_exit "Failed to copy requirements file"
 
 # Make setup script executable
-chmod +x "$EXTENSIONS_DIR/whisper-typing@kaveh.page/setup_env.sh" || error_exit "Failed to make setup script executable"
+chmod +x "$EXTENSIONS_DIR/gnome-tts@kaveh.page/setup_env.sh" || error_exit "Failed to make setup script executable"
 
 # Run the setup script
 print_status "Setting up environment..."
-cd "$EXTENSIONS_DIR/whisper-typing@kaveh.page" || error_exit "Failed to change to extension directory"
+cd "$EXTENSIONS_DIR/gnome-tts@kaveh.page" || error_exit "Failed to change to extension directory"
 if ! bash setup_env.sh; then
     error_exit "Setup script failed"
 fi
 
 # Enable the extension
 print_status "Enabling extension..."
-if ! gnome-extensions enable whisper-typing@kaveh.page; then
+if ! gnome-extensions enable gnome-tts@kaveh.page; then
     error_exit "Failed to enable extension. Please enable it manually using GNOME Extensions app"
 fi
 

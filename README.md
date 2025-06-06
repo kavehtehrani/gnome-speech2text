@@ -1,149 +1,135 @@
-# Whisper Typing GNOME Extension
+# GNOME Speech2Text
 
-A GNOME Shell extension that adds speech-to-text functionality using
-[OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words automatically typed out.
-
-I wrote this extension to make it easier for me to use speech-to-text in my daily workflow, especially as I have become
-a heavy user of Cursor AI and speech is much faster than typing. I'm on Ubuntu 24.04 LTS and GNOME 46, and unfortunately
-Ubuntu doesn't have a native speech-to-text feature yet. This is my first GNOME extension, hopefully it's as bug-free and
-useful as it can be but if you're having difficulties please feel free to open an issue on GitHub and I'll do my best to help you out.
+A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Whisper model. Speak into your microphone and have your words automatically typed out.
 
 ## Features
 
-- 🎤 One-click recording with visual feedback
-- ⌨️ Automatic typing of transcribed text in the active cursor location
-- ⚡ Fast and accurate transcription using Whisper (English working best)
-- 🎯 Customizable keyboard shortcuts
+- Speech-to-text conversion using OpenAI's Whisper model
+- Automatic typing of recognized text
+- Support for multiple languages
+- Configurable keyboard shortcuts
+- Easy installation and setup
+
+## Requirements
+
+- GNOME Shell 45 or later
+- Python 3.8 or later
+- FFmpeg
+- Internet connection for initial model download
 
 ## Installation
 
-Choose one of the following installation methods:
+### Using the Install Script
 
-### Method 1: One-line Installation (Recommended)
-
-The easiest way to install the extension. This script will handle everything automatically:
+1. Download the extension:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/scripts/install.sh | bash
+wget https://github.com/kaveh/gnome-speech2text/releases/latest/download/gnome-speech2text@kaveh.page.zip
 ```
 
-### Method 2: Debian Package
-
-If you prefer using a .deb package:
+2. Run the install script:
 
 ```bash
-# Download the .deb file
-wget https://github.com/kavehtehrani/gnome-speech2text/releases/latest/download/whisper-typing_1.0-1_all.deb
-
-# Install it
-sudo dpkg -i whisper-typing_1.0-1_all.deb
-sudo apt-get install -f  # Install any missing dependencies
+./scripts/install.sh
 ```
 
-### Method 3: From GNOME Extensions Website
+### Manual Installation
 
-1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/whisper-typing@kaveh.page/)
-2. Click the "Install" button
-3. Follow the on-screen instructions
+1. Download the extension:
 
-### Method 4: Manual Installation
+```bash
+wget https://github.com/kaveh/gnome-speech2text/releases/latest/download/gnome-speech2text@kaveh.page.zip
+```
 
-If you prefer to install manually:
+2. Extract the extension:
 
-1. Clone this repository:
+```bash
+unzip gnome-speech2text@kaveh.page.zip -d ~/.local/share/gnome-shell/extensions/
+```
 
-   ```bash
-   git clone https://github.com/kavehtehrani/gnome-speech2text.git
-   cd gnome-speech2text
-   ```
+3. Make the setup script executable:
 
-2. Run the setup script:
+```bash
+chmod +x ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page/setup_env.sh
+```
 
-   ```bash
-   ./scripts/setup_env.sh
-   ```
+4. Run the setup script:
 
-3. Copy the extension to your GNOME extensions directory:
+```bash
+~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page/setup_env.sh
+```
 
-   ```bash
-   cp -r dist/whisper-typing@kaveh.page ~/.local/share/gnome-shell/extensions/
-   ```
+5. Restart GNOME Shell:
 
-4. Restart GNOME Shell:
+   - Press Alt+F2
+   - Type 'r' and press Enter
 
-   - On X11: Press Alt+F2, type 'r' and press Enter
-   - On Wayland: Log out and log back in
+6. Enable the extension:
+   - Open GNOME Extensions
+   - Find "GNOME Speech2Text" and enable it
 
-5. Enable the extension:
-   ```bash
-   gnome-extensions enable whisper-typing@kaveh.page
-   ```
+## Uninstallation
 
-## Dependencies
+### Using the Uninstall Script
 
-- Python 3.8 or higher
-- GNOME Shell 45 or higher
-- FFmpeg (for audio processing)
-- OpenAI Whisper (automatically installed by setup script)
+Run the uninstall script:
 
-## Usage
+```bash
+./scripts/uninstall.sh
+```
 
-1. Click the microphone icon in the top panel or use the keyboard shortcut (default: Ctrl+Shift+Alt+C)
-2. Speak into your microphone
-3. Press Enter or click "Stop Recording" to process the audio
-4. The transcribed text will be automatically typed out
+### Manual Uninstallation
 
-### Keyboard Shortcuts
+1. Disable the extension:
 
-- **Start/Stop Recording**: Ctrl+Shift+Alt+C (customizable in settings)
-- **Cancel Recording**: Escape key
-- **Process Recording**: Enter key or Space
+   - Open GNOME Extensions
+   - Find "GNOME Speech2Text" and disable it
+
+2. Remove the extension directory:
+
+```bash
+rm -rf ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page
+```
+
+3. Restart GNOME Shell:
+   - Press Alt+F2
+   - Type 'r' and press Enter
 
 ## Configuration
 
-Click the extension icon and select "Settings" to:
+The extension can be configured through the GNOME Extensions app:
 
-- Change the keyboard shortcut
-- View current settings
-- Access additional options
+- Language selection
+- Keyboard shortcuts
+- Model size
+- Other settings
 
-## Troubleshooting
+## Building from Source
 
-### Common Issues
+1. Clone the repository:
 
-1. **Extension not working after installation**
+```bash
+git clone https://github.com/kaveh/gnome-speech2text.git
+cd gnome-speech2text
+```
 
-   - Ensure all dependencies are installed: `./setup_env.sh`
-   - Check if the extension is enabled in GNOME Extensions
-   - Restart GNOME Shell
-     - On X11 press Alt+F2, type 'r' and press Enter
-     - On Wayland, log out and log back in
+2. Build the extension:
 
-2. **No audio input detected**
+```bash
+./scripts/build_deb.sh
+```
 
-   - Check your microphone settings in GNOME Settings
-   - Ensure your microphone is not being used by another application
-   - Try selecting a different input device
+3. Install the package:
 
-3. **Transcription not working**
-   - Ensure you have an active internet connection
-   - Check if FFmpeg is properly installed
-   - Verify Python dependencies are installed correctly
-
-You can always check the log entries by running: `journalctl /usr/bin/gnome-shell -f`
-
-### Getting Help
-
-If you encounter any issues:
-
-1. Check the [GitHub Issues](https://github.com/kavehtehrani/gnome-speech2text/issues)
-2. Create a new issue with detailed information about your problem
-3. Include your GNOME Shell version and system information
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+```bash
+sudo dpkg -i dist/gnome-speech2text_1.0-1_all.deb
+sudo apt-get install -f
+```
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

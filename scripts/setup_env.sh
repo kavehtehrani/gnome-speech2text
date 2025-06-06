@@ -72,7 +72,7 @@ You can install it using:
 fi
 
 # Extension directory
-EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/whisper-typing@kaveh.page"
+EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-tts@kaveh.page"
 VENV_DIR="$EXTENSION_DIR/venv"
 
 # Create extension directory if it doesn't exist
@@ -115,8 +115,8 @@ else
     error_exit "glib-compile-schemas not found. Please install libglib2.0-dev package."
 fi
 
-print_status "✅ Whisper environment setup complete!"
+print_status "✅ GNOME TTS environment setup complete!"
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Restart GNOME Shell (Alt+F2, type 'r' and press Enter)"
 echo "2. Enable the extension using GNOME Extensions app or:"
-echo "   gnome-extensions enable whisper-typing@kaveh.page"
+echo "   gnome-extensions enable gnome-tts@kaveh.page"
