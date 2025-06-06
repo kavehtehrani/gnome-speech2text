@@ -1,11 +1,11 @@
 # Whisper Typing GNOME Extension
 
-A GNOME Shell extension that adds speech-to-text functionality using 
+A GNOME Shell extension that adds speech-to-text functionality using
 [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words automatically typed out.
 
-I wrote this extension to make it easier for me to use speech-to-text in my daily workflow, especially as I have become 
+I wrote this extension to make it easier for me to use speech-to-text in my daily workflow, especially as I have become
 a heavy user of Cursor AI and speech is much faster than typing. I'm on Ubuntu 24.04 LTS and GNOME 46, and unfortunately
-Ubuntu doesn't have a native speech-to-text feature yet. This is my first GNOME extension, hopefully it's as bug-free and 
+Ubuntu doesn't have a native speech-to-text feature yet. This is my first GNOME extension, hopefully it's as bug-free and
 useful as it can be but if you're having difficulties please feel free to open an issue on GitHub and I'll do my best to help you out.
 
 ## Features
@@ -18,34 +18,72 @@ useful as it can be but if you're having difficulties please feel free to open a
 
 ## Installation
 
-### Method 1: From GNOME Extensions Website
+Choose one of the following installation methods:
+
+### Method 1: One-line Installation (Recommended)
+
+The easiest way to install the extension. This script will handle everything automatically:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash
+```
+
+### Method 2: Debian Package
+
+If you prefer using a .deb package:
+
+```bash
+# Download the .deb file
+wget https://github.com/kavehtehrani/gnome-speech2text/releases/latest/download/whisper-typing_1.0-1_all.deb
+
+# Install it
+sudo dpkg -i whisper-typing_1.0-1_all.deb
+sudo apt-get install -f  # Install any missing dependencies
+```
+
+### Method 3: From GNOME Extensions Website
 
 1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/whisper-typing@kaveh.page/)
 2. Click the "Install" button
 3. Follow the on-screen instructions
 
-### Method 2: Manual Installation
+### Method 4: Manual Installation
+
+If you prefer to install manually:
 
 1. Clone this repository:
+
    ```bash
    git clone https://github.com/kavehtehrani/gnome-speech2text.git
    cd gnome-speech2text
    ```
+
 2. Run the setup script:
+
    ```bash
    ./setup_env.sh
    ```
+
 3. Copy the extension to your GNOME extensions directory:
+
    ```bash
    cp -r whisper-typing@kaveh.page ~/.local/share/gnome-shell/extensions/
    ```
-4. Restart GNOME Shell (Alt+F2, type 'r' and press Enter)
-5. Enable the extension using GNOME Extensions app or `gnome-extensions enable whisper-typing@kaveh.page`
+
+4. Restart GNOME Shell:
+
+   - On X11: Press Alt+F2, type 'r' and press Enter
+   - On Wayland: Log out and log back in
+
+5. Enable the extension:
+   ```bash
+   gnome-extensions enable whisper-typing@kaveh.page
+   ```
 
 ## Dependencies
 
 - Python 3.8 or higher
-- GNOME Shell 42 or higher
+- GNOME Shell 45 or higher
 - FFmpeg (for audio processing)
 - OpenAI Whisper (automatically installed by setup script)
 
@@ -78,7 +116,7 @@ Click the extension icon and select "Settings" to:
 
    - Ensure all dependencies are installed: `./setup_env.sh`
    - Check if the extension is enabled in GNOME Extensions
-   - Restart GNOME Shell 
+   - Restart GNOME Shell
      - On X11 press Alt+F2, type 'r' and press Enter
      - On Wayland, log out and log back in
 
