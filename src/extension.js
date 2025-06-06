@@ -324,7 +324,7 @@ class RecordingDialog {
 
 function runSetupScript(extensionPath) {
   try {
-    const setupScript = extensionPath + "/setup_env.sh";
+    const setupScript = extensionPath + "/scripts/setup_env.sh";
     const file = Gio.File.new_for_path(setupScript);
 
     // Make sure the script is executable
@@ -409,7 +409,7 @@ export default class WhisperTypingExtension extends Extension {
 
   _runSetupInTerminal() {
     // Launch a terminal window to run the setup script so user can see progress
-    const setupScript = this.path + "/setup_env.sh";
+    const setupScript = this.path + "/scripts/setup_env.sh";
 
     // Try different terminal emulators in order of preference
     const terminals = [
@@ -446,22 +446,47 @@ export default class WhisperTypingExtension extends Extension {
     try {
       // Create a wrapper script that shows completion message
       const wrapperScript = `#!/bin/bash
-echo "=== Speech2Text Extension Setup ==="
-echo "Setting up Python virtual environment and dependencies..."
-echo "This may take a few minutes..."
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║              GNOME Speech2Text Extension Setup            ║"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo ""
+echo "🎯 ATTENTION: This terminal opened because the Speech2Text extension"
+echo "   needs to install its Python environment and dependencies."
+echo ""
+echo "📦 What will be installed:"
+echo "   • Python virtual environment"
+echo "   • OpenAI Whisper (speech recognition)"
+echo "   • Required Python packages"
+echo ""
+echo "⏱️  This process will take 2-5 minutes depending on your internet speed."
+echo "💾 Installation size: ~200-500MB"
+echo ""
+echo "Please read the prompts below and follow the instructions."
+echo "════════════════════════════════════════════════════════════"
 echo ""
 
 cd "${this.path}"
-bash "${setupScript}"
+bash "${setupScript}" --interactive
 exit_code=$?
 
 echo ""
+echo "════════════════════════════════════════════════════════════"
 if [ $exit_code -eq 0 ]; then
-    echo "=== Setup completed successfully! ==="
-    echo "You can now close this terminal and reload GNOME Shell (Alt+F2, type 'r', press Enter)"
+    echo "🎉 Setup completed successfully!"
+    echo ""
+    echo "📋 Next steps:"
+    echo "   1. Close this terminal"
+    echo "   2. Reload GNOME Shell: Press Alt+F2, type 'r', press Enter"
+    echo "   3. The Speech2Text extension will now be ready to use!"
+    echo ""
+    echo "🎤 Usage:"
+    echo "   • Click the microphone icon in the top panel"
+    echo "   • Or use the keyboard shortcut Ctrl+Shift+Alt+C"
 else
-    echo "=== Setup failed with exit code $exit_code ==="
-    echo "Please check the error messages above."
+    echo "❌ Setup failed with exit code $exit_code"
+    echo ""
+    echo "Please check the error messages above and try again."
+    echo "If the problem persists, please report it on GitHub."
 fi
 echo ""
 echo "Press Enter to close this terminal..."
@@ -539,8 +564,33 @@ read
       if (success) {
         Main.notify(
           "Speech2Text",
-          "Setup is running in the terminal window. Please wait for completion..."
+          "Setup is running in the terminal window. Please check the terminal for prompts."
         );
+
+        // Try to focus the terminal window after a short delay
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+          try {
+            // Find and focus the setup terminal window
+            let [findSuccess, findStdout] = GLib.spawn_command_line_sync(
+              'xdotool search --name "Speech2Text Setup" 2>/dev/null || true'
+            );
+            if (findSuccess && findStdout) {
+              let windowId = new TextDecoder().decode(findStdout).trim();
+              if (windowId) {
+                GLib.spawn_command_line_sync(
+                  `xdotool windowactivate ${windowId} 2>/dev/null || true`
+                );
+                GLib.spawn_command_line_sync(
+                  `xdotool windowraise ${windowId} 2>/dev/null || true`
+                );
+                log(`Focused setup terminal window: ${windowId}`);
+              }
+            }
+          } catch (e) {
+            log(`Could not focus terminal window: ${e}`);
+          }
+          return false; // Don't repeat
+        });
 
         // Clean up temp script when process completes
         GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, status) => {
@@ -825,11 +875,6 @@ read
     // Add hand cursor effect to close button
     addHandCursorToButton(closeButton);
 
-    closeButton.connect("clicked", () => {
-      log("🎯 Close button clicked!");
-      this.close();
-    });
-
     headerBox.add_child(titleIcon);
     headerBox.add_child(titleLabel);
     headerBox.add_child(closeButton);
@@ -949,6 +994,58 @@ read
       style: "background-color: #444; height: 1px; margin: 20px 0;",
     });
 
+    // Troubleshooting section
+    let troubleshootingSection = new St.BoxLayout({
+      vertical: true,
+      style: "spacing: 10px; margin-bottom: 20px;",
+    });
+
+    let troubleshootingLabel = new St.Label({
+      text: "Troubleshooting",
+      style:
+        "font-size: 18px; font-weight: bold; color: white; margin-bottom: 10px;",
+    });
+
+    let troubleshootingDescription = new St.Label({
+      text: "If the extension is not working properly, try reinstalling the Python environment:",
+      style: "font-size: 14px; color: #ccc; margin-bottom: 15px;",
+    });
+
+    // Install/Reinstall Python Environment button
+    let installPythonButton = createHoverButton(
+      "Install/Reinstall Python Environment",
+      "#28a745",
+      "#34ce57"
+    );
+
+    installPythonButton.connect("clicked", () => {
+      // Close settings window first
+      closeSettings();
+
+      // Show notification
+      Main.notify(
+        "Speech2Text",
+        "Opening terminal to install Python environment..."
+      );
+
+      // Run setup in terminal
+      if (!this._runSetupInTerminal()) {
+        Main.notify(
+          "Speech2Text Error",
+          "Failed to launch terminal setup. Please check the logs."
+        );
+      }
+    });
+
+    troubleshootingSection.add_child(troubleshootingLabel);
+    troubleshootingSection.add_child(troubleshootingDescription);
+    troubleshootingSection.add_child(installPythonButton);
+
+    // Another separator line
+    let separator2 = new St.Widget({
+      style: "background-color: #444; height: 1px; margin: 20px 0;",
+    });
+
     // About section
     let aboutSection = new St.BoxLayout({
       vertical: true,
@@ -1025,6 +1122,8 @@ read
     settingsWindow.add_child(headerBox);
     settingsWindow.add_child(shortcutSection);
     settingsWindow.add_child(separator);
+    settingsWindow.add_child(troubleshootingSection);
+    settingsWindow.add_child(separator2);
     settingsWindow.add_child(aboutSection);
 
     // Create modal overlay

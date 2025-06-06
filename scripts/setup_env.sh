@@ -7,7 +7,14 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Check for interactive mode flag
+INTERACTIVE=false
+if [ "$1" = "--interactive" ] || [ "$1" = "-i" ]; then
+    INTERACTIVE=true
+fi
 
 # Function to check if a command exists
 command_exists() {
@@ -74,6 +81,46 @@ fi
 # Extension directory
 EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page"
 VENV_DIR="$EXTENSION_DIR/venv"
+
+# Interactive mode prompt
+if [ "$INTERACTIVE" = true ]; then
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}  GNOME Speech2Text Extension Setup    ${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "${YELLOW}This setup will:${NC}"
+    echo "• Create a Python virtual environment"
+    echo "• Install OpenAI Whisper and dependencies"
+    echo "• Set up the extension for speech-to-text functionality"
+    echo ""
+    echo -e "${YELLOW}Dependencies required:${NC}"
+    echo "• Python 3.8+ ✓ (found $PYTHON_VERSION)"
+    echo "• pip3 ✓"
+    echo "• ffmpeg ✓"
+    echo "• xdotool ✓"
+    echo ""
+    echo -e "${YELLOW}Installation size:${NC} ~200-500MB (includes Whisper models)"
+    echo -e "${YELLOW}Estimated time:${NC} 2-5 minutes (depending on internet speed)"
+    echo ""
+    while true; do
+        read -p "Do you want to proceed with the installation? [Y/n]: " yn
+        case $yn in
+            [Yy]* | "" ) 
+                echo ""
+                print_status "Starting installation..."
+                break
+                ;;
+            [Nn]* ) 
+                echo ""
+                echo -e "${YELLOW}Installation cancelled.${NC}"
+                echo "You can run this setup later by reloading the extension."
+                exit 0
+                ;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+fi
 
 # Create extension directory if it doesn't exist
 if [ ! -d "$EXTENSION_DIR" ]; then
