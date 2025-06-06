@@ -1746,6 +1746,24 @@ read
   // Consolidated toggle recording method
   toggleRecording() {
     log(`=== TOGGLE RECORDING DEBUG START ===`);
+
+    // Check if Python environment is set up before proceeding
+    const setup = checkSetupStatus(this.path);
+    if (setup.needsSetup) {
+      log(`Python environment not found - launching setup`);
+      Main.notify("Speech2Text", "Python environment missing. Setting up...");
+
+      if (this._runSetupInTerminal()) {
+        Main.notify(
+          "Speech2Text",
+          "Please complete the setup in the terminal, then try again."
+        );
+      } else {
+        Main.notify("Speech2Text Error", "Failed to launch setup terminal.");
+      }
+      return;
+    }
+
     log(`this.recordingProcess = ${this.recordingProcess}`);
     log(`this.recordingDialog = ${this.recordingDialog ? "EXISTS" : "NULL"}`);
     log(`Icon style = ${this.icon.get_style()}`);
