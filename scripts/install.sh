@@ -20,6 +20,16 @@ print_status() {
     echo -e "${GREEN}==>${NC} $1"
 }
 
+# Function to download a file
+download_file() {
+    local url=$1
+    local output=$2
+    print_status "Downloading $output..."
+    if ! wget -q "$url" -O "$output"; then
+        error_exit "Failed to download $output"
+    fi
+}
+
 echo -e "${YELLOW}Installing Whisper Typing GNOME Extension...${NC}"
 
 # Check if running as root
@@ -42,56 +52,35 @@ if [ -d "$EXTENSIONS_DIR/whisper-typing@kaveh.page" ]; then
     rm -rf "$EXTENSIONS_DIR/whisper-typing@kaveh.page" || error_exit "Failed to remove existing extension"
 fi
 
-# Get the directory where the script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Create temporary directory for downloads
+TEMP_DIR=$(mktemp -d)
+cd "$TEMP_DIR" || error_exit "Failed to create temporary directory"
 
-# Check if we're running from a downloaded script
-if [ "$SCRIPT_DIR" = "/tmp" ]; then
-    # We're running from a downloaded script, need to download the zip
-    print_status "Downloading extension..."
-    TEMP_DIR=$(mktemp -d)
-    cd "$TEMP_DIR" || error_exit "Failed to create temporary directory"
-    
-    if ! wget -q https://github.com/kavehtehrani/gnome-speech2text/releases/latest/download/whisper-typing@kaveh.page.zip; then
-        rm -rf "$TEMP_DIR"
-        error_exit "Failed to download extension"
-    fi
-    
-    # Extract the extension
-    print_status "Extracting extension..."
-    if ! unzip -q whisper-typing@kaveh.page.zip -d "$EXTENSIONS_DIR"; then
-        rm -rf "$TEMP_DIR"
-        error_exit "Failed to extract extension"
-    fi
-    
-    # Clean up
-    cd - > /dev/null || true
+# Download all necessary files
+REPO_URL="https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main"
+download_file "$REPO_URL/scripts/setup_env.sh" "setup_env.sh"
+download_file "$REPO_URL/requirements.txt" "requirements.txt"
+download_file "https://github.com/kavehtehrani/gnome-speech2text/releases/latest/download/whisper-typing@kaveh.page.zip" "whisper-typing@kaveh.page.zip"
+
+# Extract the extension
+print_status "Extracting extension..."
+if ! unzip -q whisper-typing@kaveh.page.zip -d "$EXTENSIONS_DIR"; then
     rm -rf "$TEMP_DIR"
-else
-    # We're running from the repository
-    if [ ! -f "$PROJECT_ROOT/dist/whisper-typing@kaveh.page.zip" ]; then
-        error_exit "Extension zip file not found. Please run package_zip.sh first"
-    fi
-    
-    # Extract the extension
-    print_status "Extracting extension..."
-    if ! unzip -q "$PROJECT_ROOT/dist/whisper-typing@kaveh.page.zip" -d "$EXTENSIONS_DIR"; then
-        error_exit "Failed to extract extension"
-    fi
+    error_exit "Failed to extract extension"
 fi
 
 # Verify the extension was extracted correctly
 if [ ! -d "$EXTENSIONS_DIR/whisper-typing@kaveh.page" ]; then
+    rm -rf "$TEMP_DIR"
     error_exit "Extension was not extracted correctly"
 fi
 
+# Copy setup files to extension directory
+cp setup_env.sh "$EXTENSIONS_DIR/whisper-typing@kaveh.page/" || error_exit "Failed to copy setup script"
+cp requirements.txt "$EXTENSIONS_DIR/whisper-typing@kaveh.page/" || error_exit "Failed to copy requirements file"
+
 # Run the setup script
 print_status "Setting up environment..."
-if [ ! -f "$EXTENSIONS_DIR/whisper-typing@kaveh.page/setup_env.sh" ]; then
-    error_exit "Setup script not found in extension directory"
-fi
-
 cd "$EXTENSIONS_DIR/whisper-typing@kaveh.page" || error_exit "Failed to change to extension directory"
 if ! bash setup_env.sh; then
     error_exit "Setup script failed"
@@ -102,6 +91,10 @@ print_status "Enabling extension..."
 if ! gnome-extensions enable whisper-typing@kaveh.page; then
     error_exit "Failed to enable extension. Please enable it manually using GNOME Extensions app"
 fi
+
+# Clean up
+cd - > /dev/null || true
+rm -rf "$TEMP_DIR"
 
 echo -e "${GREEN}Installation complete!${NC}"
 echo -e "${YELLOW}Please restart GNOME Shell:${NC}"
