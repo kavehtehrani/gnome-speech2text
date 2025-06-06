@@ -402,55 +402,183 @@ export default class WhisperTypingExtension extends Extension {
   }
 
   _showSetupDialog(message) {
-    const dialog = new St.Modal();
-    const box = new St.BoxLayout({
-      vertical: true,
-      style_class: "setup-dialog",
-      style: "padding: 20px;",
-    });
+    // Use GNOME Shell's notification system instead of St.Modal
+    Main.notify("Speech2Text Setup", message);
+    log(`Speech2Text: ${message}`);
+  }
 
-    const title = new St.Label({
-      text: "Setting Up Extension",
-      style: "font-size: 18px; font-weight: bold; margin-bottom: 20px;",
-    });
+  _runSetupInTerminal() {
+    // Launch a terminal window to run the setup script so user can see progress
+    const setupScript = this.path + "/setup_env.sh";
 
-    const messageLabel = new St.Label({
-      text: message,
-      style: "font-size: 14px; margin-bottom: 20px;",
-    });
+    // Try different terminal emulators in order of preference
+    const terminals = [
+      "gnome-terminal",
+      "konsole",
+      "xfce4-terminal",
+      "mate-terminal",
+      "xterm",
+    ];
 
-    const button = new St.Button({
-      label: "OK",
-      style_class: "button",
-      style: "margin-top: 10px;",
-    });
+    let terminalCmd = null;
 
-    button.connect("clicked", () => {
-      dialog.close();
-    });
+    // Find an available terminal
+    for (let terminal of terminals) {
+      try {
+        let [success] = GLib.spawn_command_line_sync(`which ${terminal}`);
+        if (success) {
+          terminalCmd = terminal;
+          break;
+        }
+      } catch (e) {
+        // Continue to next terminal
+      }
+    }
 
-    box.add_child(title);
-    box.add_child(messageLabel);
-    box.add_child(button);
-    dialog.set_content(box);
-    dialog.open();
+    if (!terminalCmd) {
+      Main.notify(
+        "Speech2Text Error",
+        "No terminal emulator found. Please install gnome-terminal or similar."
+      );
+      return false;
+    }
+
+    try {
+      // Create a wrapper script that shows completion message
+      const wrapperScript = `#!/bin/bash
+echo "=== Speech2Text Extension Setup ==="
+echo "Setting up Python virtual environment and dependencies..."
+echo "This may take a few minutes..."
+echo ""
+
+cd "${this.path}"
+bash "${setupScript}"
+exit_code=$?
+
+echo ""
+if [ $exit_code -eq 0 ]; then
+    echo "=== Setup completed successfully! ==="
+    echo "You can now close this terminal and reload GNOME Shell (Alt+F2, type 'r', press Enter)"
+else
+    echo "=== Setup failed with exit code $exit_code ==="
+    echo "Please check the error messages above."
+fi
+echo ""
+echo "Press Enter to close this terminal..."
+read
+`;
+
+      // Write wrapper script to temp file
+      const tempScript = GLib.get_tmp_dir() + "/speech2text-setup.sh";
+      const file = Gio.File.new_for_path(tempScript);
+      const outputStream = file.replace(
+        null,
+        false,
+        Gio.FileCreateFlags.NONE,
+        null
+      );
+      outputStream.write(wrapperScript, null);
+      outputStream.close(null);
+
+      // Make script executable
+      GLib.spawn_command_line_sync(`chmod +x "${tempScript}"`);
+
+      // Launch terminal with the wrapper script
+      let terminalArgs;
+      if (terminalCmd === "gnome-terminal") {
+        terminalArgs = [
+          terminalCmd,
+          "--title=Speech2Text Setup",
+          "--",
+          "bash",
+          tempScript,
+        ];
+      } else if (terminalCmd === "konsole") {
+        terminalArgs = [
+          terminalCmd,
+          "--title",
+          "Speech2Text Setup",
+          "-e",
+          "bash",
+          tempScript,
+        ];
+      } else if (terminalCmd === "xfce4-terminal") {
+        terminalArgs = [
+          terminalCmd,
+          "--title=Speech2Text Setup",
+          "-e",
+          `bash ${tempScript}`,
+        ];
+      } else if (terminalCmd === "mate-terminal") {
+        terminalArgs = [
+          terminalCmd,
+          "--title=Speech2Text Setup",
+          "-e",
+          `bash ${tempScript}`,
+        ];
+      } else {
+        // xterm or fallback
+        terminalArgs = [
+          terminalCmd,
+          "-title",
+          "Speech2Text Setup",
+          "-e",
+          "bash",
+          tempScript,
+        ];
+      }
+
+      let [success, pid] = GLib.spawn_async(
+        null, // working directory
+        terminalArgs,
+        null, // envp
+        GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+        null // child_setup
+      );
+
+      if (success) {
+        Main.notify(
+          "Speech2Text",
+          "Setup is running in the terminal window. Please wait for completion..."
+        );
+
+        // Clean up temp script when process completes
+        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, status) => {
+          try {
+            GLib.unlink(tempScript);
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+          GLib.spawn_close_pid(pid);
+        });
+
+        return true;
+      } else {
+        throw new Error("Failed to launch terminal");
+      }
+    } catch (e) {
+      log(`Error launching terminal setup: ${e}`);
+      Main.notify(
+        "Speech2Text Error",
+        `Failed to launch terminal setup: ${e.message}`
+      );
+      return false;
+    }
   }
 
   enable() {
     const setup = checkSetupStatus(this.path);
     if (setup.needsSetup) {
       this._showSetupDialog(setup.message);
-      if (runSetupScript(this.path)) {
-        // Show a message that setup is in progress
-        this._showSetupDialog(
-          "Setup is running in the background. Please wait a moment and then restart GNOME Shell."
-        );
+      if (this._runSetupInTerminal()) {
+        // Setup is running in terminal, extension will need to be reloaded after completion
+        return;
       } else {
         this._showSetupDialog(
-          "Failed to run setup script. Please try reinstalling the extension."
+          "Failed to launch terminal setup. Please try reinstalling the extension."
         );
+        return;
       }
-      return;
     }
 
     this.settings = this.getSettings();
