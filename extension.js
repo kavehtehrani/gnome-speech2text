@@ -811,21 +811,8 @@ export default class WhisperTypingExtension extends Extension {
 
     // Click outside to close - but make sure to block all background clicks
     clickHandlerId = overlay.connect("button-press-event", (actor, event) => {
-      let [x, y] = event.get_coords();
-      let [windowX, windowY] = settingsWindow.get_position();
-      let [windowW, windowH] = settingsWindow.get_size();
-
-      // If click is outside settings window area, close it
-      if (
-        x < windowX ||
-        x > windowX + windowW ||
-        y < windowY ||
-        y > windowY + windowH
-      ) {
-        closeSettings();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
+      // Block all background clicks but don't close the window
+      return Clutter.EVENT_STOP;
     });
 
     // Escape key to close and block all other keyboard events from going to background
