@@ -54,8 +54,8 @@ fi
 
 # Create zip file
 echo -e "${YELLOW}Creating zip package...${NC}"
-cd "$TEMP_DIR" || exit
-zip -r "$DIST_DIR/gnome-speech2text@kaveh.page.zip" "gnome-speech2text@kaveh.page" > /dev/null
+cd "$EXTENSION_DIR" || exit
+zip -r "$DIST_DIR/gnome-speech2text@kaveh.page.zip" . > /dev/null
 
 # Get zip file size
 ZIP_SIZE=$(du -h "$DIST_DIR/gnome-speech2text@kaveh.page.zip" | cut -f1)
