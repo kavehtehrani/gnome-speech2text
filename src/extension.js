@@ -174,6 +174,7 @@ class RecordingDialog {
       style: "spacing: 15px;",
       x_align: Clutter.ActorAlign.CENTER,
       y_align: Clutter.ActorAlign.CENTER,
+      x_expand: false,
     });
 
     this.recordingIcon = new St.Label({
@@ -219,8 +220,10 @@ class RecordingDialog {
       }
     });
 
-    // Add to content box
+    // Add to content box with proper alignment
     this.container.add_child(headerBox);
+    headerBox.set_x_align(Clutter.ActorAlign.CENTER);
+
     this.container.add_child(instructionLabel);
     this.container.add_child(this.stopButton);
     this.container.add_child(this.cancelButton);
