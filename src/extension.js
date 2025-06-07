@@ -172,16 +172,20 @@ class RecordingDialog {
     let headerBox = new St.BoxLayout({
       vertical: false,
       style: "spacing: 15px;",
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     this.recordingIcon = new St.Label({
       text: "🎤",
       style: "font-size: 48px; text-align: center;",
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     let recordingLabel = new St.Label({
       text: "Recording...",
       style: "font-size: 20px; font-weight: bold; color: white; ",
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     headerBox.add_child(this.recordingIcon);
