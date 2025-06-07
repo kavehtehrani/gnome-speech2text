@@ -71,14 +71,17 @@ download_file "$REPO_URL/scripts/setup_env.sh" "setup_env.sh"
 download_file "$REPO_URL/requirements.txt" "requirements.txt"
 download_file "$REPO_URL/dist/gnome-speech2text@kaveh.page.zip" "gnome-speech2text@kaveh.page.zip"
 
+# Create extension directory
+mkdir -p "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page" || error_exit "Failed to create extension directory"
+
 # Extract the extension
 print_status "Extracting extension..."
-if ! unzip -q gnome-speech2text@kaveh.page.zip -d "$EXTENSIONS_DIR"; then
+if ! unzip -q gnome-speech2text@kaveh.page.zip -d "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page"; then
     error_exit "Failed to extract extension"
 fi
 
 # Verify the extension was extracted correctly
-if [ ! -d "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page" ]; then
+if [ ! -f "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page/metadata.json" ]; then
     error_exit "Extension was not extracted correctly"
 fi
 
