@@ -1,6 +1,14 @@
 # GNOME Speech2Text
 
-A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Whisper model. Speak into your microphone and have your words automatically typed wherever your cursor is.
+A GNOME Shell extension that adds speech-to-text functionality using
+[OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone
+and have your words automatically typed wherever your cursor is.
+
+I wrote this extension to mostly use with Cursor AI since speaking is much faster than typing. I'm on Ubuntu 24.04 and
+GNOME Shell 46, and unfortunately couldn't find any existing extensions that did this, so I built this over a weekend half
+vibe-learning GNOME extensions and half vice-coding the actual script.
+
+![recording-modal](./images/recording-modal.png)
 
 ## Features
 
@@ -8,8 +16,6 @@ A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Wh
 - ⌨️ **Automatic Text Insertion** at cursor location
 - 🖱️ **Click to Record** from top panel microphone icon
 - ⌨️ **Keyboard Shortcut** support (default: Ctrl+Shift+Alt+C)
-- 🖥️ **Interactive Terminal Setup** with progress visibility
-- 🔧 **Built-in Troubleshooting** tools in settings
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - ⚙️ **Easy Configuration** through settings panel
 
@@ -19,7 +25,6 @@ A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Wh
 - Python 3.8 or later
 - FFmpeg
 - xdotool
-- Internet connection for initial model download (~200-500MB)
 
 ## System Requirements Installation
 
@@ -32,11 +37,7 @@ sudo apt update
 sudo apt install python3 python3-pip python3-venv ffmpeg xdotool libglib2.0-dev
 ```
 
-### Fedora
-
-```bash
-sudo dnf install python3 python3-pip ffmpeg xdotool glib2-devel
-```
+I have only tested this on Ubuntu 24.04, but it should work on any GNOME Shell 46+ distribution with the above packages installed.
 
 ## Installation
 
@@ -63,46 +64,9 @@ cd gnome-speech2text
 ./scripts/install.sh
 ```
 
-### Option 3: From Local Package
+### Option 3: GNOME Extensions Website
 
-Build and install from a packaged version:
-
-```bash
-git clone https://github.com/kavehtehrani/gnome-speech2text.git
-cd gnome-speech2text
-./scripts/package_zip.sh
-cd dist
-unzip gnome-speech2text@kaveh.page.zip
-cd gnome-speech2text@kaveh.page
-./scripts/install.sh
-```
-
-### Option 4: Manual Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/kavehtehrani/gnome-speech2text.git
-cd gnome-speech2text
-```
-
-2. Copy extension files:
-
-```bash
-mkdir -p ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page
-cp -r src/* ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page/
-cp -r scripts ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page/
-cp requirements.txt ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page/
-```
-
-3. Set up Python environment:
-
-```bash
-cd ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page
-./scripts/setup_env.sh --interactive
-```
-
-4. Restart GNOME Shell and enable the extension
+[WIP]
 
 ## First-Time Setup
 
@@ -134,66 +98,13 @@ Right-click the microphone icon → Settings to configure:
 
 ### Extension Not Working?
 
-1. Right-click microphone icon → Settings
-2. Click "Install/Reinstall Python Environment"
-3. Follow terminal prompts to reinstall
+1. First make sure the extension is enabled in GNOME Tweaks or Extensions app and has no error message.
+2. Right-click microphone icon → Settings
+3. Click "Install/Reinstall Python Environment"
+4. Follow terminal prompts to reinstall
 
-### Missing Dependencies?
-
-Install required system packages:
-
-**Ubuntu/Debian:**
-
-```bash
-sudo apt-get install python3 python3-pip python3-venv ffmpeg xdotool
-```
-
-**Fedora:**
-
-```bash
-sudo dnf install python3 python3-pip ffmpeg xdotool
-```
-
-**Arch Linux:**
-
-```bash
-sudo pacman -S python python-pip ffmpeg xdotool
-```
-
-### Manual Python Environment Reset
-
-```bash
-cd ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page
-rm -rf venv
-./scripts/setup_env.sh --interactive
-```
-
-## Uninstallation
-
-### Using the Uninstall Script
-
-```bash
-cd gnome-speech2text
-./scripts/uninstall.sh
-```
-
-### Manual Uninstallation
-
-1. Disable the extension in GNOME Extensions app
-2. Remove extension directory:
-
-```bash
-rm -rf ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page
-```
-
-3. Clean up schemas:
-
-```bash
-rm -f ~/.local/share/glib-2.0/schemas/org.gnome.shell.extensions.gnome-speech2text.gschema.xml
-glib-compile-schemas ~/.local/share/glib-2.0/schemas/
-```
-
-4. Restart GNOME Shell
+You can always read the logs in the terminal or journal to see if there are any errors by running:
+`journalctl /usr/bin/gnome-shell -f`
 
 ## Development
 
@@ -204,32 +115,6 @@ glib-compile-schemas ~/.local/share/glib-2.0/schemas/
 ```
 
 This creates `dist/gnome-speech2text@kaveh.page.zip` with all necessary files.
-
-### Building Debian Package
-
-```bash
-./scripts/build_deb.sh
-```
-
-### Project Structure
-
-```
-gnome-speech2text/
-├── src/                    # Extension source files
-│   ├── extension.js        # Main extension code
-│   ├── metadata.json       # Extension metadata
-│   ├── whisper_typing.py   # Python speech recognition
-│   ├── schemas/            # GSettings schemas
-│   └── icons/              # Extension icons
-├── scripts/                # Installation and build scripts
-│   ├── install.sh          # Installation script
-│   ├── uninstall.sh        # Uninstallation script
-│   ├── setup_env.sh        # Python environment setup
-│   ├── package_zip.sh      # Package creation
-│   └── build_deb.sh        # Debian package builder
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
-```
 
 ## License
 
