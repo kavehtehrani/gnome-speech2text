@@ -71,13 +71,21 @@ download_file "$REPO_URL/scripts/setup_env.sh" "setup_env.sh"
 download_file "$REPO_URL/requirements.txt" "requirements.txt"
 download_file "$REPO_URL/dist/gnome-speech2text@kaveh.page.zip" "gnome-speech2text@kaveh.page.zip"
 
-# Create extension directory
+# Extract the extension to temporary location first
+print_status "Extracting extension..."
+EXTRACT_DIR="$TEMP_DIR/extracted"
+mkdir -p "$EXTRACT_DIR" || error_exit "Failed to create extraction directory"
+
+if ! unzip -q gnome-speech2text@kaveh.page.zip -d "$EXTRACT_DIR"; then
+    error_exit "Failed to extract extension"
+fi
+
+# Create extension directory and move files
 mkdir -p "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page" || error_exit "Failed to create extension directory"
 
-# Extract the extension
-print_status "Extracting extension..."
-if ! unzip -q gnome-speech2text@kaveh.page.zip -d "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page"; then
-    error_exit "Failed to extract extension"
+# Move all extracted files to the proper extension directory
+if ! mv "$EXTRACT_DIR"/* "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page/"; then
+    error_exit "Failed to move extension files"
 fi
 
 # Verify the extension was extracted correctly
