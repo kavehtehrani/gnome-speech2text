@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Best to remove the extension using GNOME Extensions app, but this script provides a way to uninstall it manually.
+
 # Exit on error
 set -e
 
