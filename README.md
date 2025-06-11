@@ -66,7 +66,7 @@ cd gnome-speech2text
 
 ### Option 3: GNOME Extensions Website
 
-[WIP]
+[Pending Approval]
 
 ## First-Time Setup
 
