@@ -19,6 +19,8 @@ vibe-learning GNOME extensions and half vice-coding the actual script.
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - ⚙️ **Easy Configuration** through settings panel
 
+**Note: This extension is currently only working on X11. If there's interest in Wayland support, I can look into it.**
+
 ## Requirements
 
 - GNOME Shell 46 or later
