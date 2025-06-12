@@ -42,6 +42,91 @@ const STYLES = {
 
 let button;
 
+// Focus debugging utility function
+function debugFocusState(context = "") {
+  const prefix = context ? `🔍 ${context} FOCUS DEBUG` : "🔍 FOCUS DEBUG";
+
+  try {
+    let currentFocus = global.stage.get_key_focus();
+    log(
+      `${prefix} - Current stage focus: ${
+        currentFocus ? currentFocus.toString() : "NULL"
+      }`
+    );
+
+    // Try to get active window info using xdotool (X11)
+    const [success, stdout] = GLib.spawn_command_line_sync(
+      "xdotool getactivewindow"
+    );
+
+    if (success && stdout) {
+      let windowId = new TextDecoder().decode(stdout).trim();
+      log(`${prefix} - Active X11 window ID: ${windowId}`);
+
+      // Get window name
+      const [nameSuccess, nameStdout] = GLib.spawn_command_line_sync(
+        `xdotool getwindowname ${windowId}`
+      );
+      if (nameSuccess && nameStdout) {
+        let windowName = new TextDecoder().decode(nameStdout).trim();
+        log(`${prefix} - Active window name: ${windowName}`);
+      }
+
+      return { hasActiveWindow: true, windowId, currentFocus };
+    } else {
+      // NO ACTIVE WINDOW - this is the problem!
+      log(
+        `${prefix} - No active X11 window found - this will cause focus issues!`
+      );
+      return { hasActiveWindow: false, windowId: null, currentFocus };
+    }
+  } catch (e) {
+    log(`${prefix} - Error getting focus info: ${e}`);
+    return {
+      hasActiveWindow: false,
+      windowId: null,
+      currentFocus: null,
+      error: e,
+    };
+  }
+}
+
+// Helper function to establish X11 focus context when no active window exists
+function establishX11FocusContext(callback = null) {
+  try {
+    // Try to find and focus any available window to establish X11 context
+    const [findSuccess, findStdout] = GLib.spawn_command_line_sync(
+      "xdotool search --onlyvisible '.*' | head -1"
+    );
+
+    if (findSuccess && findStdout) {
+      let anyWindowId = new TextDecoder().decode(findStdout).trim();
+      if (anyWindowId) {
+        log(
+          `🔍 FOCUS DEBUG - Found window ${anyWindowId}, focusing it to establish X11 context`
+        );
+        GLib.spawn_command_line_sync(`xdotool windowfocus ${anyWindowId}`);
+        GLib.spawn_command_line_sync(`xdotool windowactivate ${anyWindowId}`);
+
+        if (callback) {
+          // Wait a moment for focus to settle
+          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+            callback();
+            return false;
+          });
+          return true; // Indicates callback will be called asynchronously
+        }
+        return true;
+      }
+    }
+  } catch (e) {
+    log(`🔍 FOCUS DEBUG - Error establishing X11 context: ${e}`);
+  }
+
+  callback?.(); // Call immediately if we couldn't establish context
+  return false;
+}
+
 // Helper function to create button styles
 function createButtonStyle(baseColor, hoverColor) {
   return {
@@ -93,6 +178,184 @@ function createHoverButton(label, baseColor, hoverColor) {
   return button;
 }
 
+// UI Creation Utilities
+
+// Create a simple text button with hover effects (no background style)
+function createTextButton(label, normalColor, hoverColor, options = {}) {
+  const baseStyle = `
+    font-size: ${options.fontSize || "14px"};
+    padding: ${options.padding || "8px"};
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  `;
+
+  let button = new St.Button({
+    label: label,
+    style: `
+      color: ${normalColor};
+      ${baseStyle}
+      ${options.extraStyle || ""}
+    `,
+    reactive: true,
+    can_focus: true,
+    track_hover: true,
+    ...(options.buttonProps || {}),
+  });
+
+  // Add hover effects
+  button.connect("enter-event", () => {
+    button.set_style(`
+      color: ${hoverColor};
+      ${baseStyle}
+      ${options.hoverExtraStyle || options.extraStyle || ""}
+    `);
+  });
+
+  button.connect("leave-event", () => {
+    button.set_style(`
+      color: ${normalColor};
+      ${baseStyle}
+      ${options.extraStyle || ""}
+    `);
+  });
+
+  // Add hand cursor effect
+  addHandCursorToButton(button);
+
+  return button;
+}
+
+// Create a label with predefined styles
+function createStyledLabel(text, style = "normal", customStyle = "") {
+  const styles = {
+    title: `font-size: 20px; font-weight: bold; color: ${COLORS.WHITE};`,
+    subtitle: `font-size: 18px; font-weight: bold; color: ${COLORS.WHITE}; margin-bottom: 10px;`,
+    description: `font-size: 14px; color: ${COLORS.LIGHT_GRAY}; margin-bottom: 15px;`,
+    normal: `font-size: 14px; color: ${COLORS.WHITE};`,
+    small: `font-size: 12px; color: ${COLORS.DARK_GRAY};`,
+    icon: `font-size: 28px; margin-right: 8px;`,
+  };
+
+  return new St.Label({
+    text: text,
+    style: `${styles[style] || styles.normal} ${customStyle}`,
+  });
+}
+
+// Create a vertical box layout with standard spacing
+function createVerticalBox(spacing = "15px", marginBottom = "20px") {
+  return new St.BoxLayout({
+    vertical: true,
+    style: `spacing: ${spacing}; margin-bottom: ${marginBottom};`,
+  });
+}
+
+// Create a horizontal box layout with standard spacing
+function createHorizontalBox(spacing = "15px", marginBottom = "15px") {
+  return new St.BoxLayout({
+    vertical: false,
+    style: `spacing: ${spacing}; margin-bottom: ${marginBottom};`,
+  });
+}
+
+// Create a separator line
+function createSeparator() {
+  return new St.Widget({
+    style: "background-color: #444; height: 1px; margin: 20px 0;",
+  });
+}
+
+// Resource Management Utilities
+
+// Helper to safely disconnect event handlers
+function safeDisconnect(actor, handlerId, handlerName = "handler") {
+  try {
+    if (actor && handlerId) {
+      actor.disconnect(handlerId);
+      log(`Disconnected ${handlerName} (ID: ${handlerId})`);
+      return true;
+    }
+  } catch (e) {
+    log(`Error disconnecting ${handlerName}: ${e}`);
+  }
+  return false;
+}
+
+// Modal dialog cleanup utility
+function cleanupModal(overlay, handlers = {}) {
+  try {
+    // Disconnect event handlers
+    if (handlers.clickHandlerId) {
+      safeDisconnect(overlay, handlers.clickHandlerId, "click handler");
+    }
+    if (handlers.keyPressHandlerId) {
+      safeDisconnect(overlay, handlers.keyPressHandlerId, "key press handler");
+    }
+
+    // Remove from layout manager
+    if (overlay && overlay.get_parent()) {
+      Main.layoutManager.removeChrome(overlay);
+      log("Modal overlay removed from chrome");
+    }
+
+    return true;
+  } catch (e) {
+    log(`Error cleaning up modal: ${e}`);
+    return false;
+  }
+}
+
+// Process cleanup utility with signal support
+function cleanupProcess(pid, signal = "USR1", processName = "process") {
+  if (!pid) return false;
+
+  try {
+    GLib.spawn_command_line_sync(`kill -${signal} ${pid}`);
+    log(`Sent ${signal} signal to ${processName} (PID: ${pid})`);
+    return true;
+  } catch (e) {
+    log(`Error sending ${signal} to ${processName} (PID: ${pid}): ${e}`);
+    return false;
+  }
+}
+
+// Recording state cleanup utility
+function cleanupRecordingState(extension, iconResetStyle = "") {
+  let cleanedDialog = false;
+  let cleanedProcess = false;
+
+  // Clean up dialog
+  if (extension.recordingDialog) {
+    try {
+      extension.recordingDialog.close();
+      extension.recordingDialog = null;
+      cleanedDialog = true;
+      log("Recording dialog cleaned up");
+    } catch (e) {
+      log(`Error cleaning up recording dialog: ${e}`);
+      extension.recordingDialog = null; // Force cleanup even if close fails
+    }
+  }
+
+  // Clean up process
+  if (extension.recordingProcess) {
+    cleanedProcess = cleanupProcess(
+      extension.recordingProcess,
+      "USR1",
+      "recording process"
+    );
+    extension.recordingProcess = null;
+  }
+
+  // Reset icon style using optional chaining
+  extension.icon?.set_style(iconResetStyle);
+  if (extension.icon) {
+    log("Icon style reset");
+  }
+
+  return { cleanedDialog, cleanedProcess };
+}
+
 // Simple recording dialog using custom modal barrier
 class RecordingDialog {
   constructor(onStop, onCancel) {
@@ -139,9 +402,7 @@ class RecordingDialog {
           // Escape = Cancel (no transcription)
           log(`🎯 Canceling recording via keyboard: ${keyname}`);
           this.close();
-          if (this.onCancel) {
-            this.onCancel();
-          }
+          this.onCancel?.();
           return Clutter.EVENT_STOP;
         } else if (
           keyval === Clutter.KEY_space ||
@@ -151,9 +412,7 @@ class RecordingDialog {
           // Enter/Space = Stop and process (with transcription)
           log(`🎯 Stopping recording via keyboard: ${keyname}`);
           this.close();
-          if (this.onStop) {
-            this.onStop();
-          }
+          this.onStop?.();
           return Clutter.EVENT_STOP;
         }
 
@@ -189,7 +448,7 @@ class RecordingDialog {
     });
 
     // Recording header
-    let headerBox = new St.BoxLayout({
+    const headerBox = new St.BoxLayout({
       vertical: false,
       style: "spacing: 15px;",
       x_align: Clutter.ActorAlign.CENTER,
@@ -203,7 +462,7 @@ class RecordingDialog {
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    let recordingLabel = new St.Label({
+    const recordingLabel = new St.Label({
       text: "Recording...",
       style: `font-size: 20px; font-weight: bold; color: ${COLORS.WHITE};`,
       y_align: Clutter.ActorAlign.CENTER,
@@ -213,7 +472,7 @@ class RecordingDialog {
     headerBox.add_child(recordingLabel);
 
     // Instructions
-    let instructionLabel = new St.Label({
+    const instructionLabel = new St.Label({
       text: "Speak now\nPress Enter to process, Escape to cancel.",
       style: `font-size: 16px; color: ${COLORS.LIGHT_GRAY}; text-align: center;`,
     });
@@ -235,17 +494,13 @@ class RecordingDialog {
     this.stopButton.connect("clicked", () => {
       log("🎯 Stop button clicked!");
       this.close();
-      if (this.onStop) {
-        this.onStop();
-      }
+      this.onStop?.();
     });
 
     this.cancelButton.connect("clicked", () => {
       log("🎯 Cancel button clicked!");
       this.close();
-      if (this.onCancel) {
-        this.onCancel();
-      }
+      this.onCancel?.();
     });
 
     // Add to content box with proper alignment
@@ -267,7 +522,7 @@ class RecordingDialog {
     Main.layoutManager.addTopChrome(this.modalBarrier);
 
     // Set barrier to cover entire screen
-    let monitor = Main.layoutManager.primaryMonitor;
+    const monitor = Main.layoutManager.primaryMonitor;
     this.modalBarrier.set_position(monitor.x, monitor.y);
     this.modalBarrier.set_size(monitor.width, monitor.height);
 
@@ -283,17 +538,17 @@ class RecordingDialog {
     log("🎯 Attempting X11 focus solution");
 
     // Store reference to modalBarrier for the timeout callback
-    let modalBarrierRef = this.modalBarrier;
+    const modalBarrierRef = this.modalBarrier;
 
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
       try {
         // Get GNOME Shell's window ID and focus it
-        let [success, stdout] = GLib.spawn_command_line_sync(
+        const [success, stdout] = GLib.spawn_command_line_sync(
           'xdotool search --onlyvisible --class "gnome-shell" | head -1'
         );
 
         if (success && stdout) {
-          let windowId = new TextDecoder().decode(stdout).trim();
+          const windowId = new TextDecoder().decode(stdout).trim();
           log(`🎯 Found GNOME Shell window ID: ${windowId}`);
 
           if (windowId) {
@@ -308,12 +563,12 @@ class RecordingDialog {
         }
 
         // Now try to focus our modal barrier - but only if it still exists
-        if (modalBarrierRef && modalBarrierRef.get_parent()) {
+        if (modalBarrierRef?.get_parent()) {
           modalBarrierRef.grab_key_focus();
           global.stage.set_key_focus(modalBarrierRef);
 
           // Debug: Check if it worked
-          let currentFocus = global.stage.get_key_focus();
+          const currentFocus = global.stage.get_key_focus();
           log(
             `🎯 Final focus check: ${
               currentFocus ? currentFocus.toString() : "NULL"
@@ -359,7 +614,7 @@ class RecordingDialog {
 
 function runSetupScript(extensionPath) {
   try {
-    const setupScript = extensionPath + "/scripts/setup_env.sh";
+    const setupScript = `${extensionPath}/scripts/setup_env.sh`;
     const file = Gio.File.new_for_path(setupScript);
 
     // Make sure the script is executable
@@ -407,7 +662,7 @@ function runSetupScript(extensionPath) {
 }
 
 function checkSetupStatus(extensionPath) {
-  const venvPath = extensionPath + "/venv";
+  const venvPath = `${extensionPath}/venv`;
   const venvDir = Gio.File.new_for_path(venvPath);
 
   // Check if virtual environment exists
@@ -444,7 +699,7 @@ export default class WhisperTypingExtension extends Extension {
 
   _runSetupInTerminal() {
     // Launch a terminal window to run the setup script so user can see progress
-    const setupScript = this.path + "/scripts/setup_env.sh";
+    const setupScript = `${this.path}/scripts/setup_env.sh`;
 
     // Try different terminal emulators in order of preference
     const terminals = [
@@ -529,7 +784,7 @@ read
 `;
 
       // Write wrapper script to temp file
-      const tempScript = GLib.get_tmp_dir() + "/speech2text-setup.sh";
+      const tempScript = `${GLib.get_tmp_dir()}/speech2text-setup.sh`;
       const file = Gio.File.new_for_path(tempScript);
       const outputStream = file.replace(
         null,
@@ -671,14 +926,14 @@ read
     this.recordingDialog = null;
 
     // Create button with microphone icon
-    let button = new PanelMenu.Button(0.0, "Speech2Text");
+    const button = new PanelMenu.Button(0.0, "Speech2Text");
 
     // Make button referenceable by this object
     this.button = button;
 
     this.icon = new St.Icon({
       gicon: Gio.icon_new_for_string(
-        this.path + "/icons/microphone-symbolic.svg"
+        `${this.path}/icons/microphone-symbolic.svg`
       ),
       style_class: "system-status-icon",
     });
@@ -689,7 +944,7 @@ read
 
     // Override the default menu behavior to prevent left-click menu interference
     // Store the original vfunc_event method
-    let originalEvent = button.vfunc_event;
+    const originalEvent = button.vfunc_event;
 
     // Override the event handler to prevent menu on left click
     button.vfunc_event = function (event) {
@@ -707,7 +962,7 @@ read
 
     // Handle button clicks
     button.connect("button-press-event", (actor, event) => {
-      let buttonPressed = event.get_button();
+      const buttonPressed = event.get_button();
       log(`🖱️ BUTTON CLICK TRIGGERED`);
 
       if (buttonPressed === 1) {
@@ -719,65 +974,13 @@ read
         button.menu.close(true); // Force close menu if it's trying to open
 
         // Debug: Show current focus state before starting recording
-        try {
-          let currentFocus = global.stage.get_key_focus();
-          log(
-            `🔍 FOCUS DEBUG - Current stage focus: ${
-              currentFocus ? currentFocus.toString() : "NULL"
-            }`
-          );
+        const focusInfo = debugFocusState();
 
-          // Try to get active window info using xdotool (X11)
-          let [success, stdout] = GLib.spawn_command_line_sync(
-            "xdotool getactivewindow"
-          );
-          if (success && stdout) {
-            let windowId = new TextDecoder().decode(stdout).trim();
-            log(`🔍 FOCUS DEBUG - Active X11 window ID: ${windowId}`);
-
-            // Get window name
-            let [nameSuccess, nameStdout] = GLib.spawn_command_line_sync(
-              `xdotool getwindowname ${windowId}`
-            );
-            if (nameSuccess && nameStdout) {
-              let windowName = new TextDecoder().decode(nameStdout).trim();
-              log(`🔍 FOCUS DEBUG - Active window name: ${windowName}`);
-            }
-          } else {
-            // NO ACTIVE WINDOW - this is the problem!
-            log(
-              `🔍 FOCUS DEBUG - No active X11 window found - this will cause focus issues!`
-            );
-
-            // Try to find and focus any available window to establish X11 context
-            let [findSuccess, findStdout] = GLib.spawn_command_line_sync(
-              "xdotool search --onlyvisible '.*' | head -1"
-            );
-            if (findSuccess && findStdout) {
-              let anyWindowId = new TextDecoder().decode(findStdout).trim();
-              if (anyWindowId) {
-                log(
-                  `🔍 FOCUS DEBUG - Found window ${anyWindowId}, focusing it to establish X11 context`
-                );
-                GLib.spawn_command_line_sync(
-                  `xdotool windowfocus ${anyWindowId}`
-                );
-                GLib.spawn_command_line_sync(
-                  `xdotool windowactivate ${anyWindowId}`
-                );
-
-                // Wait a moment for focus to settle
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-                  // Now start recording with proper X11 context
-                  this.toggleRecording();
-                  return false;
-                });
-                return Clutter.EVENT_STOP;
-              }
-            }
+        if (!focusInfo.hasActiveWindow) {
+          // Try to establish X11 context before proceeding
+          if (establishX11FocusContext(() => this.toggleRecording())) {
+            return Clutter.EVENT_STOP; // Callback will handle the recording
           }
-        } catch (e) {
-          log(`🔍 FOCUS DEBUG - Error getting focus info: ${e}`);
         }
 
         // Call toggleRecording immediately, synchronously with the user click
@@ -822,14 +1025,12 @@ read
   }
 
   updateShortcutLabel() {
-    let shortcuts = this.settings.get_strv("toggle-recording");
-    let shortcut = shortcuts.length > 0 ? shortcuts[0] : null;
+    const shortcuts = this.settings.get_strv("toggle-recording");
+    const shortcut = shortcuts.length > 0 ? shortcuts[0] : null;
 
-    if (shortcut) {
-      this.shortcutLabel.label.text = `Shortcut: ${shortcut}`;
-    } else {
-      this.shortcutLabel.label.text = "Shortcut: None";
-    }
+    this.shortcutLabel.label.text = shortcut
+      ? `Shortcut: ${shortcut}`
+      : "Shortcut: None";
   }
 
   showSettingsWindow() {
@@ -843,7 +1044,7 @@ read
         padding: 30px;
         min-width: 450px;
         min-height: 300px;
-        border: 2px solid #ff8c00;
+        border: ${STYLES.DIALOG_BORDER};
       `,
     });
 
@@ -856,91 +1057,42 @@ read
     });
 
     // Icon
-    let titleIcon = new St.Label({
-      text: "🎤",
-      style: "font-size: 28px; margin-right: 8px;",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
+    let titleIcon = createStyledLabel("🎤", "icon", "");
+    titleIcon.set_y_align(Clutter.ActorAlign.CENTER);
 
     // Title label
-    let titleLabel = new St.Label({
-      text: "Gnome Speech2Text Settings",
-      style: "font-size: 20px; font-weight: bold; color: white;",
-      x_expand: true,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
+    let titleLabel = createStyledLabel("Gnome Speech2Text Settings", "title");
+    titleLabel.set_x_expand(true);
+    titleLabel.set_y_align(Clutter.ActorAlign.CENTER);
 
     // Close button (X)
-    let closeButton = new St.Button({
-      label: "×",
-      style: `
-        color: #666;
-        font-size: 24px;
-        padding: 8px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-      y_align: Clutter.ActorAlign.CENTER,
+    let closeButton = createTextButton("×", COLORS.SECONDARY, COLORS.DANGER, {
+      fontSize: "24px",
+      buttonProps: { y_align: Clutter.ActorAlign.CENTER },
     });
-
-    // Add hover effect to close button
-    closeButton.connect("enter-event", () => {
-      closeButton.set_style(`
-        color: #ff4444;
-        font-size: 24px;
-        padding: 8px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-      `);
-    });
-
-    closeButton.connect("leave-event", () => {
-      closeButton.set_style(`
-        color: #666;
-        font-size: 24px;
-        padding: 8px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-      `);
-    });
-
-    // Add hand cursor effect to close button
-    addHandCursorToButton(closeButton);
 
     headerBox.add_child(titleIcon);
     headerBox.add_child(titleLabel);
     headerBox.add_child(closeButton);
 
     // Keyboard shortcut section
-    let shortcutSection = new St.BoxLayout({
-      vertical: true,
-      style: "spacing: 15px; margin-bottom: 20px;",
-    });
+    let shortcutSection = createVerticalBox();
 
-    let shortcutLabel = new St.Label({
-      text: "Keyboard Shortcut",
-      style:
-        "font-size: 18px; font-weight: bold; color: white; margin-bottom: 10px;",
-    });
+    let shortcutLabel = createStyledLabel("Keyboard Shortcut", "subtitle");
 
-    let shortcutDescription = new St.Label({
-      text: "Set the keyboard combination to toggle recording on/off",
-      style: "font-size: 14px; color: #ccc; margin-bottom: 15px;",
-    });
+    let shortcutDescription = createStyledLabel(
+      "Set the keyboard combination to toggle recording on/off",
+      "description"
+    );
 
     // Current shortcut display and edit
-    let currentShortcutBox = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 15px; margin-bottom: 15px;",
-    });
+    let currentShortcutBox = createHorizontalBox();
 
-    let currentShortcutLabel = new St.Label({
-      text: "Current:",
-      style: "font-size: 14px; color: white; min-width: 80px;",
-    });
+    let currentShortcutLabel = createStyledLabel(
+      "Current:",
+      "normal",
+      "min-width: 80px;"
+    );
 
     this.currentShortcutDisplay = new St.Label({
       text: (() => {
@@ -956,21 +1108,21 @@ read
         if (shortcuts.length > 0) {
           return `
             font-size: 14px; 
-            color: #ff8c00; 
+            color: ${COLORS.PRIMARY}; 
             background-color: rgba(255, 140, 0, 0.1);
             padding: 8px 12px;
             border-radius: 6px;
-            border: 1px solid #ff8c00;
+            border: 1px solid ${COLORS.PRIMARY};
             min-width: 200px;
           `;
         } else {
           return `
             font-size: 14px; 
-            color: #dc3545; 
+            color: ${COLORS.WARNING}; 
             background-color: rgba(220, 53, 69, 0.1);
             padding: 8px 12px;
             border-radius: 6px;
-            border: 1px solid #dc3545;
+            border: 1px solid ${COLORS.WARNING};
             min-width: 200px;
           `;
         }
@@ -981,29 +1133,26 @@ read
     currentShortcutBox.add_child(this.currentShortcutDisplay);
 
     // Button container for all shortcut-related buttons
-    let shortcutButtonsBox = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 10px; margin-bottom: 15px;",
-    });
+    let shortcutButtonsBox = createHorizontalBox("10px");
 
     // Change shortcut button
     let changeShortcutButton = createHoverButton(
       "Change Shortcut",
-      "#0066cc",
+      COLORS.INFO,
       "#0077ee"
     );
 
     // Reset to default button
     let resetToDefaultButton = createHoverButton(
       "Reset to Default",
-      "#ff8c00",
+      COLORS.PRIMARY,
       "#ff9d1a"
     );
 
     // Remove shortcut button
     let removeShortcutButton = createHoverButton(
       "Remove Shortcut",
-      "#dc3545",
+      COLORS.WARNING,
       "#e74c3c"
     );
 
@@ -1013,10 +1162,11 @@ read
     shortcutButtonsBox.add_child(removeShortcutButton);
 
     // Instructions
-    let instructionsLabel = new St.Label({
-      text: "Click 'Change Shortcut' and then press the key combination you want to use.\nPress Escape to cancel the change.",
-      style: "font-size: 12px; color: #888; margin-bottom: 20px;",
-    });
+    let instructionsLabel = createStyledLabel(
+      "Click 'Change Shortcut' and then press the key combination you want to use.\nPress Escape to cancel the change.",
+      "small",
+      "margin-bottom: 20px;"
+    );
 
     shortcutSection.add_child(shortcutLabel);
     shortcutSection.add_child(shortcutDescription);
@@ -1025,31 +1175,22 @@ read
     shortcutSection.add_child(instructionsLabel);
 
     // Separator line
-    let separator = new St.Widget({
-      style: "background-color: #444; height: 1px; margin: 20px 0;",
-    });
+    let separator = createSeparator();
 
     // Troubleshooting section
-    let troubleshootingSection = new St.BoxLayout({
-      vertical: true,
-      style: "spacing: 10px; margin-bottom: 20px;",
-    });
+    let troubleshootingSection = createVerticalBox("10px");
 
-    let troubleshootingLabel = new St.Label({
-      text: "Troubleshooting",
-      style:
-        "font-size: 18px; font-weight: bold; color: white; margin-bottom: 10px;",
-    });
+    let troubleshootingLabel = createStyledLabel("Troubleshooting", "subtitle");
 
-    let troubleshootingDescription = new St.Label({
-      text: "If the extension is not working properly, try reinstalling the Python environment:",
-      style: "font-size: 14px; color: #ccc; margin-bottom: 15px;",
-    });
+    let troubleshootingDescription = createStyledLabel(
+      "If the extension is not working properly, try reinstalling the Python environment:",
+      "description"
+    );
 
     // Install/Reinstall Python Environment button
     let installPythonButton = createHoverButton(
       "Install/Reinstall Python Environment",
-      "#28a745",
+      COLORS.SUCCESS,
       "#34ce57"
     );
 
@@ -1077,66 +1218,28 @@ read
     troubleshootingSection.add_child(installPythonButton);
 
     // Another separator line
-    let separator2 = new St.Widget({
-      style: "background-color: #444; height: 1px; margin: 20px 0;",
-    });
+    let separator2 = createSeparator();
 
     // About section
-    let aboutSection = new St.BoxLayout({
-      vertical: true,
-      style: "spacing: 10px;",
-    });
+    let aboutSection = createVerticalBox("10px", "0px");
 
-    let aboutLabel = new St.Label({
-      text: "About",
-      style:
-        "font-size: 18px; font-weight: bold; color: white; margin-bottom: 10px;",
-    });
+    let aboutLabel = createStyledLabel("About", "subtitle");
 
-    let aboutText = new St.Label({
-      text: "Speech2Text extension for GNOME Shell\nUses OpenAI Whisper for speech-to-text transcription",
-      style: "font-size: 14px; color: #ccc;",
-    });
+    let aboutText = createStyledLabel(
+      "Speech2Text extension for GNOME Shell\nUses OpenAI Whisper for speech-to-text transcription",
+      "description",
+      "margin-bottom: 0px;"
+    );
 
     // GitHub link
-    let githubLink = new St.Button({
-      label: "GitHub Repository",
-      style: `
-        color: #0066cc;
-        font-size: 14px;
-        padding: 8px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-
-    // Add hover effect to GitHub link
-    githubLink.connect("enter-event", () => {
-      githubLink.set_style(`
-        color: #0077ee;
-        font-size: 14px;
-        padding: 8px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-        text-decoration: underline;
-      `);
-    });
-
-    githubLink.connect("leave-event", () => {
-      githubLink.set_style(`
-        color: #0066cc;
-        font-size: 14px;
-        padding: 8px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-      `);
-    });
-
-    // Add hand cursor effect to GitHub link
-    addHandCursorToButton(githubLink);
+    let githubLink = createTextButton(
+      "GitHub Repository",
+      COLORS.INFO,
+      "#0077ee",
+      {
+        hoverExtraStyle: "text-decoration: underline;",
+      }
+    );
 
     // Open GitHub link when clicked
     githubLink.connect("clicked", () => {
@@ -1163,7 +1266,7 @@ read
 
     // Create modal overlay
     let overlay = new St.Widget({
-      style: "background-color: rgba(0, 0, 0, 0.7);",
+      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
       reactive: true,
       can_focus: true,
       track_hover: true,
@@ -1190,15 +1293,10 @@ read
 
     // Function to close settings window
     const closeSettings = () => {
-      if (keyPressHandlerId) {
-        overlay.disconnect(keyPressHandlerId);
-        keyPressHandlerId = null;
-      }
-      if (clickHandlerId) {
-        overlay.disconnect(clickHandlerId);
-        clickHandlerId = null;
-      }
-      Main.layoutManager.removeChrome(overlay);
+      cleanupModal(overlay, { clickHandlerId, keyPressHandlerId });
+      // Reset handler IDs
+      clickHandlerId = null;
+      keyPressHandlerId = null;
     };
 
     // Close button handler
@@ -1322,12 +1420,8 @@ read
     let saveButtonClickId = null;
 
     // Temporarily disconnect the overlay's normal event handlers
-    if (clickHandlerId) {
-      overlay.disconnect(clickHandlerId);
-    }
-    if (keyPressHandlerId) {
-      overlay.disconnect(keyPressHandlerId);
-    }
+    safeDisconnect(overlay, clickHandlerId, "settings click handler");
+    safeDisconnect(overlay, keyPressHandlerId, "settings key handler");
 
     // Change button appearance to indicate capture mode
     button.set_label("Save Shortcut");
@@ -1393,8 +1487,7 @@ read
     // Function to reset button and display on cancel
     const resetOnCancel = () => {
       // Disconnect save button handler if it exists
-      if (saveButtonClickId) {
-        button.disconnect(saveButtonClickId);
+      if (safeDisconnect(button, saveButtonClickId, "save button handler")) {
         saveButtonClickId = null;
       }
 
@@ -1424,8 +1517,7 @@ read
     // Function to show success state
     const showSuccess = (shortcut, displayText) => {
       // Disconnect save button handler if it exists
-      if (saveButtonClickId) {
-        button.disconnect(saveButtonClickId);
+      if (safeDisconnect(button, saveButtonClickId, "save button handler")) {
         saveButtonClickId = null;
       }
 
@@ -1492,7 +1584,7 @@ read
         showSuccess(lastShortcut, lastKeyCombo);
 
         // Reset everything
-        overlay.disconnect(captureId);
+        safeDisconnect(overlay, captureId, "keyboard capture handler");
         restoreHandlers();
 
         // Show confirmation notification
@@ -1513,7 +1605,7 @@ read
 
       // Handle Escape to cancel
       if (keyval === Clutter.KEY_Escape) {
-        overlay.disconnect(captureId);
+        safeDisconnect(overlay, captureId, "keyboard capture handler");
         restoreHandlers();
         resetOnCancel();
         return Clutter.EVENT_STOP;
@@ -1594,24 +1686,7 @@ read
           log(`🎹 KEYBOARD SHORTCUT TRIGGERED`);
 
           // Debug: Show focus state when keyboard shortcut is used
-          try {
-            let currentFocus = global.stage.get_key_focus();
-            log(
-              `🔍 SHORTCUT FOCUS DEBUG - Stage focus when shortcut triggered: ${
-                currentFocus ? currentFocus.toString() : "NULL"
-              }`
-            );
-
-            let [success, stdout] = GLib.spawn_command_line_sync(
-              "xdotool getactivewindow"
-            );
-            if (success && stdout) {
-              let windowId = new TextDecoder().decode(stdout).trim();
-              log(`🔍 SHORTCUT FOCUS DEBUG - Active X11 window: ${windowId}`);
-            }
-          } catch (e) {
-            log(`🔍 SHORTCUT FOCUS DEBUG - Error: ${e}`);
-          }
+          debugFocusState("SHORTCUT");
 
           this.toggleRecording();
         }
@@ -1644,7 +1719,7 @@ read
     try {
       log("🎯 startRecording() called - creating recording dialog");
 
-      let [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
+      const [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
         null,
         [`${this.path}/venv/bin/python3`, `${this.path}/whisper_typing.py`],
         null,
@@ -1662,35 +1737,21 @@ read
           () => {
             log("🎯 Stop callback triggered");
             // Stop callback - send gentle signal to stop recording but allow processing
-            if (this.recordingProcess) {
-              try {
-                GLib.spawn_command_line_sync(
-                  `kill -USR1 ${this.recordingProcess}`
-                );
-              } catch (e) {
-                log(`Error sending stop signal: ${e}`);
-              }
-            }
-            this.recordingDialog = null;
-            this.recordingProcess = null;
-            this.icon.set_style("");
+            cleanupRecordingState(this);
           },
           () => {
             log("🎯 Cancel callback triggered");
             // Cancel callback - forcibly terminate process without transcription
             if (this.recordingProcess) {
-              try {
-                // Use SIGTERM to immediately terminate the process without transcription
-                GLib.spawn_command_line_sync(
-                  `kill -TERM ${this.recordingProcess}`
-                );
-              } catch (e) {
-                log(`Error sending terminate signal: ${e}`);
-              }
+              cleanupProcess(
+                this.recordingProcess,
+                "TERM",
+                "recording process (cancelled)"
+              );
+              this.recordingProcess = null;
             }
             this.recordingDialog = null;
-            this.recordingProcess = null;
-            this.icon.set_style("");
+            this.icon?.set_style("");
           }
         );
 
@@ -1709,7 +1770,7 @@ read
         }
 
         // Set up stdout reading to monitor process
-        let stdoutStream = new Gio.DataInputStream({
+        const stdoutStream = new Gio.DataInputStream({
           base_stream: new Gio.UnixInputStream({ fd: stdout }),
         });
 
@@ -1720,9 +1781,9 @@ read
             null,
             (stream, result) => {
               try {
-                let [line] = stream.read_line_finish(result);
+                const [line] = stream.read_line_finish(result);
                 if (line) {
-                  let lineStr = new TextDecoder().decode(line);
+                  const lineStr = new TextDecoder().decode(line);
                   log(`Whisper stdout: ${lineStr}`);
                   readOutput();
                 }
@@ -1738,43 +1799,33 @@ read
 
         // Watch for process completion
         GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
-          this.recordingProcess = null;
-          if (this.recordingDialog) {
-            this.recordingDialog.close();
-            this.recordingDialog = null;
-          }
-          this.icon.set_style("");
+          cleanupRecordingState(this);
           log("Whisper process completed");
         });
       }
     } catch (e) {
       log(`Error starting recording: ${e}`);
-      if (this.recordingDialog) {
-        this.recordingDialog.close();
-        this.recordingDialog = null;
-      }
-      this.icon.set_style("");
+      cleanupRecordingState(this);
     }
   }
 
   disable() {
-    if (this.recordingDialog) {
-      this.recordingDialog.close();
-      this.recordingDialog = null;
-    }
-    if (this.recordingProcess) {
-      try {
-        GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
-      } catch (e) {
-        log(`Error sending stop signal: ${e}`);
-      }
-      this.recordingProcess = null;
-    }
-    Main.wm.removeKeybinding("toggle-recording");
+    // Clean up recording state
+    cleanupRecordingState(this);
 
+    // Remove keybinding
+    try {
+      Main.wm.removeKeybinding("toggle-recording");
+      log("Keybinding removed");
+    } catch (e) {
+      log(`Error removing keybinding: ${e}`);
+    }
+
+    // Clean up button
     if (button) {
       button.destroy();
       button = null;
+      log("Extension button destroyed");
     }
   }
 
@@ -1818,36 +1869,14 @@ read
     if (this.recordingProcess || this.recordingDialog) {
       log(`>>> TAKING STOP PATH <<<`);
       // If recording or dialog is open, stop it (with transcription)
-      if (this.recordingDialog) {
-        log(`Closing recordingDialog`);
-        this.recordingDialog.close();
-        this.recordingDialog = null;
-        log(`recordingDialog set to null`);
-      } else {
-        log(`No recordingDialog to close`);
-      }
-
-      if (this.recordingProcess) {
-        log(`Killing recordingProcess: ${this.recordingProcess}`);
-        try {
-          // Use USR1 for gentle stop with transcription
-          GLib.spawn_command_line_sync(`kill -USR1 ${this.recordingProcess}`);
-          log(`Kill signal sent successfully`);
-        } catch (e) {
-          log(`Error sending stop signal: ${e}`);
-        }
-        this.recordingProcess = null;
-        log(`recordingProcess set to null`);
-      } else {
-        log(`No recordingProcess to kill`);
-      }
-
-      this.icon.set_style("");
-      log(`Icon style reset`);
+      let cleanup = cleanupRecordingState(this);
+      log(
+        `Cleanup results: dialog=${cleanup.cleanedDialog}, process=${cleanup.cleanedProcess}`
+      );
     } else {
       log(`>>> TAKING START PATH <<<`);
       // If not recording, start it
-      this.icon.set_style("color: #ff8c00;");
+      this.icon.set_style(`color: ${COLORS.PRIMARY};`);
       log(`Icon style set to orange`);
       log(`About to call startRecording()`);
       this.startRecording();
