@@ -10,6 +10,36 @@ import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
+// Constants for consistent styling and colors
+const COLORS = {
+  PRIMARY: "#ff8c00",
+  SUCCESS: "#28a745",
+  DANGER: "#ff4444",
+  SECONDARY: "#666666",
+  INFO: "#0066cc",
+  WARNING: "#dc3545",
+  WHITE: "white",
+  LIGHT_GRAY: "#ccc",
+  DARK_GRAY: "#888888",
+  TRANSPARENT_BLACK_30: "rgba(0, 0, 0, 0.3)",
+  TRANSPARENT_BLACK_70: "rgba(0, 0, 0, 0.7)",
+  TRANSPARENT_BLACK_85: "rgba(0, 0, 0, 0.85)",
+};
+
+const STYLES = {
+  BUTTON_BASE: `
+    color: white;
+    border-radius: 6px;
+    padding: 12px 20px;
+    font-size: 14px;
+    border: none;
+    transition: all 0.2s ease;
+  `,
+  DIALOG_BORDER: `2px solid ${COLORS.PRIMARY}`,
+  DIALOG_PADDING: "30px",
+  DIALOG_BORDER_RADIUS: "12px",
+};
+
 let button;
 
 // Helper function to create button styles
@@ -17,21 +47,11 @@ function createButtonStyle(baseColor, hoverColor) {
   return {
     normal: `
       background-color: ${baseColor};
-      color: white;
-      border-radius: 6px;
-      padding: 12px 20px;
-      font-size: 14px;
-      border: none;
-      transition: all 0.2s ease;
+      ${STYLES.BUTTON_BASE}
     `,
     hover: `
       background-color: ${hoverColor};
-      color: white;
-      border-radius: 6px;
-      padding: 12px 20px;
-      font-size: 14px;
-      border: none;
-      transition: all 0.2s ease;
+      ${STYLES.BUTTON_BASE}
       transform: scale(1.05);
     `,
   };
@@ -85,7 +105,7 @@ class RecordingDialog {
     // Create modal barrier that covers the entire screen
     this.modalBarrier = new St.Widget({
       style: `
-        background-color: rgba(0, 0, 0, 0.3);
+        background-color: ${COLORS.TRANSPARENT_BLACK_30};
       `,
       reactive: true,
       can_focus: true,
@@ -154,10 +174,10 @@ class RecordingDialog {
     this.container = new St.Widget({
       style_class: "recording-dialog",
       style: `
-        background-color: rgba(0, 0, 0, 0.85);
-        border-radius: 12px;
-        padding: 30px;
-        border: 2px solid #ff8c00;
+        background-color: ${COLORS.TRANSPARENT_BLACK_85};
+        border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
+        padding: ${STYLES.DIALOG_PADDING};
+        border: ${STYLES.DIALOG_BORDER};
         min-width: 300px;
       `,
       layout_manager: new Clutter.BoxLayout({
@@ -185,7 +205,7 @@ class RecordingDialog {
 
     let recordingLabel = new St.Label({
       text: "Recording...",
-      style: "font-size: 20px; font-weight: bold; color: white; ",
+      style: `font-size: 20px; font-weight: bold; color: ${COLORS.WHITE};`,
       y_align: Clutter.ActorAlign.CENTER,
     });
 
@@ -195,13 +215,21 @@ class RecordingDialog {
     // Instructions
     let instructionLabel = new St.Label({
       text: "Speak now\nPress Enter to process, Escape to cancel.",
-      style: "font-size: 16px; color: #ccc; text-align: center;",
+      style: `font-size: 16px; color: ${COLORS.LIGHT_GRAY}; text-align: center;`,
     });
 
     // Buttons
-    this.stopButton = createHoverButton("Stop Recording", "#ff4444", "#ff6666");
+    this.stopButton = createHoverButton(
+      "Stop Recording",
+      COLORS.DANGER,
+      "#ff6666"
+    );
 
-    this.cancelButton = createHoverButton("Cancel", "#666666", "#888888");
+    this.cancelButton = createHoverButton(
+      "Cancel",
+      COLORS.SECONDARY,
+      COLORS.DARK_GRAY
+    );
 
     // Connect button events
     this.stopButton.connect("clicked", () => {
