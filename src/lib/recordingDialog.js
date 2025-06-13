@@ -89,7 +89,7 @@ export class RecordingDialog {
         border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
         padding: ${STYLES.DIALOG_PADDING};
         border: ${STYLES.DIALOG_BORDER};
-        min-width: 300px;
+        min-width: 350px;
       `,
       layout_manager: new Clutter.BoxLayout({
         orientation: Clutter.Orientation.VERTICAL,
@@ -123,35 +123,47 @@ export class RecordingDialog {
     headerBox.add_child(this.recordingIcon);
     headerBox.add_child(recordingLabel);
 
-    // Time progress display
-    this.timeDisplay = new St.Label({
-      text: this.formatTimeDisplay(0, this.maxDuration),
-      style: `font-size: 18px; color: ${COLORS.PRIMARY}; text-align: center; font-weight: bold; margin: 10px 0;`,
-    });
-
-    // Progress bar container
+    // Progress bar container (larger and more prominent)
     const progressContainer = new St.Widget({
       style: `
         background-color: rgba(255, 255, 255, 0.2);
-        border-radius: 10px;
-        height: 8px;
-        min-width: 200px;
-        margin: 5px 0;
+        border-radius: 15px;
+        height: 30px;
+        width: 280px;
+        margin: 15px 0;
       `,
-      layout_manager: new Clutter.BinLayout(),
     });
 
-    // Progress bar fill
+    // Progress bar fill (explicitly positioned to start from left)
     this.progressBar = new St.Widget({
       style: `
         background-color: ${COLORS.PRIMARY};
-        border-radius: 10px;
-        height: 8px;
+        border-radius: 15px 0px 0px 15px;
+        height: 30px;
         width: 0px;
       `,
     });
 
+    // Position the progress bar at the left edge
+    this.progressBar.set_position(0, 0);
+
+    // Time display overlaid on the progress bar (right side)
+    this.timeDisplay = new St.Label({
+      text: this.formatTimeDisplay(0, this.maxDuration),
+      style: `
+        font-size: 14px; 
+        color: white; 
+        font-weight: bold;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        padding: 0 12px;
+      `,
+    });
+
+    // Position the time display on the right side
+    this.timeDisplay.set_position(280 - 160, 8); // Adjust position for right alignment
+
     progressContainer.add_child(this.progressBar);
+    progressContainer.add_child(this.timeDisplay);
 
     // Instructions
     const instructionLabel = new St.Label({
@@ -189,7 +201,6 @@ export class RecordingDialog {
     this.container.add_child(headerBox);
     headerBox.set_x_align(Clutter.ActorAlign.CENTER);
 
-    this.container.add_child(this.timeDisplay);
     this.container.add_child(progressContainer);
     this.container.add_child(instructionLabel);
     this.container.add_child(this.stopButton);
@@ -222,29 +233,37 @@ export class RecordingDialog {
       this.formatTimeDisplay(this.elapsedTime, this.maxDuration)
     );
 
-    // Update progress bar
+    // Update progress bar (280px is the container width)
     const progress = Math.min(this.elapsedTime / this.maxDuration, 1.0);
-    const progressWidth = Math.floor(200 * progress); // 200px is the container width
+    const progressWidth = Math.floor(280 * progress);
+
+    // Determine color based on progress
+    let barColor = COLORS.PRIMARY;
+    let textColor = "white";
+
+    if (progress > 0.8) {
+      barColor = progress > 0.95 ? COLORS.DANGER : COLORS.WARNING;
+    }
+
+    // Update progress bar fill
+    // Adjust border radius based on progress (left side always rounded, right side only when full)
+    const borderRadius = progress >= 1.0 ? "15px" : "15px 0px 0px 15px";
+
     this.progressBar.set_style(`
-      background-color: ${COLORS.PRIMARY};
-      border-radius: 10px;
-      height: 8px;
+      background-color: ${barColor};
+      border-radius: ${borderRadius};
+      height: 30px;
       width: ${progressWidth}px;
     `);
 
-    // Change color to warning when getting close to limit
-    if (progress > 0.8) {
-      const warningColor = progress > 0.95 ? COLORS.DANGER : COLORS.WARNING;
-      this.timeDisplay.set_style(
-        `font-size: 18px; color: ${warningColor}; text-align: center; font-weight: bold; margin: 10px 0;`
-      );
-      this.progressBar.set_style(`
-        background-color: ${warningColor};
-        border-radius: 10px;
-        height: 8px;
-        width: ${progressWidth}px;
-      `);
-    }
+    // Update text style to match the progress bar
+    this.timeDisplay.set_style(`
+      font-size: 14px; 
+      color: ${textColor}; 
+      font-weight: bold;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+      padding: 0 12px;
+    `);
   }
 
   startTimer() {
@@ -285,8 +304,8 @@ export class RecordingDialog {
 
     // Center the dialog container within the barrier
     this.container.set_position(
-      (monitor.width - 300) / 2,
-      (monitor.height - 200) / 2
+      (monitor.width - 350) / 2,
+      (monitor.height - 240) / 2
     );
 
     this.modalBarrier.show();
