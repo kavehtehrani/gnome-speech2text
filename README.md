@@ -66,7 +66,7 @@ The script will show progress messages. Please be patient!
 Then restart GNOME Shell:
 
 - **X11**: Press Alt+F2, type 'r', press Enter
-- **Wayland**: Log out and log back in
+- **Wayland**: Log out and log back in (note Wayland support is not yet implemented)
 
 ### Option 2: From Local Repository
 
