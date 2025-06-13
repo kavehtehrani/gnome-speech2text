@@ -7,12 +7,15 @@ import { createHoverButton } from "./uiUtils.js";
 
 // Simple recording dialog using custom modal barrier
 export class RecordingDialog {
-  constructor(onStop, onCancel) {
+  constructor(onStop, onCancel, maxDuration = 60) {
     log("🎯 RecordingDialog constructor called");
 
     this.onStop = onStop;
     this.onCancel = onCancel;
-    // Pulse animation properties removed - no longer needed
+    this.maxDuration = maxDuration; // Maximum recording duration in seconds
+    this.startTime = null; // Will be set when recording starts
+    this.elapsedTime = 0; // Current elapsed time
+    this.timerInterval = null; // Timer interval reference
 
     // Create modal barrier that covers the entire screen
     this.modalBarrier = new St.Widget({
@@ -120,6 +123,36 @@ export class RecordingDialog {
     headerBox.add_child(this.recordingIcon);
     headerBox.add_child(recordingLabel);
 
+    // Time progress display
+    this.timeDisplay = new St.Label({
+      text: this.formatTimeDisplay(0, this.maxDuration),
+      style: `font-size: 18px; color: ${COLORS.PRIMARY}; text-align: center; font-weight: bold; margin: 10px 0;`,
+    });
+
+    // Progress bar container
+    const progressContainer = new St.Widget({
+      style: `
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        height: 8px;
+        min-width: 200px;
+        margin: 5px 0;
+      `,
+      layout_manager: new Clutter.BinLayout(),
+    });
+
+    // Progress bar fill
+    this.progressBar = new St.Widget({
+      style: `
+        background-color: ${COLORS.PRIMARY};
+        border-radius: 10px;
+        height: 8px;
+        width: 0px;
+      `,
+    });
+
+    progressContainer.add_child(this.progressBar);
+
     // Instructions
     const instructionLabel = new St.Label({
       text: "Speak now\nPress Enter to process, Escape to cancel.",
@@ -156,12 +189,87 @@ export class RecordingDialog {
     this.container.add_child(headerBox);
     headerBox.set_x_align(Clutter.ActorAlign.CENTER);
 
+    this.container.add_child(this.timeDisplay);
+    this.container.add_child(progressContainer);
     this.container.add_child(instructionLabel);
     this.container.add_child(this.stopButton);
     this.container.add_child(this.cancelButton);
 
     // Add to modal barrier
     this.modalBarrier.add_child(this.container);
+  }
+
+  formatTimeDisplay(elapsed, maximum) {
+    const formatTime = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, "0")}`;
+    };
+
+    const remaining = Math.max(0, maximum - elapsed);
+    return `${formatTime(elapsed)} / ${formatTime(maximum)} (${formatTime(
+      remaining
+    )} left)`;
+  }
+
+  updateTimeDisplay() {
+    if (!this.startTime) return;
+
+    this.elapsedTime = Math.floor((Date.now() - this.startTime) / 1000);
+
+    // Update time text
+    this.timeDisplay.set_text(
+      this.formatTimeDisplay(this.elapsedTime, this.maxDuration)
+    );
+
+    // Update progress bar
+    const progress = Math.min(this.elapsedTime / this.maxDuration, 1.0);
+    const progressWidth = Math.floor(200 * progress); // 200px is the container width
+    this.progressBar.set_style(`
+      background-color: ${COLORS.PRIMARY};
+      border-radius: 10px;
+      height: 8px;
+      width: ${progressWidth}px;
+    `);
+
+    // Change color to warning when getting close to limit
+    if (progress > 0.8) {
+      const warningColor = progress > 0.95 ? COLORS.DANGER : COLORS.WARNING;
+      this.timeDisplay.set_style(
+        `font-size: 18px; color: ${warningColor}; text-align: center; font-weight: bold; margin: 10px 0;`
+      );
+      this.progressBar.set_style(`
+        background-color: ${warningColor};
+        border-radius: 10px;
+        height: 8px;
+        width: ${progressWidth}px;
+      `);
+    }
+  }
+
+  startTimer() {
+    this.startTime = Date.now();
+    this.elapsedTime = 0;
+
+    // Update immediately
+    this.updateTimeDisplay();
+
+    // Start interval timer to update every second
+    this.timerInterval = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+      if (this.startTime) {
+        this.updateTimeDisplay();
+        return true; // Continue the timer
+      }
+      return false; // Stop the timer
+    });
+  }
+
+  stopTimer() {
+    if (this.timerInterval) {
+      GLib.Source.remove(this.timerInterval);
+      this.timerInterval = null;
+    }
+    this.startTime = null;
   }
 
   open() {
@@ -182,6 +290,9 @@ export class RecordingDialog {
     );
 
     this.modalBarrier.show();
+
+    // Start the timer
+    this.startTimer();
 
     // X11 focus solution: Use xdotool to focus GNOME Shell window
     log("🎯 Attempting X11 focus solution");
@@ -241,7 +352,9 @@ export class RecordingDialog {
 
   close() {
     log("🎯 Closing custom modal dialog");
-    // Animation removed - no more pulsating
+
+    // Stop the timer
+    this.stopTimer();
 
     if (this.modalBarrier && this.modalBarrier.get_parent()) {
       Main.layoutManager.removeChrome(this.modalBarrier);

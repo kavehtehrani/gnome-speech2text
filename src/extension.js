@@ -1251,7 +1251,8 @@ read
             }
             this.recordingDialog = null;
             this.icon?.set_style("");
-          }
+          },
+          recordingDuration // Pass the maximum duration to the dialog
         );
 
         log(
