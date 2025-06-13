@@ -246,7 +246,7 @@ export class RecordingDialog {
     }
 
     // Update progress bar fill
-    // Adjust border radius based on progress (left side always rounded, right side only when full)
+    // Simple border radius: left side rounded, right side rounded only when complete
     const borderRadius = progress >= 1.0 ? "15px" : "15px 0px 0px 15px";
 
     this.progressBar.set_style(`
