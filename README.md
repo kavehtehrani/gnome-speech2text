@@ -21,6 +21,10 @@ vibe-learning GNOME extensions and half vice-coding the actual script.
 
 **Note: This extension is currently only working on X11. If there's interest in Wayland support, I can look into it.**
 
+## Privacy & Security
+
+🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or external servers. While this extension uses OpenAI's Whisper model, it runs the open-source version locally on your computer, ensuring privacy of your voice data.
+
 ## Requirements
 
 - GNOME Shell 46 or later
