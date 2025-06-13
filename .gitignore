@@ -1,6 +1,6 @@
 /.vscode/
 /.idea/
 /venv/
-/schemas/gschemas.compiled
 /archive/
 /test/
+/src/schemas/gschemas.compiled
