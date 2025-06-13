@@ -432,7 +432,7 @@ read
     headerBox.add_child(closeButton);
 
     // Keyboard shortcut section
-    let shortcutSection = createVerticalBox("5px", "2px");
+    let shortcutSection = createVerticalBox();
 
     let shortcutLabel = createStyledLabel("Keyboard Shortcut", "subtitle");
 
@@ -531,7 +531,7 @@ read
     shortcutSection.add_child(instructionsLabel);
 
     // Recording Duration section
-    let durationSection = createVerticalBox("12px", "10px");
+    let durationSection = createVerticalBox();
 
     let durationLabel = createStyledLabel("Recording Duration", "subtitle");
 
@@ -652,7 +652,7 @@ read
     let separator = createSeparator();
 
     // Clipboard section
-    let clipboardSection = createVerticalBox("12px", "10px");
+    let clipboardSection = createVerticalBox();
 
     let clipboardLabel = createStyledLabel("Clipboard Options", "subtitle");
 
@@ -739,7 +739,7 @@ read
     let clipboardSeparator = createSeparator();
 
     // Troubleshooting section
-    let troubleshootingSection = createVerticalBox("8px", "10px");
+    let troubleshootingSection = createVerticalBox();
 
     let troubleshootingLabel = createStyledLabel("Troubleshooting", "subtitle");
 
@@ -785,7 +785,7 @@ read
     let aboutSeparator = createSeparator();
 
     // About section
-    let aboutSection = createVerticalBox("8px", "10px");
+    let aboutSection = createVerticalBox();
 
     let aboutLabel = createStyledLabel("About", "subtitle");
 

@@ -117,15 +117,19 @@ export function createStyledLabel(text, style = "normal", customStyle = "") {
 }
 
 // Create a vertical box layout with standard spacing
-export function createVerticalBox(spacing = "15px", marginBottom = "20px") {
+export function createVerticalBox(
+  spacing = "5px",
+  marginTop = "5px",
+  marginBottom = "5px"
+) {
   return new St.BoxLayout({
     vertical: true,
-    style: `spacing: ${spacing}; margin-bottom: ${marginBottom};`,
+    style: `spacing: ${spacing}; margin-top: ${marginTop}; margin-bottom: ${marginBottom};`,
   });
 }
 
 // Create a horizontal box layout with standard spacing
-export function createHorizontalBox(spacing = "15px", marginBottom = "15px") {
+export function createHorizontalBox(spacing = "10px", marginBottom = "10px") {
   return new St.BoxLayout({
     vertical: false,
     style: `spacing: ${spacing}; margin-bottom: ${marginBottom};`,
@@ -135,6 +139,6 @@ export function createHorizontalBox(spacing = "15px", marginBottom = "15px") {
 // Create a separator line
 export function createSeparator() {
   return new St.Widget({
-    style: "background-color: #444; height: 1px; margin: 12px 0;",
+    style: "background-color: #444; height: 1px; margin: 5px 5px;",
   });
 }
