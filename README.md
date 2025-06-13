@@ -64,7 +64,7 @@ wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/
 The script will show progress messages. Please be patient!
 
 Then restart GNOME Shell:
-1
+
 - **X11**: Press Alt+F2, type 'r', press Enter
 - **Wayland**: Log out and log back in (note Wayland support is not yet implemented)
 
