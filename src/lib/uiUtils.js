@@ -135,6 +135,6 @@ export function createHorizontalBox(spacing = "15px", marginBottom = "15px") {
 // Create a separator line
 export function createSeparator() {
   return new St.Widget({
-    style: "background-color: #444; height: 1px; margin: 20px 0;",
+    style: "background-color: #444; height: 1px; margin: 12px 0;",
   });
 }

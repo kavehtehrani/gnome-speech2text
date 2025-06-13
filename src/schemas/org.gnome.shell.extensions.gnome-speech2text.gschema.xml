@@ -12,5 +12,10 @@
             <summary>Recording duration</summary>
             <description>Maximum recording duration in seconds (10 seconds to 5 minutes)</description>
         </key>
+        <key name="copy-to-clipboard" type="b">
+            <default>false</default>
+            <summary>Copy to clipboard</summary>
+            <description>Copy transcribed text to clipboard in addition to typing it</description>
+        </key>
     </schema>
 </schemalist>

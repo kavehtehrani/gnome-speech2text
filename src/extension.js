@@ -398,8 +398,8 @@ read
         background-color: rgba(20, 20, 20, 0.95);
         border-radius: 12px;
         padding: 25px;
-        min-width: 450px;
-        max-width: 500px;
+        min-width: 550px;
+        max-width: 600px;
         border: ${STYLES.DIALOG_BORDER};
       `,
     });
@@ -432,7 +432,7 @@ read
     headerBox.add_child(closeButton);
 
     // Keyboard shortcut section
-    let shortcutSection = createVerticalBox();
+    let shortcutSection = createVerticalBox("5px", "2px");
 
     let shortcutLabel = createStyledLabel("Keyboard Shortcut", "subtitle");
 
@@ -489,7 +489,7 @@ read
     currentShortcutBox.add_child(this.currentShortcutDisplay);
 
     // Button container for all shortcut-related buttons
-    let shortcutButtonsBox = createHorizontalBox("10px");
+    let shortcutButtonsBox = createHorizontalBox("8px");
 
     // Change shortcut button
     let changeShortcutButton = createHoverButton(
@@ -521,7 +521,7 @@ read
     let instructionsLabel = createStyledLabel(
       "Click 'Change Shortcut' and then press the key combination you want to use.\nPress Escape to cancel the change.",
       "small",
-      "margin-bottom: 20px;"
+      "margin-bottom: 12px;"
     );
 
     shortcutSection.add_child(shortcutLabel);
@@ -531,7 +531,7 @@ read
     shortcutSection.add_child(instructionsLabel);
 
     // Recording Duration section
-    let durationSection = createVerticalBox();
+    let durationSection = createVerticalBox("12px", "10px");
 
     let durationLabel = createStyledLabel("Recording Duration", "subtitle");
 
@@ -584,7 +584,7 @@ read
     currentDurationBox.add_child(this.currentDurationDisplay);
 
     // Duration control buttons
-    let durationButtonsBox = createHorizontalBox("12px");
+    let durationButtonsBox = createHorizontalBox("10px");
 
     // Decrease duration button
     let decreaseDurationButton = createTextButton(
@@ -651,8 +651,95 @@ read
     // Separator line
     let separator = createSeparator();
 
+    // Clipboard section
+    let clipboardSection = createVerticalBox("12px", "10px");
+
+    let clipboardLabel = createStyledLabel("Clipboard Options", "subtitle");
+
+    let clipboardDescription = createStyledLabel(
+      "Configure whether transcribed text should be copied to clipboard",
+      "description"
+    );
+
+    // Clipboard checkbox
+    let clipboardCheckboxBox = createHorizontalBox();
+
+    let clipboardCheckboxLabel = createStyledLabel(
+      "Copy to clipboard:",
+      "normal",
+      "min-width: 130px;"
+    );
+
+    // Create checkbox using St.Button with custom styling
+    let isClipboardEnabled = this.settings.get_boolean("copy-to-clipboard");
+
+    this.clipboardCheckbox = new St.Button({
+      style: `
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${
+          isClipboardEnabled ? COLORS.PRIMARY : "transparent"
+        };
+        margin-right: 10px;
+      `,
+      reactive: true,
+      can_focus: true,
+    });
+
+    // Add checkmark icon if enabled
+    this.clipboardCheckboxIcon = new St.Label({
+      text: isClipboardEnabled ? "✓" : "",
+      style: `
+        color: white;
+        font-size: 14px;
+        font-weight: bold;
+        text-align: center;
+      `,
+    });
+
+    this.clipboardCheckbox.add_child(this.clipboardCheckboxIcon);
+
+    // Checkbox click handler
+    this.clipboardCheckbox.connect("clicked", () => {
+      let currentState = this.settings.get_boolean("copy-to-clipboard");
+      let newState = !currentState;
+
+      // Update settings
+      this.settings.set_boolean("copy-to-clipboard", newState);
+
+      // Update visual state
+      this.clipboardCheckbox.set_style(`
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+        margin-right: 10px;
+      `);
+
+      this.clipboardCheckboxIcon.set_text(newState ? "✓" : "");
+
+      // Show notification
+      Main.notify(
+        "Speech2Text",
+        `Clipboard copying ${newState ? "enabled" : "disabled"}`
+      );
+    });
+
+    clipboardCheckboxBox.add_child(clipboardCheckboxLabel);
+    clipboardCheckboxBox.add_child(this.clipboardCheckbox);
+
+    clipboardSection.add_child(clipboardLabel);
+    clipboardSection.add_child(clipboardDescription);
+    clipboardSection.add_child(clipboardCheckboxBox);
+
+    // Another separator line
+    let clipboardSeparator = createSeparator();
+
     // Troubleshooting section
-    let troubleshootingSection = createVerticalBox("10px");
+    let troubleshootingSection = createVerticalBox("8px", "10px");
 
     let troubleshootingLabel = createStyledLabel("Troubleshooting", "subtitle");
 
@@ -692,20 +779,19 @@ read
     troubleshootingSection.add_child(installPythonButton);
 
     // Another separator line
-    let separator2 = createSeparator();
+    let troubleshootingSeparator = createSeparator();
 
     // Third separator line
-    let separator3 = createSeparator();
+    let aboutSeparator = createSeparator();
 
     // About section
-    let aboutSection = createVerticalBox("10px", "0px");
+    let aboutSection = createVerticalBox("8px", "10px");
 
     let aboutLabel = createStyledLabel("About", "subtitle");
 
     let aboutText = createStyledLabel(
       "Speech2Text extension for GNOME Shell\nUses OpenAI Whisper for speech-to-text transcription",
-      "description",
-      "margin-bottom: 0px;"
+      "description"
     );
 
     // GitHub link
@@ -738,9 +824,11 @@ read
     settingsWindow.add_child(shortcutSection);
     settingsWindow.add_child(separator);
     settingsWindow.add_child(durationSection);
-    settingsWindow.add_child(separator2);
+    settingsWindow.add_child(clipboardSeparator);
+    settingsWindow.add_child(clipboardSection);
+    settingsWindow.add_child(troubleshootingSeparator);
     settingsWindow.add_child(troubleshootingSection);
-    settingsWindow.add_child(separator3);
+    settingsWindow.add_child(aboutSeparator);
     settingsWindow.add_child(aboutSection);
 
     // Create modal overlay
@@ -1213,14 +1301,25 @@ read
       // Get recording duration from settings
       const recordingDuration = this.settings.get_int("recording-duration");
 
+      // Get clipboard setting
+      const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
+
+      // Build command arguments
+      let args = [
+        `${this.path}/venv/bin/python3`,
+        `${this.path}/whisper_typing.py`,
+        `--duration`,
+        `${recordingDuration}`,
+      ];
+
+      // Add clipboard flag if enabled
+      if (copyToClipboard) {
+        args.push("--copy-to-clipboard");
+      }
+
       const [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
         null,
-        [
-          `${this.path}/venv/bin/python3`,
-          `${this.path}/whisper_typing.py`,
-          `--duration`,
-          `${recordingDuration}`,
-        ],
+        args,
         null,
         GLib.SpawnFlags.DO_NOT_REAP_CHILD,
         null

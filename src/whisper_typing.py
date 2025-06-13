@@ -28,6 +28,92 @@ def signal_handler(signum, frame):
         print("🛑 Recording interrupted", flush=True)
         sys.exit(0)
 
+def detect_display_server():
+    """Detect if we're running on X11 or Wayland"""
+    try:
+        # Check XDG_SESSION_TYPE first
+        session_type = os.environ.get('XDG_SESSION_TYPE', '').lower()
+        if session_type:
+            print("🖥️ Display server detected via XDG_SESSION_TYPE: {}".format(session_type), flush=True)
+            return session_type
+        
+        # Check WAYLAND_DISPLAY
+        if os.environ.get('WAYLAND_DISPLAY'):
+            print("🖥️ Display server detected via WAYLAND_DISPLAY: wayland", flush=True)
+            return 'wayland'
+        
+        # Check DISPLAY (X11)
+        if os.environ.get('DISPLAY'):
+            print("🖥️ Display server detected via DISPLAY: x11", flush=True)
+            return 'x11'
+        
+        # Fallback: try to detect based on running processes
+        try:
+            result = subprocess.run(['pgrep', '-x', 'gnome-shell'], capture_output=True, text=True)
+            if result.returncode == 0:
+                # Check if Wayland compositor is running
+                result_wayland = subprocess.run(['pgrep', '-f', 'wayland'], capture_output=True, text=True)
+                if result_wayland.returncode == 0:
+                    print("🖥️ Display server detected via process check: wayland", flush=True)
+                    return 'wayland'
+        except:
+            pass
+        
+        # Default fallback to X11
+        print("🖥️ Display server detection failed, defaulting to: x11", flush=True)
+        return 'x11'
+        
+    except Exception as e:
+        print("❌ Error detecting display server: {}, defaulting to X11".format(e), flush=True)
+        return 'x11'
+
+def copy_to_clipboard(text, display_server=None):
+    """Copy text to clipboard with X11/Wayland support"""
+    if not text:
+        return False
+    
+    print("📋 Copying text to clipboard...", flush=True)
+    
+    if display_server is None:
+        display_server = detect_display_server()
+    
+    try:
+        if display_server == 'wayland':
+            # For Wayland, use wl-copy if available
+            try:
+                subprocess.run(['wl-copy'], input=text, text=True, check=True)
+                print("✅ Text copied to clipboard (Wayland)", flush=True)
+                return True
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                print("⚠️ wl-copy not found, trying fallback methods", flush=True)
+                
+                # Fallback to xclip if available (works in XWayland)
+                try:
+                    subprocess.run(['xclip', '-selection', 'clipboard'], input=text, text=True, check=True)
+                    print("✅ Text copied to clipboard (XWayland fallback)", flush=True)
+                    return True
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    print("❌ No clipboard tools available for Wayland", flush=True)
+                    return False
+        else:
+            # For X11, try xclip first, then xsel as fallback
+            try:
+                subprocess.run(['xclip', '-selection', 'clipboard'], input=text, text=True, check=True)
+                print("✅ Text copied to clipboard (X11 - xclip)", flush=True)
+                return True
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                try:
+                    subprocess.run(['xsel', '--clipboard', '--input'], input=text, text=True, check=True)
+                    print("✅ Text copied to clipboard (X11 - xsel)", flush=True)
+                    return True
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    print("❌ No clipboard tools available for X11 (install xclip or xsel)", flush=True)
+                    return False
+                    
+    except Exception as e:
+        print("❌ Error copying to clipboard: {}".format(e), flush=True)
+        return False
+
 def record_audio_simple(max_duration=60, sample_rate=16000):
     """Simple audio recording - stops only when manually stopped"""
     global stop_recording
@@ -165,6 +251,8 @@ def main():
     parser = argparse.ArgumentParser(description='Whisper Speech-to-Text Extension')
     parser.add_argument('--duration', type=int, default=60, 
                        help='Maximum recording duration in seconds (default: 60)')
+    parser.add_argument('--copy-to-clipboard', action='store_true',
+                       help='Copy transcribed text to clipboard in addition to typing')
     args = parser.parse_args()
     
     # Validate duration (10 seconds to 5 minutes)
@@ -180,6 +268,11 @@ def main():
     
     print("🎙️ Whisper Typing Extension Started", flush=True)
     print("⏰ Recording duration limit: {} seconds".format(args.duration), flush=True)
+    if args.copy_to_clipboard:
+        print("📋 Clipboard copying enabled", flush=True)
+    
+    # Detect display server early for better error reporting
+    display_server = detect_display_server()
     
     # Record audio with configurable duration
     audio_file = record_audio_simple(max_duration=args.duration, sample_rate=16000)
@@ -192,6 +285,12 @@ def main():
     if not text:
         print("❌ Failed to transcribe audio", flush=True)
         return
+    
+    # Copy to clipboard if requested
+    if args.copy_to_clipboard:
+        copy_success = copy_to_clipboard(text, display_server)
+        if not copy_success:
+            print("⚠️ Failed to copy to clipboard, but continuing with typing", flush=True)
     
     # Type the transcribed text
     type_text(text)
