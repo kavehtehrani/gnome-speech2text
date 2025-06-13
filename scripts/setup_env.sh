@@ -166,7 +166,7 @@ else
     error_exit "glib-compile-schemas not found. Please install libglib2.0-dev package."
 fi
 
-print_status "✅ GNOME TTS environment setup complete!"
+print_status "✅ GNOME Speech2Text environment setup complete!"
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Restart GNOME Shell (Alt+F2, type 'r' and press Enter)"
 echo "2. Enable the extension using GNOME Extensions app or:"
