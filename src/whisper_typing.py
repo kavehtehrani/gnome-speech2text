@@ -9,6 +9,7 @@ import signal
 import time
 import threading
 import queue
+import argparse
 
 # Global flag to indicate when to stop recording
 stop_recording = False
@@ -27,11 +28,12 @@ def signal_handler(signum, frame):
         print("🛑 Recording interrupted", flush=True)
         sys.exit(0)
 
-def record_audio_simple(max_duration=30, sample_rate=16000):
+def record_audio_simple(max_duration=60, sample_rate=16000):
     """Simple audio recording - stops only when manually stopped"""
     global stop_recording
     
     print("🎤 Recording started - speak now! Press 'Stop Recording' when done.", flush=True)
+    print("⏰ Maximum recording time: {} seconds".format(max_duration), flush=True)
     
     # Create temporary file for audio
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
@@ -159,15 +161,28 @@ def type_text(text):
 
 def main():
     """Main function to orchestrate recording, transcription, and typing"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Whisper Speech-to-Text Extension')
+    parser.add_argument('--duration', type=int, default=60, 
+                       help='Maximum recording duration in seconds (default: 60)')
+    args = parser.parse_args()
+    
+    # Validate duration (10 seconds to 5 minutes)
+    if args.duration < 10:
+        args.duration = 10
+    elif args.duration > 300:
+        args.duration = 300
+    
     # Set up signal handlers for graceful termination
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGUSR1, signal_handler)  # Handle gentle stop
     
     print("🎙️ Whisper Typing Extension Started", flush=True)
+    print("⏰ Recording duration limit: {} seconds".format(args.duration), flush=True)
     
-    # Record audio with simple recording
-    audio_file = record_audio_simple(max_duration=30, sample_rate=16000)
+    # Record audio with configurable duration
+    audio_file = record_audio_simple(max_duration=args.duration, sample_rate=16000)
     if not audio_file:
         print("❌ Failed to record audio", flush=True)
         return

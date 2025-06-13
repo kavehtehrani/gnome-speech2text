@@ -397,9 +397,9 @@ read
       style: `
         background-color: rgba(20, 20, 20, 0.95);
         border-radius: 12px;
-        padding: 30px;
+        padding: 25px;
         min-width: 450px;
-        min-height: 300px;
+        max-width: 500px;
         border: ${STYLES.DIALOG_BORDER};
       `,
     });
@@ -530,6 +530,124 @@ read
     shortcutSection.add_child(shortcutButtonsBox);
     shortcutSection.add_child(instructionsLabel);
 
+    // Recording Duration section
+    let durationSection = createVerticalBox();
+
+    let durationLabel = createStyledLabel("Recording Duration", "subtitle");
+
+    let durationDescription = createStyledLabel(
+      "Maximum recording time before auto-stop (10 seconds to 5 minutes)",
+      "description"
+    );
+
+    // Current duration display and controls
+    let currentDurationBox = createHorizontalBox();
+
+    let currentDurationLabel = createStyledLabel(
+      "Current:",
+      "normal",
+      "min-width: 80px;"
+    );
+
+    // Get current duration from settings
+    const currentDuration = this.settings.get_int("recording-duration");
+    const formatDuration = (seconds) => {
+      if (seconds >= 60) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        if (remainingSeconds === 0) {
+          return `${minutes} minute${minutes > 1 ? "s" : ""}`;
+        } else {
+          return `${minutes}m ${remainingSeconds}s`;
+        }
+      } else {
+        return `${seconds} second${seconds > 1 ? "s" : ""}`;
+      }
+    };
+
+    this.currentDurationDisplay = createStyledLabel(
+      formatDuration(currentDuration),
+      "normal",
+      `
+        font-size: 14px; 
+        color: #ff8c00; 
+        background-color: rgba(255, 140, 0, 0.1);
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #ff8c00;
+        min-width: 120px;
+        text-align: center;
+      `
+    );
+
+    currentDurationBox.add_child(currentDurationLabel);
+    currentDurationBox.add_child(this.currentDurationDisplay);
+
+    // Duration control buttons
+    let durationButtonsBox = createHorizontalBox("12px");
+
+    // Decrease duration button
+    let decreaseDurationButton = createTextButton(
+      "-10s",
+      COLORS.SECONDARY,
+      COLORS.WARNING,
+      { fontSize: "13px" }
+    );
+
+    // Increase duration button
+    let increaseDurationButton = createTextButton(
+      "+10s",
+      COLORS.SECONDARY,
+      COLORS.SUCCESS,
+      { fontSize: "13px" }
+    );
+
+    // Reset to default button
+    let resetDurationButton = createTextButton(
+      "Reset (1 min)",
+      COLORS.SECONDARY,
+      COLORS.INFO,
+      { fontSize: "13px" }
+    );
+
+    durationButtonsBox.add_child(decreaseDurationButton);
+    durationButtonsBox.add_child(increaseDurationButton);
+    durationButtonsBox.add_child(resetDurationButton);
+
+    // Button handlers
+    decreaseDurationButton.connect("clicked", () => {
+      let currentDur = this.settings.get_int("recording-duration");
+      let newDur = Math.max(10, currentDur - 10); // Minimum 10 seconds
+      this.settings.set_int("recording-duration", newDur);
+      this.currentDurationDisplay.set_text(formatDuration(newDur));
+      Main.notify(
+        "Speech2Text",
+        `Recording duration set to ${formatDuration(newDur)}`
+      );
+    });
+
+    increaseDurationButton.connect("clicked", () => {
+      let currentDur = this.settings.get_int("recording-duration");
+      let newDur = Math.min(300, currentDur + 10); // Maximum 5 minutes
+      this.settings.set_int("recording-duration", newDur);
+      this.currentDurationDisplay.set_text(formatDuration(newDur));
+      Main.notify(
+        "Speech2Text",
+        `Recording duration set to ${formatDuration(newDur)}`
+      );
+    });
+
+    resetDurationButton.connect("clicked", () => {
+      this.settings.set_int("recording-duration", 60); // Reset to 1 minute
+      this.currentDurationDisplay.set_text(formatDuration(60));
+      Main.notify("Speech2Text", "Recording duration reset to 1 minute");
+    });
+
+    durationSection.add_child(durationLabel);
+    durationSection.add_child(durationDescription);
+    durationSection.add_child(currentDurationBox);
+    durationSection.add_child(durationButtonsBox);
+
     // Separator line
     let separator = createSeparator();
 
@@ -576,6 +694,9 @@ read
     // Another separator line
     let separator2 = createSeparator();
 
+    // Third separator line
+    let separator3 = createSeparator();
+
     // About section
     let aboutSection = createVerticalBox("10px", "0px");
 
@@ -616,8 +737,10 @@ read
     settingsWindow.add_child(headerBox);
     settingsWindow.add_child(shortcutSection);
     settingsWindow.add_child(separator);
-    settingsWindow.add_child(troubleshootingSection);
+    settingsWindow.add_child(durationSection);
     settingsWindow.add_child(separator2);
+    settingsWindow.add_child(troubleshootingSection);
+    settingsWindow.add_child(separator3);
     settingsWindow.add_child(aboutSection);
 
     // Create modal overlay
@@ -635,11 +758,23 @@ read
     overlay.set_size(monitor.width, monitor.height);
     overlay.set_position(monitor.x, monitor.y);
 
-    // Center the settings window
-    settingsWindow.set_position(
-      (monitor.width - 450) / 2,
-      (monitor.height - 300) / 2
-    );
+    // Center the settings window dynamically
+    // Use a small delay to ensure the window has been sized properly
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+      let [windowWidth, windowHeight] = settingsWindow.get_size();
+
+      // Fallback to estimated size if get_size() returns 0
+      if (windowWidth === 0) windowWidth = 450;
+      if (windowHeight === 0)
+        windowHeight = Math.min(monitor.height * 0.8, 600);
+
+      settingsWindow.set_position(
+        (monitor.width - windowWidth) / 2,
+        (monitor.height - windowHeight) / 2
+      );
+
+      return false; // Don't repeat
+    });
 
     Main.layoutManager.addTopChrome(overlay);
 
@@ -808,13 +943,13 @@ read
     // Function to restore original handlers
     const restoreHandlers = () => {
       // Get reference to settingsWindow from the overlay's children
-      let settingsWindow = overlay.get_first_child();
+      let settingsWindowRef = overlay.get_first_child();
 
       // Reconnect original click handler
       clickHandlerId = overlay.connect("button-press-event", (actor, event) => {
         let [x, y] = event.get_coords();
-        let [windowX, windowY] = settingsWindow.get_position();
-        let [windowW, windowH] = settingsWindow.get_size();
+        let [windowX, windowY] = settingsWindowRef.get_position();
+        let [windowW, windowH] = settingsWindowRef.get_size();
 
         // If click is outside settings window area, close it
         if (
@@ -1075,9 +1210,17 @@ read
     try {
       log("🎯 startRecording() called - creating recording dialog");
 
+      // Get recording duration from settings
+      const recordingDuration = this.settings.get_int("recording-duration");
+
       const [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
         null,
-        [`${this.path}/venv/bin/python3`, `${this.path}/whisper_typing.py`],
+        [
+          `${this.path}/venv/bin/python3`,
+          `${this.path}/whisper_typing.py`,
+          `--duration`,
+          `${recordingDuration}`,
+        ],
         null,
         GLib.SpawnFlags.DO_NOT_REAP_CHILD,
         null

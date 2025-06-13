@@ -6,5 +6,11 @@
             <summary>Toggle recording</summary>
             <description>Keyboard shortcut to toggle recording</description>
         </key>
+        <key name="recording-duration" type="i">
+            <default>60</default>
+            <range min="10" max="300"/>
+            <summary>Recording duration</summary>
+            <description>Maximum recording duration in seconds (10 seconds to 5 minutes)</description>
+        </key>
     </schema>
 </schemalist>
