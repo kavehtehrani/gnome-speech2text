@@ -12,8 +12,11 @@ NC='\033[0m' # No Color
 
 # Check for interactive mode flag
 INTERACTIVE=false
+PROGRESS=false
 if [ "$1" = "--interactive" ] || [ "$1" = "-i" ]; then
     INTERACTIVE=true
+elif [ "$1" = "--progress" ] || [ "$1" = "-p" ]; then
+    PROGRESS=true
 fi
 
 # Function to check if a command exists
@@ -145,7 +148,14 @@ print_status "Installing Python requirements..."
 if [ ! -f "$EXTENSION_DIR/requirements.txt" ]; then
     error_exit "requirements.txt not found in extension directory"
 fi
-"$VENV_DIR/bin/pip" install -r "$EXTENSION_DIR/requirements.txt" || error_exit "Failed to install Python requirements"
+
+if [ "$PROGRESS" = true ]; then
+    echo -e "${YELLOW}📥 Installing OpenAI Whisper (this will take several minutes)...${NC}"
+    echo -e "${YELLOW}🔄 Downloading neural network models and PyTorch dependencies...${NC}"
+    "$VENV_DIR/bin/pip" install -r "$EXTENSION_DIR/requirements.txt" -v || error_exit "Failed to install Python requirements"
+else
+    "$VENV_DIR/bin/pip" install -r "$EXTENSION_DIR/requirements.txt" || error_exit "Failed to install Python requirements"
+fi
 
 # Make the extension executable
 print_status "Setting up extension permissions..."

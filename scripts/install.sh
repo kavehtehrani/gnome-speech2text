@@ -39,19 +39,28 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-echo -e "${YELLOW}Installing GNOME Speech2Text Extension...${NC}"
+echo ""
+echo -e "${GREEN}🎤 GNOME Speech2Text Extension Installer${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo -e "${YELLOW}⚡ Starting installation...${NC}"
+echo ""
 
 # Check if running as root
 if [ "$EUID" -eq 0 ]; then
     error_exit "Please don't run this script as root"
 fi
 
+print_status "Checking system requirements..."
+
 # Check if GNOME Shell is installed
 if ! command_exists gnome-shell; then
     error_exit "GNOME Shell is not installed"
 fi
 
+print_status "System requirements ✓"
+
 # Create extensions directory if it doesn't exist
+print_status "Setting up extension directory..."
 EXTENSIONS_DIR="$HOME/.local/share/gnome-shell/extensions"
 mkdir -p "$EXTENSIONS_DIR" || error_exit "Failed to create extensions directory"
 
@@ -62,6 +71,7 @@ if [ -d "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page" ]; then
 fi
 
 # Create temporary directory for downloads
+print_status "Preparing download workspace..."
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR" || error_exit "Failed to create temporary directory"
 
@@ -100,10 +110,16 @@ cp requirements.txt "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page/" || error_exi
 # Make setup script executable
 chmod +x "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page/setup_env.sh" || error_exit "Failed to make setup script executable"
 
-# Run the setup script
-print_status "Setting up environment..."
+# Run the setup script with progress information
+echo ""
+echo -e "${YELLOW}📦 Setting up Python environment and dependencies...${NC}"
+echo -e "${YELLOW}⏱️  This may take 5-15 minutes depending on your internet speed${NC}"
+echo -e "${YELLOW}💾 Downloading ~200-500MB (OpenAI Whisper + PyTorch)${NC}"
+echo -e "${YELLOW}🔄 Please be patient - this is a one-time setup${NC}"
+echo ""
+
 cd "$EXTENSIONS_DIR/gnome-speech2text@kaveh.page" || error_exit "Failed to change to extension directory"
-if ! bash setup_env.sh; then
+if ! bash setup_env.sh --progress; then
     error_exit "Setup script failed"
 fi
 

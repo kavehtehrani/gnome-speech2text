@@ -51,6 +51,14 @@ Run this single command to download and install everything automatically:
 wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/scripts/install.sh | bash
 ```
 
+**⏱️ Note: First-time installation takes 5-15 minutes** as it downloads and installs:
+
+- OpenAI Whisper (~200-500MB)
+- PyTorch and ML dependencies
+- Python virtual environment
+
+The script will show progress messages. Please be patient!
+
 Then restart GNOME Shell:
 
 - **X11**: Press Alt+F2, type 'r', press Enter
