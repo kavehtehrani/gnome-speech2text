@@ -1294,6 +1294,35 @@ read
     log(`Keybinding updated to: ${newShortcut}`);
   }
 
+  stopRecording() {
+    log("🎯 stopRecording() called");
+
+    if (!this.recordingDialog || !this.recordingProcess) {
+      log("⚠️ stopRecording called but no dialog or process found");
+      return;
+    }
+
+    // Show processing state
+    this.recordingDialog.showProcessing();
+
+    // Send SIGUSR1 to gracefully stop recording and start transcription
+    log("🎯 Sending SIGUSR1 to stop recording gracefully");
+    try {
+      const result = GLib.spawn_command_line_sync(
+        `kill -USR1 ${this.recordingProcess}`
+      );
+      if (result[0]) {
+        log("🎯 SIGUSR1 sent successfully");
+      } else {
+        log("⚠️ Failed to send SIGUSR1, trying SIGTERM");
+        GLib.spawn_command_line_sync(`kill -TERM ${this.recordingProcess}`);
+      }
+    } catch (e) {
+      log(`❌ Error sending signal: ${e}`);
+    }
+    // Don't cleanup yet - let the process finish and show preview
+  }
+
   startRecording() {
     try {
       log("🎯 startRecording() called - creating recording dialog");
@@ -1335,29 +1364,8 @@ read
         this.recordingDialog = new RecordingDialog(
           () => {
             log("🎯 Stop callback triggered");
-            // Stop callback - show processing state and signal process to stop recording
-            this.recordingDialog.showProcessing();
-
-            // Send SIGUSR1 to gracefully stop recording and start transcription
-            if (this.recordingProcess) {
-              log("🎯 Sending SIGUSR1 to stop recording gracefully");
-              try {
-                const result = GLib.spawn_command_line_sync(
-                  `kill -USR1 ${this.recordingProcess}`
-                );
-                if (result[0]) {
-                  log("🎯 SIGUSR1 sent successfully");
-                } else {
-                  log("⚠️ Failed to send SIGUSR1, trying SIGTERM");
-                  GLib.spawn_command_line_sync(
-                    `kill -TERM ${this.recordingProcess}`
-                  );
-                }
-              } catch (e) {
-                log(`❌ Error sending signal: ${e}`);
-              }
-            }
-            // Don't cleanup yet - let the process finish and show preview
+            // Use the centralized stop method
+            this.stopRecording();
           },
           () => {
             log("🎯 Cancel callback triggered");
@@ -1573,10 +1581,18 @@ read
     if (this.recordingProcess || this.recordingDialog) {
       log(`>>> TAKING STOP PATH <<<`);
       // If recording or dialog is open, stop it (with transcription)
-      let cleanup = cleanupRecordingState(this);
-      log(
-        `Cleanup results: dialog=${cleanup.cleanedDialog}, process=${cleanup.cleanedProcess}`
-      );
+      // Use the same method as the dialog's stop button for consistency
+      if (this.recordingDialog) {
+        log("🎯 Stopping recording via keyboard shortcut");
+        // Use the centralized stop method
+        this.stopRecording();
+      } else {
+        // Fallback: if no dialog but there's a process, clean it up
+        let cleanup = cleanupRecordingState(this);
+        log(
+          `Cleanup results: dialog=${cleanup.cleanedDialog}, process=${cleanup.cleanedProcess}`
+        );
+      }
     } else {
       log(`>>> TAKING START PATH <<<`);
       // If not recording, start it
