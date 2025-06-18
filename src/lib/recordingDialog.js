@@ -3,19 +3,22 @@ import GLib from "gi://GLib";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { COLORS, STYLES } from "./constants.js";
-import { createHoverButton } from "./uiUtils.js";
+import { createHoverButton, createVerticalBox } from "./uiUtils.js";
 
 // Simple recording dialog using custom modal barrier
 export class RecordingDialog {
-  constructor(onStop, onCancel, maxDuration = 60) {
+  constructor(onStop, onCancel, onInsert, maxDuration = 60) {
     log("🎯 RecordingDialog constructor called");
 
     this.onStop = onStop;
     this.onCancel = onCancel;
+    this.onInsert = onInsert; // New callback for inserting text
     this.maxDuration = maxDuration; // Maximum recording duration in seconds
     this.startTime = null; // Will be set when recording starts
     this.elapsedTime = 0; // Current elapsed time
     this.timerInterval = null; // Timer interval reference
+    this.isPreviewMode = false; // Track whether we're in preview mode
+    this.transcribedText = ""; // Store the transcribed text
 
     // Create modal barrier that covers the entire screen
     this.modalBarrier = new St.Widget({
@@ -57,14 +60,23 @@ export class RecordingDialog {
           this.onCancel?.();
           return Clutter.EVENT_STOP;
         } else if (
-          keyval === Clutter.KEY_space ||
-          keyval === Clutter.KEY_Return ||
-          keyval === Clutter.KEY_KP_Enter
+          !this.isPreviewMode &&
+          (keyval === Clutter.KEY_space ||
+            keyval === Clutter.KEY_Return ||
+            keyval === Clutter.KEY_KP_Enter)
         ) {
-          // Enter/Space = Stop and process (with transcription)
+          // Enter/Space = Stop and process (with transcription) - only in recording mode
           log(`🎯 Stopping recording via keyboard: ${keyname}`);
-          this.close();
+          // Don't close the dialog here - let the onStop callback handle the workflow
           this.onStop?.();
+          return Clutter.EVENT_STOP;
+        } else if (
+          this.isPreviewMode &&
+          (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter)
+        ) {
+          // In preview mode, Enter = Insert text
+          log(`🎯 Inserting text via keyboard: ${keyname}`);
+          this._handleInsert();
           return Clutter.EVENT_STOP;
         }
 
@@ -89,7 +101,8 @@ export class RecordingDialog {
         border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
         padding: ${STYLES.DIALOG_PADDING};
         border: ${STYLES.DIALOG_BORDER};
-        min-width: 350px;
+        min-width: 450px;
+        max-width: 600px;
       `,
       layout_manager: new Clutter.BoxLayout({
         orientation: Clutter.Orientation.VERTICAL,
@@ -98,6 +111,13 @@ export class RecordingDialog {
       reactive: true,
       can_focus: true,
     });
+
+    this._buildRecordingUI();
+  }
+
+  _buildRecordingUI() {
+    // Clear existing content
+    this.container.remove_all_children();
 
     // Recording header
     const headerBox = new St.BoxLayout({
@@ -114,17 +134,17 @@ export class RecordingDialog {
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    const recordingLabel = new St.Label({
+    this.recordingLabel = new St.Label({
       text: "Recording...",
       style: `font-size: 20px; font-weight: bold; color: ${COLORS.WHITE};`,
       y_align: Clutter.ActorAlign.CENTER,
     });
 
     headerBox.add_child(this.recordingIcon);
-    headerBox.add_child(recordingLabel);
+    headerBox.add_child(this.recordingLabel);
 
     // Progress bar container (larger and more prominent)
-    const progressContainer = new St.Widget({
+    this.progressContainer = new St.Widget({
       style: `
         background-color: rgba(255, 255, 255, 0.2);
         border-radius: 15px;
@@ -162,11 +182,11 @@ export class RecordingDialog {
     // Position the time display on the right side
     this.timeDisplay.set_position(280 - 160, 8); // Adjust position for right alignment
 
-    progressContainer.add_child(this.progressBar);
-    progressContainer.add_child(this.timeDisplay);
+    this.progressContainer.add_child(this.progressBar);
+    this.progressContainer.add_child(this.timeDisplay);
 
     // Instructions
-    const instructionLabel = new St.Label({
+    this.instructionLabel = new St.Label({
       text: "Speak now\nPress Enter to process, Escape to cancel.",
       style: `font-size: 16px; color: ${COLORS.LIGHT_GRAY}; text-align: center;`,
     });
@@ -187,7 +207,7 @@ export class RecordingDialog {
     // Connect button events
     this.stopButton.connect("clicked", () => {
       log("🎯 Stop button clicked!");
-      this.close();
+      // Don't close the dialog here - let the onStop callback handle the workflow
       this.onStop?.();
     });
 
@@ -201,13 +221,299 @@ export class RecordingDialog {
     this.container.add_child(headerBox);
     headerBox.set_x_align(Clutter.ActorAlign.CENTER);
 
-    this.container.add_child(progressContainer);
-    this.container.add_child(instructionLabel);
+    this.container.add_child(this.progressContainer);
+    this.container.add_child(this.instructionLabel);
     this.container.add_child(this.stopButton);
     this.container.add_child(this.cancelButton);
 
     // Add to modal barrier
     this.modalBarrier.add_child(this.container);
+  }
+
+  _buildPreviewUI() {
+    // Clear existing content
+    this.container.remove_all_children();
+
+    // Preview header
+    const headerBox = new St.BoxLayout({
+      vertical: false,
+      style: "spacing: 15px;",
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
+      x_expand: false,
+    });
+
+    const previewIcon = new St.Label({
+      text: "📝",
+      style: "font-size: 48px; text-align: center;",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    const previewLabel = new St.Label({
+      text: "Review & Insert",
+      style: `font-size: 20px; font-weight: bold; color: ${COLORS.WHITE};`,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    headerBox.add_child(previewIcon);
+    headerBox.add_child(previewLabel);
+
+    // Instruction label
+    const instructionLabel = new St.Label({
+      text: "Review the transcribed text below. Edit if needed, then insert:",
+      style: `font-size: 14px; color: ${COLORS.LIGHT_GRAY}; text-align: center; margin-bottom: 10px;`,
+    });
+
+    // Create editable text entry (without scroll container for now)
+    this.textEntry = new St.Entry({
+      style: `
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 2px solid ${COLORS.SECONDARY};
+        border-radius: 8px;
+        color: ${COLORS.WHITE};
+        font-size: 16px;
+        padding: 15px;
+        selection-background-color: ${COLORS.PRIMARY};
+        min-height: 120px;
+        max-height: 200px;
+        margin: 10px 0;
+        width: 400px;
+      `,
+      text: this.transcribedText,
+      hint_text: "Transcribed text will appear here...",
+      can_focus: true,
+      reactive: true,
+    });
+
+    // Make the text entry multiline-like by allowing longer text
+    this.textEntry.get_clutter_text().set_line_wrap(true);
+    this.textEntry.get_clutter_text().set_line_wrap_mode(2); // WORD_CHAR
+    this.textEntry.get_clutter_text().set_single_line_mode(false);
+    this.textEntry.get_clutter_text().set_activatable(false);
+
+    // Debug: Log the text that should be shown
+    log(`🎯 Setting text entry text to: "${this.transcribedText}"`);
+
+    // Action buttons
+    const buttonBox = new St.BoxLayout({
+      vertical: false,
+      style: "spacing: 10px;",
+      x_align: Clutter.ActorAlign.CENTER,
+    });
+
+    this.insertButton = createHoverButton("Insert", COLORS.SUCCESS, "#66bb6a");
+
+    this.editInsertButton = createHoverButton(
+      "Edit & Insert",
+      COLORS.INFO,
+      "#42a5f5"
+    );
+
+    this.previewCancelButton = createHoverButton(
+      "Cancel",
+      COLORS.SECONDARY,
+      COLORS.DARK_GRAY
+    );
+
+    // Button event handlers
+    this.insertButton.connect("clicked", () => {
+      log("🎯 Insert button clicked!");
+      this._handleInsert();
+    });
+
+    this.editInsertButton.connect("clicked", () => {
+      log("🎯 Edit & Insert button clicked!");
+      // Focus the text entry for editing
+      this.textEntry.grab_key_focus();
+    });
+
+    this.previewCancelButton.connect("clicked", () => {
+      log("🎯 Preview Cancel button clicked!");
+      this.close();
+      this.onCancel?.();
+    });
+
+    buttonBox.add_child(this.insertButton);
+    buttonBox.add_child(this.editInsertButton);
+    buttonBox.add_child(this.previewCancelButton);
+
+    // Instructions for keyboard shortcuts
+    const keyboardHint = new St.Label({
+      text: "Press Enter to insert • Escape to cancel",
+      style: `font-size: 12px; color: ${COLORS.DARK_GRAY}; text-align: center; margin-top: 10px;`,
+    });
+
+    // Add all elements to container
+    this.container.add_child(headerBox);
+    headerBox.set_x_align(Clutter.ActorAlign.CENTER);
+    this.container.add_child(instructionLabel);
+    this.container.add_child(this.textEntry);
+    this.container.add_child(buttonBox);
+    this.container.add_child(keyboardHint);
+  }
+
+  _handleInsert() {
+    // Get the current text from the entry
+    const textToInsert = this.textEntry
+      ? this.textEntry.get_text()
+      : this.transcribedText;
+
+    log(`🎯 Inserting text: "${textToInsert}"`);
+
+    this.close();
+
+    // Call the insert callback with the text
+    if (this.onInsert && textToInsert.trim()) {
+      this.onInsert(textToInsert.trim());
+    } else {
+      log("🎯 No text to insert or no callback provided");
+      this.onCancel?.();
+    }
+  }
+
+  showPreview(transcribedText) {
+    log(`🎯 Showing preview with text: "${transcribedText}"`);
+
+    // Check if dialog is still valid
+    if (!this.container || !this.container.get_parent()) {
+      log("⚠️ Dialog already disposed, cannot show preview");
+      return;
+    }
+
+    this.isPreviewMode = true;
+    this.transcribedText = transcribedText;
+
+    // Stop the timer if it's running
+    this.stopTimer();
+
+    // Clear the processing timeout
+    this.clearProcessingTimeout();
+
+    // Rebuild the UI for preview mode
+    this._buildPreviewUI();
+
+    // Focus the text entry so user can edit immediately if needed
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      if (this.textEntry) {
+        this.textEntry.grab_key_focus();
+        // Select all text for easy replacement
+        this.textEntry.get_clutter_text().set_selection(0, -1);
+      }
+      return false;
+    });
+  }
+
+  showProcessing() {
+    log("🎯 Showing processing state");
+
+    // Update the recording label to show processing
+    if (this.recordingLabel) {
+      this.recordingLabel.set_text("Processing...");
+    }
+
+    // Update the icon to show processing
+    if (this.recordingIcon) {
+      this.recordingIcon.set_text("🧠");
+    }
+
+    // Update instructions
+    if (this.instructionLabel) {
+      this.instructionLabel.set_text(
+        "Transcribing your speech...\nPress Escape to cancel."
+      );
+    }
+
+    // Hide the stop button but keep cancel button visible
+    if (this.stopButton) {
+      this.stopButton.hide();
+    }
+    if (this.cancelButton) {
+      this.cancelButton.show();
+      this.cancelButton.set_label("Cancel Processing");
+    }
+
+    // Stop the timer
+    this.stopTimer();
+
+    // Hide progress bar during processing
+    if (this.progressContainer) {
+      this.progressContainer.hide();
+    }
+
+    // Add a timeout to prevent getting stuck in processing forever
+    this.processingTimeout = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT,
+      30000,
+      () => {
+        log("⚠️ Processing timeout reached (30 seconds)");
+        this.showProcessingError("Transcription timed out. Please try again.");
+        return false; // Don't repeat
+      }
+    );
+  }
+
+  showProcessingError(message) {
+    log(`🎯 Showing processing error: ${message}`);
+
+    // Check if dialog is still valid before accessing UI elements
+    if (!this.container || !this.container.get_parent()) {
+      log("⚠️ Dialog already disposed, cannot show processing error");
+      return;
+    }
+
+    // Update the label to show error
+    if (this.recordingLabel) {
+      try {
+        this.recordingLabel.set_text("Error");
+      } catch (e) {
+        log(`⚠️ Error updating recording label: ${e}`);
+      }
+    }
+
+    // Update the icon to show error
+    if (this.recordingIcon) {
+      try {
+        this.recordingIcon.set_text("❌");
+      } catch (e) {
+        log(`⚠️ Error updating recording icon: ${e}`);
+      }
+    }
+
+    // Update instructions
+    if (this.instructionLabel) {
+      try {
+        this.instructionLabel.set_text(`${message}\nPress Escape to close.`);
+      } catch (e) {
+        log(`⚠️ Error updating instruction label: ${e}`);
+      }
+    }
+
+    // Show only cancel button
+    if (this.stopButton) {
+      try {
+        this.stopButton.hide();
+      } catch (e) {
+        log(`⚠️ Error hiding stop button: ${e}`);
+      }
+    }
+    if (this.cancelButton) {
+      try {
+        this.cancelButton.show();
+        this.cancelButton.set_label("Close");
+      } catch (e) {
+        log(`⚠️ Error updating cancel button: ${e}`);
+      }
+    }
+
+    // Clear the processing timeout
+    this.clearProcessingTimeout();
+  }
+
+  clearProcessingTimeout() {
+    if (this.processingTimeout) {
+      GLib.Source.remove(this.processingTimeout);
+      this.processingTimeout = null;
+    }
   }
 
   formatTimeDisplay(elapsed, maximum) {
@@ -374,6 +680,9 @@ export class RecordingDialog {
 
     // Stop the timer
     this.stopTimer();
+
+    // Clear the processing timeout
+    this.clearProcessingTimeout();
 
     if (this.modalBarrier && this.modalBarrier.get_parent()) {
       Main.layoutManager.removeChrome(this.modalBarrier);

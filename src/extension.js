@@ -1310,6 +1310,7 @@ read
         `${this.path}/whisper_typing.py`,
         `--duration`,
         `${recordingDuration}`,
+        `--preview-mode`, // Always use preview mode
       ];
 
       // Add clipboard flag if enabled
@@ -1334,8 +1335,29 @@ read
         this.recordingDialog = new RecordingDialog(
           () => {
             log("🎯 Stop callback triggered");
-            // Stop callback - send gentle signal to stop recording but allow processing
-            cleanupRecordingState(this);
+            // Stop callback - show processing state and signal process to stop recording
+            this.recordingDialog.showProcessing();
+
+            // Send SIGUSR1 to gracefully stop recording and start transcription
+            if (this.recordingProcess) {
+              log("🎯 Sending SIGUSR1 to stop recording gracefully");
+              try {
+                const result = GLib.spawn_command_line_sync(
+                  `kill -USR1 ${this.recordingProcess}`
+                );
+                if (result[0]) {
+                  log("🎯 SIGUSR1 sent successfully");
+                } else {
+                  log("⚠️ Failed to send SIGUSR1, trying SIGTERM");
+                  GLib.spawn_command_line_sync(
+                    `kill -TERM ${this.recordingProcess}`
+                  );
+                }
+              } catch (e) {
+                log(`❌ Error sending signal: ${e}`);
+              }
+            }
+            // Don't cleanup yet - let the process finish and show preview
           },
           () => {
             log("🎯 Cancel callback triggered");
@@ -1348,6 +1370,13 @@ read
               );
               this.recordingProcess = null;
             }
+            this.recordingDialog = null;
+            this.icon?.set_style("");
+          },
+          (textToInsert) => {
+            log("🎯 Insert callback triggered with text:", textToInsert);
+            // Insert callback - type the text and cleanup
+            this._typeText(textToInsert);
             this.recordingDialog = null;
             this.icon?.set_style("");
           },
@@ -1368,10 +1397,13 @@ read
           log("⚠️ RecordingDialog is null - cannot open");
         }
 
-        // Set up stdout reading to monitor process
+        // Set up stdout reading to monitor process and capture transcribed text
         const stdoutStream = new Gio.DataInputStream({
           base_stream: new Gio.UnixInputStream({ fd: stdout }),
         });
+
+        let capturingText = false;
+        let transcribedText = "";
 
         // Function to read lines from stdout
         const readOutput = () => {
@@ -1384,6 +1416,49 @@ read
                 if (line) {
                   const lineStr = new TextDecoder().decode(line);
                   log(`Whisper stdout: ${lineStr}`);
+
+                  // Check for transcription markers
+                  if (lineStr.trim() === "TRANSCRIBED_TEXT_START") {
+                    capturingText = true;
+                    transcribedText = "";
+                    log("🎯 Starting to capture transcribed text");
+                  } else if (lineStr.trim() === "TRANSCRIBED_TEXT_END") {
+                    capturingText = false;
+                    log(
+                      `🎯 Finished capturing transcribed text: "${transcribedText}"`
+                    );
+
+                    // Show preview in the dialog
+                    if (
+                      this.recordingDialog &&
+                      this.recordingDialog.container &&
+                      this.recordingDialog.container.get_parent()
+                    ) {
+                      if (transcribedText.trim()) {
+                        log("🎯 Showing preview with captured text");
+                        this.recordingDialog.showPreview(
+                          transcribedText.trim()
+                        );
+                      } else {
+                        log("⚠️ No transcribed text captured, showing error");
+                        this.recordingDialog.showProcessingError(
+                          "No speech detected. Please try again."
+                        );
+                      }
+                    } else {
+                      log(
+                        "⚠️ Recording dialog is null or disposed, cannot show preview"
+                      );
+                    }
+                  } else if (capturingText) {
+                    // Add this line to the transcribed text
+                    if (transcribedText) {
+                      transcribedText += "\n";
+                    }
+                    transcribedText += lineStr;
+                    log(`🎯 Captured text line: "${lineStr}"`);
+                  }
+
                   readOutput();
                 }
               } catch (e) {
@@ -1397,9 +1472,39 @@ read
         readOutput();
 
         // Watch for process completion
-        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, () => {
-          cleanupRecordingState(this);
-          log("Whisper process completed");
+        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, status) => {
+          log(`Whisper process completed with status: ${status}`);
+          this.recordingProcess = null; // Clear the process reference
+
+          // If there's an error and no preview was shown, show error
+          if (
+            status !== 0 &&
+            this.recordingDialog &&
+            !this.recordingDialog.isPreviewMode
+          ) {
+            log("❌ Process failed, showing error state");
+            this.recordingDialog.showProcessingError(
+              "Transcription failed. Please try again."
+            );
+          } else if (
+            status === 0 &&
+            this.recordingDialog &&
+            !this.recordingDialog.isPreviewMode
+          ) {
+            // Process succeeded but no text was captured - might be empty audio
+            log(
+              "⚠️ Process succeeded but no preview shown - likely empty audio"
+            );
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+              if (this.recordingDialog && !this.recordingDialog.isPreviewMode) {
+                this.recordingDialog.showProcessingError(
+                  "No speech detected. Please try again."
+                );
+              }
+              return false;
+            });
+          }
+          // If successful and preview is showing, everything is working correctly
         });
       }
     } catch (e) {
@@ -1482,6 +1587,62 @@ read
       log(`startRecording() call completed`);
     }
     log(`=== TOGGLE RECORDING DEBUG END ===`);
+  }
+
+  _typeText(text) {
+    log(`🎯 Typing text: "${text}"`);
+
+    if (!text || !text.trim()) {
+      log("⚠️ No text to type");
+      return;
+    }
+
+    try {
+      // Get clipboard setting
+      const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
+
+      // Build command arguments for typing
+      let args = [
+        `${this.path}/venv/bin/python3`,
+        `${this.path}/whisper_typing.py`,
+        `--type-only`,
+        text.trim(),
+      ];
+
+      // Add clipboard flag if enabled
+      if (copyToClipboard) {
+        args.push("--copy-to-clipboard");
+      }
+
+      // Execute the typing command
+      const [success, pid] = GLib.spawn_async(
+        null,
+        args,
+        null,
+        GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+        null
+      );
+
+      if (success) {
+        log(`🎯 Text typing process started with PID: ${pid}`);
+
+        // Watch for process completion
+        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, status) => {
+          log(`🎯 Text typing process completed with status: ${status}`);
+          if (status === 0) {
+            Main.notify("Speech2Text", "Text inserted successfully!");
+          } else {
+            Main.notify("Speech2Text Error", "Failed to insert text.");
+          }
+        });
+      } else {
+        log("❌ Failed to start text typing process");
+        Main.notify("Speech2Text Error", "Failed to insert text.");
+      }
+    } catch (e) {
+      log(`❌ Error typing text: ${e}`);
+      Main.notify("Speech2Text Error", "Failed to insert text.");
+    }
   }
 }
 

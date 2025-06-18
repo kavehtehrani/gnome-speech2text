@@ -253,6 +253,8 @@ def main():
                        help='Maximum recording duration in seconds (default: 60)')
     parser.add_argument('--copy-to-clipboard', action='store_true',
                        help='Copy transcribed text to clipboard in addition to typing')
+    parser.add_argument('--preview-mode', action='store_true',
+                       help='Output transcribed text for preview instead of typing directly')
     args = parser.parse_args()
     
     # Validate duration (10 seconds to 5 minutes)
@@ -270,6 +272,8 @@ def main():
     print("⏰ Recording duration limit: {} seconds".format(args.duration), flush=True)
     if args.copy_to_clipboard:
         print("📋 Clipboard copying enabled", flush=True)
+    if args.preview_mode:
+        print("👁️ Preview mode enabled", flush=True)
     
     # Detect display server early for better error reporting
     display_server = detect_display_server()
@@ -286,6 +290,14 @@ def main():
         print("❌ Failed to transcribe audio", flush=True)
         return
     
+    # If in preview mode, output the transcribed text for the extension to capture
+    if args.preview_mode:
+        print("TRANSCRIBED_TEXT_START", flush=True)
+        print(text, flush=True)
+        print("TRANSCRIBED_TEXT_END", flush=True)
+        print("🎉 Transcription complete - text sent to extension!", flush=True)
+        return
+    
     # Copy to clipboard if requested
     if args.copy_to_clipboard:
         copy_success = copy_to_clipboard(text, display_server)
@@ -297,5 +309,26 @@ def main():
     
     print("🎉 Done!", flush=True)
 
+def type_text_only():
+    """Standalone function to type text provided via command line argument"""
+    parser = argparse.ArgumentParser(description='Type text using xdotool')
+    parser.add_argument('text', help='Text to type')
+    parser.add_argument('--copy-to-clipboard', action='store_true',
+                       help='Copy text to clipboard in addition to typing')
+    args = parser.parse_args()
+    
+    if args.copy_to_clipboard:
+        display_server = detect_display_server()
+        copy_success = copy_to_clipboard(args.text, display_server)
+        if not copy_success:
+            print("⚠️ Failed to copy to clipboard, but continuing with typing", flush=True)
+    
+    type_text(args.text)
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--type-only":
+        # Remove the --type-only flag and call type_text_only
+        sys.argv.pop(1)
+        type_text_only()
+    else:
+        main()
