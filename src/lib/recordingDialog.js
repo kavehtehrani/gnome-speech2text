@@ -78,9 +78,20 @@ export class RecordingDialog {
           this.isPreviewMode &&
           (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter)
         ) {
-          // In preview mode, Enter = Insert text
-          log(`🎯 Inserting text via keyboard: ${keyname}`);
-          this._handleInsert();
+          // In preview mode, Enter behavior depends on display server
+          if (IS_WAYLAND) {
+            // On Wayland, Enter = Copy to clipboard and close
+            log(
+              `🎯 Copying text to clipboard via keyboard (Wayland): ${keyname}`
+            );
+            this._handleCopy();
+            this.close();
+            this.onCancel?.(); // Close without inserting
+          } else {
+            // On X11, Enter = Insert text
+            log(`🎯 Inserting text via keyboard (X11): ${keyname}`);
+            this._handleInsert();
+          }
           return Clutter.EVENT_STOP;
         }
 
@@ -373,7 +384,9 @@ export class RecordingDialog {
 
     // Instructions for keyboard shortcuts
     const keyboardHint = new St.Label({
-      text: "Press Enter to insert • Escape to cancel",
+      text: IS_WAYLAND
+        ? "Press Enter to copy to clipboard • Escape to cancel"
+        : "Press Enter to insert • Escape to cancel",
       style: `font-size: 12px; color: ${COLORS.DARK_GRAY}; text-align: center; margin-top: 10px;`,
     });
 
