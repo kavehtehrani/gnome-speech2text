@@ -292,38 +292,21 @@ export class RecordingDialog {
       style: `font-size: 14px; color: ${COLORS.LIGHT_GRAY}; text-align: center; margin-bottom: 10px;`,
     });
 
-    // Use the EXACT working pattern from the other LLM's example
-    const scrollView = new St.ScrollView({
-      style_class: "popup-menu-content",
-      overlay_scrollbars: true,
-      hscrollbar_policy: St.PolicyType.NEVER,
-      vscrollbar_policy: St.PolicyType.AUTOMATIC,
-      style: `
-            width: 400px;
-            height: 150px;
-            margin: 10px 0;
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 2px solid ${COLORS.SECONDARY};
-            border-radius: 8px;
-            padding: 2px;
-        `,
-    });
-
+    // Back to basics - simple St.Label that we KNOW works
     this.textEntry = new St.Label({
       text: this.transcribedText,
       style: `
-            font-size: 16px;
-            color: ${COLORS.WHITE};
-            padding: 8px;
-        `,
-      x_expand: true,
-      y_expand: true,
-      y_align: Clutter.ActorAlign.START,
-      x_align: Clutter.ActorAlign.START,
-      reactive: false,
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 2px solid ${COLORS.SECONDARY};
+        border-radius: 8px;
+        color: ${COLORS.WHITE};
+        font-size: 16px;
+        padding: 15px;
+        margin: 10px 0;
+        width: 400px;
+        max-height: 150px;
+      `,
     });
-
-    scrollView.set_child(this.textEntry);
 
     // Debug: Log the text that should be shown
     log(`🎯 Setting text entry text to: "${this.transcribedText}"`);
@@ -368,7 +351,7 @@ export class RecordingDialog {
     this.container.add_child(headerBox);
     headerBox.set_x_align(Clutter.ActorAlign.CENTER);
     this.container.add_child(instructionLabel);
-    this.container.add_child(scrollView);
+    this.container.add_child(this.textEntry);
     this.container.add_child(buttonBox);
     this.container.add_child(keyboardHint);
   }
