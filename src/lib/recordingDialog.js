@@ -288,11 +288,11 @@ export class RecordingDialog {
 
     // Instruction label
     const instructionLabel = new St.Label({
-      text: "Review the transcribed text below. Edit if needed, then insert:",
+      text: "Review the transcribed text below.",
       style: `font-size: 14px; color: ${COLORS.LIGHT_GRAY}; text-align: center; margin-bottom: 10px;`,
     });
 
-    // Back to basics - simple St.Label that we KNOW works
+    // Simple St.Label that shows ALL text with proper wrapping
     this.textEntry = new St.Label({
       text: this.transcribedText,
       style: `
@@ -304,9 +304,12 @@ export class RecordingDialog {
         padding: 15px;
         margin: 10px 0;
         width: 400px;
-        max-height: 150px;
       `,
     });
+
+    // Enable text wrapping so long text doesn't make the dialog too wide
+    this.textEntry.get_clutter_text().set_line_wrap(true);
+    this.textEntry.get_clutter_text().set_line_wrap_mode(2); // WORD_CHAR wrapping
 
     // Debug: Log the text that should be shown
     log(`🎯 Setting text entry text to: "${this.transcribedText}"`);
