@@ -21,8 +21,6 @@ vibe-learning GNOME extensions and half vice-coding the actual script.
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - ⚙️ **Easy Configuration** through settings panel
 
-**Note: This extension is currently only working on X11. If there's interest in Wayland support, I can look into it.**
-
 ## Wayland Limitation: Inserting Preview Text
 
 **Note:** Due to technical limitations in GNOME Shell and the Wayland display server, the extension cannot programmatically "type" or insert the preview text into applications when running on Wayland. This is a security and sandboxing feature of Wayland, which does not allow extensions to simulate keyboard input for other apps.
@@ -37,10 +35,6 @@ vibe-learning GNOME extensions and half vice-coding the actual script.
 - If on Wayland, the Insert button is hidden to avoid user confusion, since insertion is not possible.
 
 This ensures the extension provides the best possible user experience on both display servers, and avoids showing non-functional UI on Wayland.
-
-## Privacy & Security
-
-🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or external servers. While this extension uses OpenAI's Whisper model, it runs the open-source version locally on your computer, ensuring privacy of your voice data.
 
 ## Requirements
 
@@ -137,15 +131,9 @@ Right-click the microphone icon → Settings to configure:
 You can always read the logs in the terminal or journal to see if there are any errors by running:
 `journalctl /usr/bin/gnome-shell -f`
 
-## Development
+## Privacy & Security
 
-### Building the Extension Package
-
-```bash
-./scripts/package_zip.sh
-```
-
-This creates `dist/gnome-speech2text@kaveh.page.zip` with all necessary files.
+🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or external servers. While this extension uses OpenAI's Whisper model, it runs the open-source version locally on your computer, ensuring privacy of your voice data.
 
 ## License
 
