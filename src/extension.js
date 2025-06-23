@@ -32,6 +32,9 @@ import { runSetupScript, checkSetupStatus } from "./lib/setupUtils.js";
 
 let button;
 
+// At the top of the file, after imports, cache IS_WAYLAND
+const IS_WAYLAND = Meta.is_wayland_compositor();
+
 export default class WhisperTypingExtension extends Extension {
   constructor(metadata) {
     super(metadata);
@@ -648,6 +651,75 @@ read
     durationSection.add_child(currentDurationBox);
     durationSection.add_child(durationButtonsBox);
 
+    // --- X11-only: Skip preview checkbox ---
+    let skipPreviewSection = null;
+    if (!IS_WAYLAND) {
+      skipPreviewSection = createVerticalBox();
+      let skipPreviewLabel = createStyledLabel(
+        "Skip Preview (X11 only)",
+        "subtitle"
+      );
+      let skipPreviewDescription = createStyledLabel(
+        "If enabled, the extension will insert the transcribed text immediately after recording, without showing the preview dialog.",
+        "description"
+      );
+      // Checkbox
+      let skipPreviewCheckboxBox = createHorizontalBox();
+      let skipPreviewCheckboxLabel = createStyledLabel(
+        "Skip preview and insert immediately:",
+        "normal",
+        "min-width: 250px;"
+      );
+      let skipPreviewEnabled = this.settings.get_boolean("skip-preview-x11");
+      let skipPreviewCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${
+            skipPreviewEnabled ? COLORS.PRIMARY : "transparent"
+          };
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
+      let skipPreviewCheckboxIcon = new St.Label({
+        text: skipPreviewEnabled ? "✓" : "",
+        style: `
+          color: white;
+          font-size: 14px;
+          font-weight: bold;
+          text-align: center;
+        `,
+      });
+      skipPreviewCheckbox.add_child(skipPreviewCheckboxIcon);
+      skipPreviewCheckbox.connect("clicked", () => {
+        let currentState = this.settings.get_boolean("skip-preview-x11");
+        let newState = !currentState;
+        this.settings.set_boolean("skip-preview-x11", newState);
+        skipPreviewCheckbox.set_style(`
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `);
+        skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
+        Main.notify(
+          "Speech2Text",
+          `Skip preview is now ${newState ? "enabled" : "disabled"}`
+        );
+      });
+      skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
+      skipPreviewCheckboxBox.add_child(skipPreviewCheckbox);
+      skipPreviewSection.add_child(skipPreviewLabel);
+      skipPreviewSection.add_child(skipPreviewDescription);
+      skipPreviewSection.add_child(skipPreviewCheckboxBox);
+    }
+
     // Separator line
     let separator = createSeparator();
 
@@ -820,10 +892,12 @@ read
     aboutSection.add_child(aboutText);
     aboutSection.add_child(githubLink);
 
+    // Add all sections to settings window
     settingsWindow.add_child(headerBox);
     settingsWindow.add_child(shortcutSection);
     settingsWindow.add_child(separator);
     settingsWindow.add_child(durationSection);
+    if (skipPreviewSection) settingsWindow.add_child(skipPreviewSection);
     settingsWindow.add_child(clipboardSeparator);
     settingsWindow.add_child(clipboardSection);
     settingsWindow.add_child(troubleshootingSeparator);
@@ -1333,6 +1407,10 @@ read
       // Get clipboard setting
       const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
 
+      // Get skip-preview-x11 setting (only relevant on X11)
+      const skipPreviewX11 =
+        !IS_WAYLAND && this.settings.get_boolean("skip-preview-x11");
+
       // Build command arguments
       let args = [
         `${this.path}/venv/bin/python3`,
@@ -1359,7 +1437,7 @@ read
         this.recordingProcess = pid;
         log(`🎯 Process started with PID: ${pid}`);
 
-        // Show recording dialog immediately
+        // Always show the recording dialog for the recording phase
         log("🎯 Creating RecordingDialog instance");
         this.recordingDialog = new RecordingDialog(
           () => {
@@ -1436,7 +1514,32 @@ read
                       `🎯 Finished capturing transcribed text: "${transcribedText}"`
                     );
 
-                    // Show preview in the dialog
+                    // If skipping preview (on X11), insert immediately and close dialog
+                    if (skipPreviewX11) {
+                      if (transcribedText.trim()) {
+                        log("🎯 Skipping preview, inserting text immediately");
+                        this._typeText(transcribedText.trim());
+                        if (this.recordingDialog) {
+                          this.recordingDialog.close();
+                          this.recordingDialog = null;
+                        }
+                        this.icon?.set_style("");
+                      } else {
+                        if (this.recordingDialog) {
+                          this.recordingDialog.showProcessingError(
+                            "No speech detected. Please try again."
+                          );
+                        } else {
+                          Main.notify(
+                            "Speech2Text",
+                            "No speech detected. Please try again."
+                          );
+                        }
+                      }
+                      return; // Do not show preview dialog
+                    }
+
+                    // Show preview in the dialog (if not skipping)
                     if (
                       this.recordingDialog &&
                       this.recordingDialog.container &&
