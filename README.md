@@ -1,6 +1,6 @@
 # GNOME Speech2Text
 
-🚧 [Work in Progress] 🚧
+🚧 Work in Progress - I've tested extensively on Ubuntu 24.04 / GNOME 46 / x11. Wayland should be working, but it's a lot more finicky at the moment. Happy to address any issues you might encounter. 🚧
 
 A GNOME Shell extension that adds speech-to-text functionality using
 [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone
