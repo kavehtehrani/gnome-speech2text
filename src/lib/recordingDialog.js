@@ -1,9 +1,13 @@
 import Clutter from "gi://Clutter";
 import GLib from "gi://GLib";
 import St from "gi://St";
+import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { COLORS, STYLES } from "./constants.js";
 import { createHoverButton, createVerticalBox } from "./uiUtils.js";
+
+// Check Wayland status once at load
+const IS_WAYLAND = Meta.is_wayland_compositor();
 
 // Simple recording dialog using custom modal barrier
 export class RecordingDialog {
@@ -267,24 +271,7 @@ export class RecordingDialog {
     titleBox.add_child(previewIcon);
     titleBox.add_child(previewLabel);
 
-    // Right side - copy button
-    const copyButton = createHoverButton("📋 Copy", COLORS.INFO, "#42a5f5");
-    copyButton.set_style(`
-      background-color: ${COLORS.INFO};
-      color: white;
-      border-radius: 6px;
-      padding: 8px 16px;
-      font-size: 14px;
-      border: none;
-    `);
-
-    copyButton.connect("clicked", () => {
-      log("🎯 Copy button clicked!");
-      this._handleCopy();
-    });
-
     headerBox.add_child(titleBox);
-    headerBox.add_child(copyButton);
 
     // Instruction label
     const instructionLabel = new St.Label({
@@ -292,8 +279,8 @@ export class RecordingDialog {
       style: `font-size: 14px; color: ${COLORS.LIGHT_GRAY}; text-align: center; margin-bottom: 10px;`,
     });
 
-    // Simple St.Label that shows ALL text with proper wrapping
-    this.textEntry = new St.Label({
+    // Use St.Entry (designed for input) and hack it to be multiline
+    this.textEntry = new St.Entry({
       text: this.transcribedText,
       style: `
         background-color: rgba(255, 255, 255, 0.1);
@@ -304,12 +291,34 @@ export class RecordingDialog {
         padding: 15px;
         margin: 10px 0;
         width: 400px;
+        caret-color: ${COLORS.PRIMARY};
       `,
+      can_focus: true,
+      reactive: true,
     });
 
-    // Enable text wrapping so long text doesn't make the dialog too wide
-    this.textEntry.get_clutter_text().set_line_wrap(true);
-    this.textEntry.get_clutter_text().set_line_wrap_mode(2); // WORD_CHAR wrapping
+    // Make the St.Entry behave like a multiline text area
+    const clutterText = this.textEntry.get_clutter_text();
+    clutterText.set_line_wrap(true);
+    clutterText.set_line_wrap_mode(2); // WORD_CHAR wrapping
+    clutterText.set_single_line_mode(false);
+    clutterText.set_activatable(false); // Prevent Enter from triggering activation
+
+    // Intercept Enter key: Enter = insert, Shift+Enter = newline
+    clutterText.connect("key-press-event", (actor, event) => {
+      const keyval = event.get_key_symbol();
+      const state = event.get_state();
+      if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
+        // If Shift is held, allow newline
+        if (state & Clutter.ModifierType.SHIFT_MASK) {
+          return Clutter.EVENT_PROPAGATE;
+        }
+        // Otherwise, trigger insert
+        this._handleInsert();
+        return Clutter.EVENT_STOP;
+      }
+      return Clutter.EVENT_PROPAGATE;
+    });
 
     // Debug: Log the text that should be shown
     log(`🎯 Setting text entry text to: "${this.transcribedText}"`);
@@ -321,7 +330,14 @@ export class RecordingDialog {
       x_align: Clutter.ActorAlign.CENTER,
     });
 
-    this.insertButton = createHoverButton("Insert", COLORS.SUCCESS, "#66bb6a");
+    // Copy button
+    const copyButton = createHoverButton("📋 Copy", COLORS.INFO, "#42a5f5");
+
+    // Only show Insert button on X11, not on Wayland (since insertion doesn't work on Wayland)
+    let insertButton = null;
+    if (!IS_WAYLAND) {
+      insertButton = createHoverButton("Insert", COLORS.SUCCESS, "#66bb6a");
+    }
 
     this.previewCancelButton = createHoverButton(
       "Cancel",
@@ -330,10 +346,17 @@ export class RecordingDialog {
     );
 
     // Button event handlers
-    this.insertButton.connect("clicked", () => {
-      log("🎯 Insert button clicked!");
-      this._handleInsert();
+    copyButton.connect("clicked", () => {
+      log("🎯 Copy button clicked!");
+      this._handleCopy();
     });
+
+    if (insertButton) {
+      insertButton.connect("clicked", () => {
+        log("🎯 Insert button clicked!");
+        this._handleInsert();
+      });
+    }
 
     this.previewCancelButton.connect("clicked", () => {
       log("🎯 Preview Cancel button clicked!");
@@ -341,7 +364,11 @@ export class RecordingDialog {
       this.onCancel?.();
     });
 
-    buttonBox.add_child(this.insertButton);
+    // Add buttons to the box
+    buttonBox.add_child(copyButton);
+    if (insertButton) {
+      buttonBox.add_child(insertButton);
+    }
     buttonBox.add_child(this.previewCancelButton);
 
     // Instructions for keyboard shortcuts
@@ -360,7 +387,7 @@ export class RecordingDialog {
   }
 
   _handleInsert() {
-    // Get the current text from the Label (read-only display)
+    // Get the current text from the St.Entry
     const textToInsert = this.textEntry
       ? this.textEntry.get_text()
       : this.transcribedText;
@@ -379,7 +406,7 @@ export class RecordingDialog {
   }
 
   _handleCopy() {
-    // Get the current text from the Label (read-only display)
+    // Get the current text from the St.Entry
     const textToCopy = this.textEntry
       ? this.textEntry.get_text()
       : this.transcribedText;
@@ -426,8 +453,17 @@ export class RecordingDialog {
     // Rebuild the UI for preview mode
     this._buildPreviewUI();
 
-    // Note: St.Label is read-only, so no focus/editing is possible
-    // The text is displayed for review, but editing would require a different approach
+    // Focus the text entry so user can edit immediately if needed
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      if (this.textEntry) {
+        this.textEntry.grab_key_focus();
+        // Position cursor at the end of the text
+        const clutterText = this.textEntry.get_clutter_text();
+        const textLength = this.transcribedText.length;
+        clutterText.set_cursor_position(textLength);
+      }
+      return false;
+    });
   }
 
   showProcessing() {
