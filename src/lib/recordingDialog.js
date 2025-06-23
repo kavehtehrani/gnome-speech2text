@@ -292,32 +292,38 @@ export class RecordingDialog {
       style: `font-size: 14px; color: ${COLORS.LIGHT_GRAY}; text-align: center; margin-bottom: 10px;`,
     });
 
-    // Create editable text entry (without scroll container for now)
-    this.textEntry = new St.Entry({
+    // Use the EXACT working pattern from the other LLM's example
+    const scrollView = new St.ScrollView({
+      style_class: "popup-menu-content",
+      overlay_scrollbars: true,
+      hscrollbar_policy: St.PolicyType.NEVER,
+      vscrollbar_policy: St.PolicyType.AUTOMATIC,
       style: `
-        background-color: rgba(255, 255, 255, 0.1);
-        border: 2px solid ${COLORS.SECONDARY};
-        border-radius: 8px;
-        color: ${COLORS.WHITE};
-        font-size: 16px;
-        padding: 15px;
-        selection-background-color: ${COLORS.PRIMARY};
-        min-height: 120px;
-        max-height: 200px;
-        margin: 10px 0;
-        width: 400px;
-      `,
-      text: this.transcribedText,
-      hint_text: "Transcribed text will appear here...",
-      can_focus: true,
-      reactive: true,
+            width: 400px;
+            height: 150px;
+            margin: 10px 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid ${COLORS.SECONDARY};
+            border-radius: 8px;
+            padding: 2px;
+        `,
     });
 
-    // Make the text entry multiline-like by allowing longer text
-    this.textEntry.get_clutter_text().set_line_wrap(true);
-    this.textEntry.get_clutter_text().set_line_wrap_mode(2); // WORD_CHAR
-    this.textEntry.get_clutter_text().set_single_line_mode(false);
-    this.textEntry.get_clutter_text().set_activatable(false);
+    this.textEntry = new St.Label({
+      text: this.transcribedText,
+      style: `
+            font-size: 16px;
+            color: ${COLORS.WHITE};
+            padding: 8px;
+        `,
+      x_expand: true,
+      y_expand: true,
+      y_align: Clutter.ActorAlign.START,
+      x_align: Clutter.ActorAlign.START,
+      reactive: false,
+    });
+
+    scrollView.set_child(this.textEntry);
 
     // Debug: Log the text that should be shown
     log(`🎯 Setting text entry text to: "${this.transcribedText}"`);
@@ -362,13 +368,13 @@ export class RecordingDialog {
     this.container.add_child(headerBox);
     headerBox.set_x_align(Clutter.ActorAlign.CENTER);
     this.container.add_child(instructionLabel);
-    this.container.add_child(this.textEntry);
+    this.container.add_child(scrollView);
     this.container.add_child(buttonBox);
     this.container.add_child(keyboardHint);
   }
 
   _handleInsert() {
-    // Get the current text from the entry
+    // Get the current text from the Label (read-only display)
     const textToInsert = this.textEntry
       ? this.textEntry.get_text()
       : this.transcribedText;
@@ -387,7 +393,7 @@ export class RecordingDialog {
   }
 
   _handleCopy() {
-    // Get the current text from the entry
+    // Get the current text from the Label (read-only display)
     const textToCopy = this.textEntry
       ? this.textEntry.get_text()
       : this.transcribedText;
@@ -434,16 +440,8 @@ export class RecordingDialog {
     // Rebuild the UI for preview mode
     this._buildPreviewUI();
 
-    // Focus the text entry so user can edit immediately if needed (without selecting all text)
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-      if (this.textEntry) {
-        this.textEntry.grab_key_focus();
-        // Don't select text - just position cursor at the end
-        const textLength = this.transcribedText.length;
-        this.textEntry.get_clutter_text().set_cursor_position(textLength);
-      }
-      return false;
-    });
+    // Note: St.Label is read-only, so no focus/editing is possible
+    // The text is displayed for review, but editing would require a different approach
   }
 
   showProcessing() {

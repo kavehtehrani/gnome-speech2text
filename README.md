@@ -1,5 +1,7 @@
 # GNOME Speech2Text
 
+🚧 [Work in Progress] 🚧
+
 A GNOME Shell extension that adds speech-to-text functionality using
 [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone
 and have your words automatically typed wherever your cursor is.
