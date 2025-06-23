@@ -139,10 +139,6 @@ You can always read the logs in the terminal or journal to see if there are any 
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ### Reporting Issues
 
 Please include:
@@ -152,7 +148,6 @@ Please include:
 - Error logs from terminal or journal
 - Steps to reproduce
 
-## Credits
+## Contributing
 
-- Uses OpenAI's Whisper for speech recognition
-- Built for GNOME Shell extension framework
+Contributions are welcome! Please feel free to submit a Pull Request.
