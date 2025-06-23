@@ -234,13 +234,22 @@ export class RecordingDialog {
     // Clear existing content
     this.container.remove_all_children();
 
-    // Preview header
+    // Preview header with copy button
     const headerBox = new St.BoxLayout({
       vertical: false,
       style: "spacing: 15px;",
-      x_align: Clutter.ActorAlign.CENTER,
+      x_align: Clutter.ActorAlign.FILL,
       y_align: Clutter.ActorAlign.CENTER,
-      x_expand: false,
+      x_expand: true,
+    });
+
+    // Left side - icon and title
+    const titleBox = new St.BoxLayout({
+      vertical: false,
+      style: "spacing: 15px;",
+      x_align: Clutter.ActorAlign.START,
+      y_align: Clutter.ActorAlign.CENTER,
+      x_expand: true,
     });
 
     const previewIcon = new St.Label({
@@ -255,8 +264,27 @@ export class RecordingDialog {
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    headerBox.add_child(previewIcon);
-    headerBox.add_child(previewLabel);
+    titleBox.add_child(previewIcon);
+    titleBox.add_child(previewLabel);
+
+    // Right side - copy button
+    const copyButton = createHoverButton("📋 Copy", COLORS.INFO, "#42a5f5");
+    copyButton.set_style(`
+      background-color: ${COLORS.INFO};
+      color: white;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 14px;
+      border: none;
+    `);
+
+    copyButton.connect("clicked", () => {
+      log("🎯 Copy button clicked!");
+      this._handleCopy();
+    });
+
+    headerBox.add_child(titleBox);
+    headerBox.add_child(copyButton);
 
     // Instruction label
     const instructionLabel = new St.Label({
@@ -303,12 +331,6 @@ export class RecordingDialog {
 
     this.insertButton = createHoverButton("Insert", COLORS.SUCCESS, "#66bb6a");
 
-    this.editInsertButton = createHoverButton(
-      "Edit & Insert",
-      COLORS.INFO,
-      "#42a5f5"
-    );
-
     this.previewCancelButton = createHoverButton(
       "Cancel",
       COLORS.SECONDARY,
@@ -321,12 +343,6 @@ export class RecordingDialog {
       this._handleInsert();
     });
 
-    this.editInsertButton.connect("clicked", () => {
-      log("🎯 Edit & Insert button clicked!");
-      // Focus the text entry for editing
-      this.textEntry.grab_key_focus();
-    });
-
     this.previewCancelButton.connect("clicked", () => {
       log("🎯 Preview Cancel button clicked!");
       this.close();
@@ -334,7 +350,6 @@ export class RecordingDialog {
     });
 
     buttonBox.add_child(this.insertButton);
-    buttonBox.add_child(this.editInsertButton);
     buttonBox.add_child(this.previewCancelButton);
 
     // Instructions for keyboard shortcuts
@@ -371,6 +386,33 @@ export class RecordingDialog {
     }
   }
 
+  _handleCopy() {
+    // Get the current text from the entry
+    const textToCopy = this.textEntry
+      ? this.textEntry.get_text()
+      : this.transcribedText;
+
+    log(`🎯 Copying text to clipboard: "${textToCopy}"`);
+
+    if (!textToCopy.trim()) {
+      log("⚠️ No text to copy");
+      Main.notify("Speech2Text", "No text to copy");
+      return;
+    }
+
+    try {
+      // Use St.Clipboard to copy text
+      const clipboard = St.Clipboard.get_default();
+      clipboard.set_text(St.ClipboardType.CLIPBOARD, textToCopy.trim());
+
+      log("✅ Text copied to clipboard successfully");
+      Main.notify("Speech2Text", "Text copied to clipboard!");
+    } catch (e) {
+      log(`❌ Error copying to clipboard: ${e}`);
+      Main.notify("Speech2Text", "Failed to copy to clipboard");
+    }
+  }
+
   showPreview(transcribedText) {
     log(`🎯 Showing preview with text: "${transcribedText}"`);
 
@@ -392,12 +434,13 @@ export class RecordingDialog {
     // Rebuild the UI for preview mode
     this._buildPreviewUI();
 
-    // Focus the text entry so user can edit immediately if needed
+    // Focus the text entry so user can edit immediately if needed (without selecting all text)
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
       if (this.textEntry) {
         this.textEntry.grab_key_focus();
-        // Select all text for easy replacement
-        this.textEntry.get_clutter_text().set_selection(0, -1);
+        // Don't select text - just position cursor at the end
+        const textLength = this.transcribedText.length;
+        this.textEntry.get_clutter_text().set_cursor_position(textLength);
       }
       return false;
     });
