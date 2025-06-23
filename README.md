@@ -23,6 +23,21 @@ vibe-learning GNOME extensions and half vice-coding the actual script.
 
 **Note: This extension is currently only working on X11. If there's interest in Wayland support, I can look into it.**
 
+## Wayland Limitation: Inserting Preview Text
+
+**Note:** Due to technical limitations in GNOME Shell and the Wayland display server, the extension cannot programmatically "type" or insert the preview text into applications when running on Wayland. This is a security and sandboxing feature of Wayland, which does not allow extensions to simulate keyboard input for other apps.
+
+- On **X11** (the traditional Linux display server), the extension can insert the preview text at your cursor position in any application. The **Insert** button will be shown in the preview dialog.
+- On **Wayland**, this is not possible. The **Insert** button will be hidden, and you can only use the **Copy** button to copy the transcribed text to your clipboard, then paste it manually where you want.
+
+**Logic in the Extension:**
+
+- The extension detects at load time whether it is running on Wayland or X11.
+- If on X11, the Insert button is shown and works as expected.
+- If on Wayland, the Insert button is hidden to avoid user confusion, since insertion is not possible.
+
+This ensures the extension provides the best possible user experience on both display servers, and avoids showing non-functional UI on Wayland.
+
 ## Privacy & Security
 
 🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or external servers. While this extension uses OpenAI's Whisper model, it runs the open-source version locally on your computer, ensuring privacy of your voice data.
