@@ -765,10 +765,25 @@ export default class Speech2TextExtension extends Extension {
       return;
     }
 
+    // Check if we should skip preview and auto-insert
+    const skipPreviewX11 = this.settings.get_boolean("skip-preview-x11");
+    const isWayland = Meta.is_wayland_compositor();
+
     if (this.recordingDialog) {
-      this.recordingDialog.showPreview(text);
+      if (!isWayland && skipPreviewX11) {
+        // Auto-insert mode: close dialog and insert text directly
+        console.log("Auto-inserting text (skip preview enabled)");
+        this.recordingDialog.close();
+        this.recordingDialog = null;
+        this.currentRecordingId = null;
+        this.icon.set_style("");
+        this._typeText(text);
+      } else {
+        // Normal mode: show preview dialog
+        this.recordingDialog.showPreview(text);
+      }
     } else {
-      // No dialog, insert directly
+      // No dialog, insert directly (fallback)
       this._typeText(text);
     }
   }
@@ -983,8 +998,41 @@ export default class Speech2TextExtension extends Extension {
       "min-width: 50px;"
     );
 
+    // Create duration control buttons
+    let durationControlBox = createHorizontalBox();
+    let decreaseButton = createHoverButton(
+      "-",
+      COLORS.SECONDARY,
+      COLORS.DARK_GRAY,
+      { fontSize: "18px", padding: "5px 10px" }
+    );
+    let increaseButton = createHoverButton(
+      "+",
+      COLORS.SECONDARY,
+      COLORS.DARK_GRAY,
+      { fontSize: "18px", padding: "5px 10px" }
+    );
+
+    decreaseButton.connect("clicked", () => {
+      let current = this.settings.get_int("recording-duration");
+      let newValue = Math.max(10, current - 10); // Minimum 10 seconds
+      this.settings.set_int("recording-duration", newValue);
+      durationValueLabel.set_text(`${newValue}s`);
+    });
+
+    increaseButton.connect("clicked", () => {
+      let current = this.settings.get_int("recording-duration");
+      let newValue = Math.min(300, current + 10); // Maximum 300 seconds (5 minutes)
+      this.settings.set_int("recording-duration", newValue);
+      durationValueLabel.set_text(`${newValue}s`);
+    });
+
+    durationControlBox.add_child(decreaseButton);
+    durationControlBox.add_child(durationValueLabel);
+    durationControlBox.add_child(increaseButton);
+
     durationSliderBox.add_child(durationSliderLabel);
-    durationSliderBox.add_child(durationValueLabel);
+    durationSliderBox.add_child(durationControlBox);
 
     durationSection.add_child(durationLabel);
     durationSection.add_child(durationDescription);
@@ -1056,6 +1104,75 @@ export default class Speech2TextExtension extends Extension {
     clipboardSection.add_child(clipboardDescription);
     clipboardSection.add_child(clipboardCheckboxBox);
 
+    // Skip preview section (X11 only)
+    let skipPreviewSection = createVerticalBox();
+    let skipPreviewLabel = createStyledLabel(
+      "Auto-Insert Mode (X11 Only)",
+      "subtitle"
+    );
+    let skipPreviewDescription = createStyledLabel(
+      "Skip the preview dialog and insert text immediately after recording. Only works on X11.",
+      "description"
+    );
+
+    let skipPreviewCheckboxBox = createHorizontalBox();
+    let skipPreviewCheckboxLabel = createStyledLabel(
+      "Auto-insert:",
+      "normal",
+      "min-width: 130px;"
+    );
+
+    let isSkipPreviewEnabled = this.settings.get_boolean("skip-preview-x11");
+    this.skipPreviewCheckbox = new St.Button({
+      style: `
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${
+          isSkipPreviewEnabled ? COLORS.PRIMARY : "transparent"
+        };
+        margin-right: 10px;
+      `,
+      reactive: true,
+      can_focus: true,
+    });
+
+    this.skipPreviewCheckboxIcon = new St.Label({
+      text: isSkipPreviewEnabled ? "✓" : "",
+      style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+    });
+    this.skipPreviewCheckbox.add_child(this.skipPreviewCheckboxIcon);
+
+    this.skipPreviewCheckbox.connect("clicked", () => {
+      let currentState = this.settings.get_boolean("skip-preview-x11");
+      let newState = !currentState;
+
+      this.settings.set_boolean("skip-preview-x11", newState);
+
+      this.skipPreviewCheckbox.set_style(`
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+        margin-right: 10px;
+      `);
+
+      this.skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
+      Main.notify(
+        "Speech2Text",
+        `Auto-insert mode ${newState ? "enabled" : "disabled"} (X11 only)`
+      );
+    });
+
+    skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
+    skipPreviewCheckboxBox.add_child(this.skipPreviewCheckbox);
+
+    skipPreviewSection.add_child(skipPreviewLabel);
+    skipPreviewSection.add_child(skipPreviewDescription);
+    skipPreviewSection.add_child(skipPreviewCheckboxBox);
+
     // Assemble window
     settingsWindow.add_child(headerBox);
     settingsWindow.add_child(shortcutSection);
@@ -1063,6 +1180,8 @@ export default class Speech2TextExtension extends Extension {
     settingsWindow.add_child(durationSection);
     settingsWindow.add_child(createSeparator());
     settingsWindow.add_child(clipboardSection);
+    settingsWindow.add_child(createSeparator());
+    settingsWindow.add_child(skipPreviewSection);
 
     // Create modal overlay
     let overlay = new St.Widget({
@@ -1167,10 +1286,14 @@ export default class Speech2TextExtension extends Extension {
     try {
       const recordingDuration = this.settings.get_int("recording-duration");
       const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
-      const previewMode = true; // Always use preview mode
+      const skipPreviewX11 = this.settings.get_boolean("skip-preview-x11");
+
+      // Always use preview mode for D-Bus service (it just controls service behavior)
+      // We'll handle the skip-preview logic in the extension when we get the transcription
+      const previewMode = true;
 
       console.log(
-        `Starting recording: duration=${recordingDuration}, clipboard=${copyToClipboard}, preview=${previewMode}`
+        `Starting recording: duration=${recordingDuration}, clipboard=${copyToClipboard}, skipPreview=${skipPreviewX11}`
       );
 
       const [recordingId] = await this.dbusProxy.StartRecordingAsync(
@@ -1184,7 +1307,7 @@ export default class Speech2TextExtension extends Extension {
 
       console.log(`Recording started with ID: ${recordingId}`);
 
-      // Show recording dialog
+      // Always show recording dialog during recording
       this.recordingDialog = new DBusRecordingDialog(
         () => {
           // Cancel callback
