@@ -360,14 +360,23 @@ class DBusRecordingDialog {
 
   startTimer() {
     this.startTime = Date.now();
-    this.timerInterval = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-      this.updateTimeDisplay();
+    this.elapsedTime = 0;
 
-      if (this.elapsedTime >= this.maxDuration) {
-        // Timer reached maximum - will be handled by service
-        return false;
+    // Update immediately
+    this.updateTimeDisplay();
+
+    // Start interval timer to update every second
+    this.timerInterval = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+      if (this.startTime) {
+        this.updateTimeDisplay();
+
+        if (this.elapsedTime >= this.maxDuration) {
+          // Timer reached maximum - will be handled by service
+          return false;
+        }
+        return true; // Continue the timer
       }
-      return true;
+      return false; // Stop the timer
     });
   }
 
@@ -376,6 +385,7 @@ class DBusRecordingDialog {
       GLib.source_remove(this.timerInterval);
       this.timerInterval = null;
     }
+    this.startTime = null;
   }
 
   _copyToClipboard(text) {
@@ -576,26 +586,6 @@ class DBusRecordingDialog {
 
     // Stop the timer
     this.stopTimer();
-  }
-
-  startTimer() {
-    this.startTime = Date.now();
-    this.timerInterval = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-      this.elapsedTime = Math.floor((Date.now() - this.startTime) / 1000);
-      const minutes = Math.floor(this.elapsedTime / 60);
-      const seconds = this.elapsedTime % 60;
-      this.timeDisplay.set_text(
-        `${minutes.toString().padStart(2, "0")}:${seconds
-          .toString()
-          .padStart(2, "0")}`
-      );
-
-      if (this.elapsedTime >= this.maxDuration) {
-        // Timer reached maximum - will be handled by service
-        return false;
-      }
-      return true;
-    });
   }
 
   open() {
