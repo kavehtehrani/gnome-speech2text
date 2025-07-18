@@ -1,4 +1,3 @@
-import GLib from "gi://GLib";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 // Helper to safely disconnect event handlers
@@ -6,11 +5,11 @@ export function safeDisconnect(actor, handlerId, handlerName = "handler") {
   try {
     if (actor && handlerId) {
       actor.disconnect(handlerId);
-      log(`Disconnected ${handlerName} (ID: ${handlerId})`);
+      console.log(`Disconnected ${handlerName} (ID: ${handlerId})`);
       return true;
     }
   } catch (e) {
-    log(`Error disconnecting ${handlerName}: ${e}`);
+    console.log(`Error disconnecting ${handlerName}: ${e}`);
   }
   return false;
 }
@@ -29,63 +28,12 @@ export function cleanupModal(overlay, handlers = {}) {
     // Remove from layout manager
     if (overlay && overlay.get_parent()) {
       Main.layoutManager.removeChrome(overlay);
-      log("Modal overlay removed from chrome");
+      console.log("Modal overlay removed from chrome");
     }
 
     return true;
   } catch (e) {
-    log(`Error cleaning up modal: ${e}`);
+    console.log(`Error cleaning up modal: ${e}`);
     return false;
   }
-}
-
-// Process cleanup utility with signal support
-export function cleanupProcess(pid, signal = "USR1", processName = "process") {
-  if (!pid) return false;
-
-  try {
-    GLib.spawn_command_line_sync(`kill -${signal} ${pid}`);
-    log(`Sent ${signal} signal to ${processName} (PID: ${pid})`);
-    return true;
-  } catch (e) {
-    log(`Error sending ${signal} to ${processName} (PID: ${pid}): ${e}`);
-    return false;
-  }
-}
-
-// Recording state cleanup utility
-export function cleanupRecordingState(extension, iconResetStyle = "") {
-  let cleanedDialog = false;
-  let cleanedProcess = false;
-
-  // Clean up dialog
-  if (extension.recordingDialog) {
-    try {
-      extension.recordingDialog.close();
-      extension.recordingDialog = null;
-      cleanedDialog = true;
-      log("Recording dialog cleaned up");
-    } catch (e) {
-      log(`Error cleaning up recording dialog: ${e}`);
-      extension.recordingDialog = null; // Force cleanup even if close fails
-    }
-  }
-
-  // Clean up process
-  if (extension.recordingProcess) {
-    cleanedProcess = cleanupProcess(
-      extension.recordingProcess,
-      "USR1",
-      "recording process"
-    );
-    extension.recordingProcess = null;
-  }
-
-  // Reset icon style using optional chaining
-  extension.icon?.set_style(iconResetStyle);
-  if (extension.icon) {
-    log("Icon style reset");
-  }
-
-  return { cleanedDialog, cleanedProcess };
 }
