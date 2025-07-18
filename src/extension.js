@@ -26,6 +26,7 @@ import {
   createCenteredBox,
   createHeaderLayout,
 } from "./lib/buttonUtils.js";
+import { SettingsDialog } from "./lib/settingsDialog.js";
 import { safeDisconnect, cleanupModal } from "./lib/resourceUtils.js";
 
 let button;
@@ -652,6 +653,7 @@ export default class Speech2TextExtension extends Extension {
     super(metadata);
     this.recordingDialog = null;
     this.settings = null;
+    this.settingsDialog = null;
     this.currentKeybinding = null;
     this.currentRecordingId = null;
     this.dbusProxy = null;
@@ -947,438 +949,118 @@ export default class Speech2TextExtension extends Extension {
 
     Main.layoutManager.addTopChrome(overlay);
 
-    // Capture keyboard input
-    let keyHandler = overlay.connect("key-press-event", (actor, event) => {
+    // State tracking for modifier keys
+    let modifierState = {
+      control: false,
+      shift: false,
+      alt: false,
+      super: false,
+    };
+
+    let statusLabel = createStyledLabel(
+      "Waiting for key combination...",
+      "normal",
+      `color: ${COLORS.LIGHT_GRAY}; font-size: 14px; margin-top: 10px;`
+    );
+    captureWindow.add_child(statusLabel);
+
+    // Function to update the display
+    const updateDisplay = () => {
+      let parts = [];
+      if (modifierState.control) parts.push("Ctrl");
+      if (modifierState.shift) parts.push("Shift");
+      if (modifierState.alt) parts.push("Alt");
+      if (modifierState.super) parts.push("Super");
+
+      let display =
+        parts.length > 0 ? parts.join(" + ") : "Waiting for key combination...";
+      statusLabel.set_text(display);
+    };
+
+    // Capture keyboard input with better modifier handling
+    let keyPressHandler = overlay.connect("key-press-event", (actor, event) => {
       const keyval = event.get_key_symbol();
       const state = event.get_state();
+      const keyName = Clutter.keyval_name(keyval);
 
       if (keyval === Clutter.KEY_Escape) {
         // Cancel capture
-        cleanupModal(overlay, { keyHandler });
+        cleanupModal(overlay, { keyPressHandler, keyReleaseHandler });
         callback(null);
         return Clutter.EVENT_STOP;
       }
 
-      // Build shortcut string
-      let shortcut = "";
-      if (state & Clutter.ModifierType.CONTROL_MASK) shortcut += "<Control>";
-      if (state & Clutter.ModifierType.SHIFT_MASK) shortcut += "<Shift>";
-      if (state & Clutter.ModifierType.ALT_MASK) shortcut += "<Alt>";
-      if (state & Clutter.ModifierType.SUPER_MASK) shortcut += "<Super>";
+      // Update modifier state based on actual key presses
+      if (keyName === "Control_L" || keyName === "Control_R") {
+        modifierState.control = true;
+        updateDisplay();
+        return Clutter.EVENT_STOP;
+      }
+      if (keyName === "Shift_L" || keyName === "Shift_R") {
+        modifierState.shift = true;
+        updateDisplay();
+        return Clutter.EVENT_STOP;
+      }
+      if (keyName === "Alt_L" || keyName === "Alt_R") {
+        modifierState.alt = true;
+        updateDisplay();
+        return Clutter.EVENT_STOP;
+      }
+      if (keyName === "Super_L" || keyName === "Super_R") {
+        modifierState.super = true;
+        updateDisplay();
+        return Clutter.EVENT_STOP;
+      }
 
-      // Get key name
-      const keyName = Clutter.keyval_name(keyval);
+      // If it's a regular key (not just a modifier), complete the shortcut
       if (
         keyName &&
-        keyName !== "Control_L" &&
-        keyName !== "Control_R" &&
-        keyName !== "Shift_L" &&
-        keyName !== "Shift_R" &&
-        keyName !== "Alt_L" &&
-        keyName !== "Alt_R" &&
-        keyName !== "Super_L" &&
-        keyName !== "Super_R"
+        !keyName.includes("_L") &&
+        !keyName.includes("_R") &&
+        !keyName.startsWith("Control") &&
+        !keyName.startsWith("Shift") &&
+        !keyName.startsWith("Alt") &&
+        !keyName.startsWith("Super")
       ) {
+        // Build final shortcut string
+        let shortcut = "";
+        if (modifierState.control) shortcut += "<Control>";
+        if (modifierState.shift) shortcut += "<Shift>";
+        if (modifierState.alt) shortcut += "<Alt>";
+        if (modifierState.super) shortcut += "<Super>";
         shortcut += keyName.toLowerCase();
 
         // Clean up and return result
-        cleanupModal(overlay, { keyHandler });
+        cleanupModal(overlay, { keyPressHandler, keyReleaseHandler });
         callback(shortcut);
         return Clutter.EVENT_STOP;
       }
 
-      return Clutter.EVENT_PROPAGATE;
+      return Clutter.EVENT_STOP;
     });
+
+    // Also handle key release to reset modifier state if needed
+    let keyReleaseHandler = overlay.connect(
+      "key-release-event",
+      (actor, event) => {
+        const keyval = event.get_key_symbol();
+        const keyName = Clutter.keyval_name(keyval);
+
+        // Don't reset modifiers on release - let user build combination
+        // This allows holding multiple modifiers before pressing the final key
+        return Clutter.EVENT_STOP;
+      }
+    );
 
     overlay.grab_key_focus();
     overlay.set_reactive(true);
   }
 
   showSettingsWindow() {
-    // Create simplified settings window for D-Bus version
-    let settingsWindow = new St.BoxLayout({
-      style_class: "settings-window",
-      vertical: true,
-      style: `
-        background-color: rgba(20, 20, 20, 0.95);
-        border-radius: 12px;
-        padding: 25px;
-        min-width: 550px;
-        max-width: 600px;
-        border: ${STYLES.DIALOG_BORDER};
-      `,
-    });
-
-    // Header
-    // Header - using reusable components
-    let titleContainer = createCenteredBox(false, "15px");
-    titleContainer.set_x_align(Clutter.ActorAlign.START);
-    titleContainer.set_x_expand(true);
-
-    let titleIcon = createStyledLabel("🎤", "icon", "");
-    let titleLabel = createStyledLabel("Speech2Text Settings", "title");
-
-    titleContainer.add_child(titleIcon);
-    titleContainer.add_child(titleLabel);
-
-    let closeButton = createCloseButton(32);
-    let headerBox = createHeaderLayout(titleContainer, closeButton);
-
-    // Keyboard shortcut section
-    let shortcutSection = createVerticalBox();
-    let shortcutLabel = createStyledLabel("Keyboard Shortcut", "subtitle");
-    let shortcutDescription = createStyledLabel(
-      "Set the keyboard combination to toggle recording on/off",
-      "description"
-    );
-
-    // Current shortcut display
-    let currentShortcutBox = createHorizontalBox();
-    let currentShortcutLabel = createStyledLabel(
-      "Current:",
-      "normal",
-      "min-width: 80px;"
-    );
-
-    this.currentShortcutDisplay = createStyledLabel(
-      this.currentKeybinding || "No shortcut set",
-      "normal",
-      `
-        font-size: 14px;
-        color: #ff8c00;
-        background-color: rgba(255, 140, 0, 0.1);
-        padding: 8px 12px;
-        border-radius: 6px;
-        border: 1px solid #ff8c00;
-        min-width: 200px;
-      `
-    );
-
-    currentShortcutBox.add_child(currentShortcutLabel);
-    currentShortcutBox.add_child(this.currentShortcutDisplay);
-
-    // Shortcut buttons
-    let shortcutButtonBox = createHorizontalBox();
-    let changeShortcutButton = createHoverButton(
-      "Change Shortcut",
-      COLORS.INFO,
-      "#0077ee"
-    );
-    let resetToDefaultButton = createHoverButton(
-      "Reset to Default",
-      COLORS.WARNING,
-      "#ff8c00"
-    );
-    let removeShortcutButton = createHoverButton(
-      "Remove Shortcut",
-      COLORS.DANGER,
-      "#dc3545"
-    );
-
-    // Add click handlers for shortcut buttons
-    changeShortcutButton.connect("clicked", () => {
-      this.captureNewShortcut((newShortcut) => {
-        if (newShortcut) {
-          this.currentKeybinding = newShortcut;
-          this.settings.set_strv("toggle-recording", [newShortcut]);
-          this.currentShortcutDisplay.set_text(newShortcut);
-          this.setupKeybinding();
-          this.updateShortcutLabel();
-          Main.notify("Speech2Text", `Shortcut changed to: ${newShortcut}`);
-        }
-      });
-    });
-
-    resetToDefaultButton.connect("clicked", () => {
-      const defaultShortcut = "<Control><Shift><Alt>c";
-      this.currentKeybinding = defaultShortcut;
-      this.settings.set_strv("toggle-recording", [defaultShortcut]);
-      this.currentShortcutDisplay.set_text(defaultShortcut);
-      this.setupKeybinding();
-      this.updateShortcutLabel();
-      Main.notify(
-        "Speech2Text",
-        `Shortcut reset to default: ${defaultShortcut}`
-      );
-    });
-
-    removeShortcutButton.connect("clicked", () => {
-      try {
-        Main.wm.removeKeybinding("toggle-recording");
-      } catch (e) {
-        // Ignore errors
-      }
-      this.currentKeybinding = null;
-      this.settings.set_strv("toggle-recording", []);
-      this.currentShortcutDisplay.set_text("No shortcut set");
-      this.updateShortcutLabel();
-      Main.notify("Speech2Text", "Keyboard shortcut removed");
-    });
-
-    shortcutButtonBox.add_child(changeShortcutButton);
-    shortcutButtonBox.add_child(resetToDefaultButton);
-    shortcutButtonBox.add_child(removeShortcutButton);
-
-    shortcutSection.add_child(shortcutLabel);
-    shortcutSection.add_child(shortcutDescription);
-    shortcutSection.add_child(currentShortcutBox);
-    shortcutSection.add_child(shortcutButtonBox);
-
-    // Recording duration section
-    let durationSection = createVerticalBox();
-    let durationLabel = createStyledLabel("Recording Duration", "subtitle");
-    let durationDescription = createStyledLabel(
-      "Maximum recording time (10 seconds to 5 minutes)",
-      "description"
-    );
-
-    let durationSliderBox = createHorizontalBox();
-    let durationSliderLabel = createStyledLabel(
-      "Duration:",
-      "normal",
-      "min-width: 80px;"
-    );
-
-    let currentDuration = this.settings.get_int("recording-duration");
-    let durationValueLabel = createStyledLabel(
-      `${currentDuration}s`,
-      "normal",
-      createAccentDisplayStyle(COLORS.PRIMARY, "60px")
-    );
-
-    // Create duration control buttons using reusable components
-    let durationControlBox = createCenteredBox(false, "8px");
-    let decreaseButton = createIncrementButton("−", 28);
-    let increaseButton = createIncrementButton("+", 28);
-
-    // Add click handlers
-    decreaseButton.connect("clicked", () => {
-      let current = this.settings.get_int("recording-duration");
-      let newValue = Math.max(10, current - 10); // Minimum 10 seconds
-      this.settings.set_int("recording-duration", newValue);
-      durationValueLabel.set_text(`${newValue}s`);
-    });
-
-    increaseButton.connect("clicked", () => {
-      let current = this.settings.get_int("recording-duration");
-      let newValue = Math.min(300, current + 10); // Maximum 300 seconds (5 minutes)
-      this.settings.set_int("recording-duration", newValue);
-      durationValueLabel.set_text(`${newValue}s`);
-    });
-
-    durationControlBox.add_child(decreaseButton);
-    durationControlBox.add_child(durationValueLabel);
-    durationControlBox.add_child(increaseButton);
-
-    durationSliderBox.add_child(durationSliderLabel);
-    durationSliderBox.add_child(durationControlBox);
-
-    durationSection.add_child(durationLabel);
-    durationSection.add_child(durationDescription);
-    durationSection.add_child(durationSliderBox);
-
-    // Clipboard section
-    let clipboardSection = createVerticalBox();
-    let clipboardLabel = createStyledLabel("Clipboard Options", "subtitle");
-    let clipboardDescription = createStyledLabel(
-      "Configure whether transcribed text should be copied to clipboard",
-      "description"
-    );
-
-    let clipboardCheckboxBox = createHorizontalBox();
-    let clipboardCheckboxLabel = createStyledLabel(
-      "Copy to clipboard:",
-      "normal",
-      "min-width: 130px;"
-    );
-
-    let isClipboardEnabled = this.settings.get_boolean("copy-to-clipboard");
-    this.clipboardCheckbox = new St.Button({
-      style: `
-        width: 20px;
-        height: 20px;
-        border-radius: 3px;
-        border: 2px solid ${COLORS.SECONDARY};
-        background-color: ${
-          isClipboardEnabled ? COLORS.PRIMARY : "transparent"
-        };
-        margin-right: 10px;
-      `,
-      reactive: true,
-      can_focus: true,
-    });
-
-    this.clipboardCheckboxIcon = new St.Label({
-      text: isClipboardEnabled ? "✓" : "",
-      style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
-    });
-    this.clipboardCheckbox.add_child(this.clipboardCheckboxIcon);
-
-    this.clipboardCheckbox.connect("clicked", () => {
-      let currentState = this.settings.get_boolean("copy-to-clipboard");
-      let newState = !currentState;
-
-      this.settings.set_boolean("copy-to-clipboard", newState);
-
-      this.clipboardCheckbox.set_style(`
-        width: 20px;
-        height: 20px;
-        border-radius: 3px;
-        border: 2px solid ${COLORS.SECONDARY};
-        background-color: ${newState ? COLORS.PRIMARY : "transparent"};
-        margin-right: 10px;
-      `);
-
-      this.clipboardCheckboxIcon.set_text(newState ? "✓" : "");
-      Main.notify(
-        "Speech2Text",
-        `Clipboard copying ${newState ? "enabled" : "disabled"}`
-      );
-    });
-
-    clipboardCheckboxBox.add_child(clipboardCheckboxLabel);
-    clipboardCheckboxBox.add_child(this.clipboardCheckbox);
-
-    clipboardSection.add_child(clipboardLabel);
-    clipboardSection.add_child(clipboardDescription);
-    clipboardSection.add_child(clipboardCheckboxBox);
-
-    // Skip preview section (X11 only) - hide entirely on Wayland
-    const isWayland = Meta.is_wayland_compositor();
-    let skipPreviewSection = null;
-
-    if (!isWayland) {
-      skipPreviewSection = createVerticalBox();
-      let skipPreviewLabel = createStyledLabel(
-        "Auto-Insert Mode (X11 Only)",
-        "subtitle"
-      );
-      let skipPreviewDescription = createStyledLabel(
-        "Skip the preview dialog and insert text immediately after recording. Only works on X11.",
-        "description"
-      );
-
-      let skipPreviewCheckboxBox = createHorizontalBox();
-      let skipPreviewCheckboxLabel = createStyledLabel(
-        "Auto-insert:",
-        "normal",
-        "min-width: 130px;"
-      );
-
-      let isSkipPreviewEnabled = this.settings.get_boolean("skip-preview-x11");
-      this.skipPreviewCheckbox = new St.Button({
-        style: `
-          width: 20px;
-          height: 20px;
-          border-radius: 3px;
-          border: 2px solid ${COLORS.SECONDARY};
-          background-color: ${
-            isSkipPreviewEnabled ? COLORS.PRIMARY : "transparent"
-          };
-          margin-right: 10px;
-        `,
-        reactive: true,
-        can_focus: true,
-      });
-
-      this.skipPreviewCheckboxIcon = new St.Label({
-        text: isSkipPreviewEnabled ? "✓" : "",
-        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
-      });
-      this.skipPreviewCheckbox.add_child(this.skipPreviewCheckboxIcon);
-
-      this.skipPreviewCheckbox.connect("clicked", () => {
-        let currentState = this.settings.get_boolean("skip-preview-x11");
-        let newState = !currentState;
-
-        this.settings.set_boolean("skip-preview-x11", newState);
-
-        this.skipPreviewCheckbox.set_style(`
-          width: 20px;
-          height: 20px;
-          border-radius: 3px;
-          border: 2px solid ${COLORS.SECONDARY};
-          background-color: ${newState ? COLORS.PRIMARY : "transparent"};
-          margin-right: 10px;
-        `);
-
-        this.skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
-        Main.notify(
-          "Speech2Text",
-          `Auto-insert mode ${newState ? "enabled" : "disabled"} (X11 only)`
-        );
-      });
-
-      skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
-      skipPreviewCheckboxBox.add_child(this.skipPreviewCheckbox);
-
-      skipPreviewSection.add_child(skipPreviewLabel);
-      skipPreviewSection.add_child(skipPreviewDescription);
-      skipPreviewSection.add_child(skipPreviewCheckboxBox);
+    if (!this.settingsDialog) {
+      this.settingsDialog = new SettingsDialog(this);
     }
-
-    // Assemble window
-    settingsWindow.add_child(headerBox);
-    settingsWindow.add_child(shortcutSection);
-    settingsWindow.add_child(createSeparator());
-    settingsWindow.add_child(durationSection);
-    settingsWindow.add_child(createSeparator());
-    settingsWindow.add_child(clipboardSection);
-
-    // Only add skip preview section on X11
-    if (!isWayland && skipPreviewSection) {
-      settingsWindow.add_child(createSeparator());
-      settingsWindow.add_child(skipPreviewSection);
-    }
-
-    // Create modal overlay
-    let overlay = new St.Widget({
-      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-
-    overlay.add_child(settingsWindow);
-
-    let monitor = Main.layoutManager.primaryMonitor;
-    overlay.set_size(monitor.width, monitor.height);
-    overlay.set_position(monitor.x, monitor.y);
-
-    // Center the settings window
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [windowWidth, windowHeight] = settingsWindow.get_size();
-      if (windowWidth === 0) windowWidth = 450;
-      if (windowHeight === 0)
-        windowHeight = Math.min(monitor.height * 0.8, 600);
-
-      settingsWindow.set_position(
-        (monitor.width - windowWidth) / 2,
-        (monitor.height - windowHeight) / 2
-      );
-      return false;
-    });
-
-    Main.layoutManager.addTopChrome(overlay);
-
-    // Close handlers
-    const closeSettings = () => {
-      cleanupModal(overlay, {});
-    };
-
-    closeButton.connect("clicked", closeSettings);
-
-    overlay.connect("button-press-event", () => Clutter.EVENT_STOP);
-    overlay.connect("key-press-event", (actor, event) => {
-      if (event.get_key_symbol() === Clutter.KEY_Escape) {
-        closeSettings();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_STOP;
-    });
-
-    overlay.grab_key_focus();
-    overlay.set_reactive(true);
+    this.settingsDialog.show();
   }
 
   setupKeybinding() {
@@ -1532,6 +1214,12 @@ export default class Speech2TextExtension extends Extension {
     if (this.recordingDialog) {
       this.recordingDialog.close();
       this.recordingDialog = null;
+    }
+
+    // Close settings dialog
+    if (this.settingsDialog) {
+      this.settingsDialog.close();
+      this.settingsDialog = null;
     }
 
     // Disconnect D-Bus signals
