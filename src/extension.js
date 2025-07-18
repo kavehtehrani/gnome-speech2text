@@ -11,7 +11,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 // Import modularized utilities (keeping some for UI)
-import { COLORS, STYLES } from "./lib/constants.js";
+import { COLORS, STYLES, createAccentDisplayStyle } from "./lib/constants.js";
 import {
   createHoverButton,
   createTextButton,
@@ -20,6 +20,12 @@ import {
   createHorizontalBox,
   createSeparator,
 } from "./lib/uiUtils.js";
+import {
+  createCloseButton,
+  createIncrementButton,
+  createCenteredBox,
+  createHeaderLayout,
+} from "./lib/buttonUtils.js";
 import { safeDisconnect, cleanupModal } from "./lib/resourceUtils.js";
 
 let button;
@@ -889,6 +895,105 @@ export default class Speech2TextExtension extends Extension {
     }
   }
 
+  captureNewShortcut(callback) {
+    // Create a modal dialog to capture new shortcut
+    let captureWindow = new St.BoxLayout({
+      style_class: "capture-shortcut-window",
+      vertical: true,
+      style: `
+        background-color: rgba(20, 20, 20, 0.95);
+        border-radius: 12px;
+        padding: 30px;
+        min-width: 400px;
+        border: ${STYLES.DIALOG_BORDER};
+      `,
+    });
+
+    let instructionLabel = createStyledLabel(
+      "Press the key combination you want to use",
+      "subtitle"
+    );
+    let hintLabel = createStyledLabel("Press Escape to cancel", "description");
+
+    captureWindow.add_child(instructionLabel);
+    captureWindow.add_child(hintLabel);
+
+    // Create modal overlay
+    let overlay = new St.Widget({
+      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    overlay.add_child(captureWindow);
+
+    let monitor = Main.layoutManager.primaryMonitor;
+    overlay.set_size(monitor.width, monitor.height);
+    overlay.set_position(monitor.x, monitor.y);
+
+    // Center the capture window
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+      let [windowWidth, windowHeight] = captureWindow.get_size();
+      if (windowWidth === 0) windowWidth = 400;
+      if (windowHeight === 0) windowHeight = 200;
+
+      captureWindow.set_position(
+        (monitor.width - windowWidth) / 2,
+        (monitor.height - windowHeight) / 2
+      );
+      return false;
+    });
+
+    Main.layoutManager.addTopChrome(overlay);
+
+    // Capture keyboard input
+    let keyHandler = overlay.connect("key-press-event", (actor, event) => {
+      const keyval = event.get_key_symbol();
+      const state = event.get_state();
+
+      if (keyval === Clutter.KEY_Escape) {
+        // Cancel capture
+        cleanupModal(overlay, { keyHandler });
+        callback(null);
+        return Clutter.EVENT_STOP;
+      }
+
+      // Build shortcut string
+      let shortcut = "";
+      if (state & Clutter.ModifierType.CONTROL_MASK) shortcut += "<Control>";
+      if (state & Clutter.ModifierType.SHIFT_MASK) shortcut += "<Shift>";
+      if (state & Clutter.ModifierType.ALT_MASK) shortcut += "<Alt>";
+      if (state & Clutter.ModifierType.SUPER_MASK) shortcut += "<Super>";
+
+      // Get key name
+      const keyName = Clutter.keyval_name(keyval);
+      if (
+        keyName &&
+        keyName !== "Control_L" &&
+        keyName !== "Control_R" &&
+        keyName !== "Shift_L" &&
+        keyName !== "Shift_R" &&
+        keyName !== "Alt_L" &&
+        keyName !== "Alt_R" &&
+        keyName !== "Super_L" &&
+        keyName !== "Super_R"
+      ) {
+        shortcut += keyName.toLowerCase();
+
+        // Clean up and return result
+        cleanupModal(overlay, { keyHandler });
+        callback(shortcut);
+        return Clutter.EVENT_STOP;
+      }
+
+      return Clutter.EVENT_PROPAGATE;
+    });
+
+    overlay.grab_key_focus();
+    overlay.set_reactive(true);
+  }
+
   showSettingsWindow() {
     // Create simplified settings window for D-Bus version
     let settingsWindow = new St.BoxLayout({
@@ -905,16 +1010,19 @@ export default class Speech2TextExtension extends Extension {
     });
 
     // Header
-    let headerBox = createHorizontalBox();
+    // Header - using reusable components
+    let titleContainer = createCenteredBox(false, "15px");
+    titleContainer.set_x_align(Clutter.ActorAlign.START);
+    titleContainer.set_x_expand(true);
+
     let titleIcon = createStyledLabel("🎤", "icon", "");
     let titleLabel = createStyledLabel("Speech2Text Settings", "title");
-    let closeButton = createTextButton("×", COLORS.SECONDARY, COLORS.DANGER, {
-      fontSize: "24px",
-    });
 
-    headerBox.add_child(titleIcon);
-    headerBox.add_child(titleLabel);
-    headerBox.add_child(closeButton);
+    titleContainer.add_child(titleIcon);
+    titleContainer.add_child(titleLabel);
+
+    let closeButton = createCloseButton(32);
+    let headerBox = createHeaderLayout(titleContainer, closeButton);
 
     // Keyboard shortcut section
     let shortcutSection = createVerticalBox();
@@ -967,6 +1075,46 @@ export default class Speech2TextExtension extends Extension {
       "#dc3545"
     );
 
+    // Add click handlers for shortcut buttons
+    changeShortcutButton.connect("clicked", () => {
+      this.captureNewShortcut((newShortcut) => {
+        if (newShortcut) {
+          this.currentKeybinding = newShortcut;
+          this.settings.set_strv("toggle-recording", [newShortcut]);
+          this.currentShortcutDisplay.set_text(newShortcut);
+          this.setupKeybinding();
+          this.updateShortcutLabel();
+          Main.notify("Speech2Text", `Shortcut changed to: ${newShortcut}`);
+        }
+      });
+    });
+
+    resetToDefaultButton.connect("clicked", () => {
+      const defaultShortcut = "<Control><Shift><Alt>c";
+      this.currentKeybinding = defaultShortcut;
+      this.settings.set_strv("toggle-recording", [defaultShortcut]);
+      this.currentShortcutDisplay.set_text(defaultShortcut);
+      this.setupKeybinding();
+      this.updateShortcutLabel();
+      Main.notify(
+        "Speech2Text",
+        `Shortcut reset to default: ${defaultShortcut}`
+      );
+    });
+
+    removeShortcutButton.connect("clicked", () => {
+      try {
+        Main.wm.removeKeybinding("toggle-recording");
+      } catch (e) {
+        // Ignore errors
+      }
+      this.currentKeybinding = null;
+      this.settings.set_strv("toggle-recording", []);
+      this.currentShortcutDisplay.set_text("No shortcut set");
+      this.updateShortcutLabel();
+      Main.notify("Speech2Text", "Keyboard shortcut removed");
+    });
+
     shortcutButtonBox.add_child(changeShortcutButton);
     shortcutButtonBox.add_child(resetToDefaultButton);
     shortcutButtonBox.add_child(removeShortcutButton);
@@ -995,24 +1143,15 @@ export default class Speech2TextExtension extends Extension {
     let durationValueLabel = createStyledLabel(
       `${currentDuration}s`,
       "normal",
-      "min-width: 50px;"
+      createAccentDisplayStyle(COLORS.PRIMARY, "60px")
     );
 
-    // Create duration control buttons
-    let durationControlBox = createHorizontalBox();
-    let decreaseButton = createHoverButton(
-      "-",
-      COLORS.SECONDARY,
-      COLORS.DARK_GRAY,
-      { fontSize: "18px", padding: "5px 10px" }
-    );
-    let increaseButton = createHoverButton(
-      "+",
-      COLORS.SECONDARY,
-      COLORS.DARK_GRAY,
-      { fontSize: "18px", padding: "5px 10px" }
-    );
+    // Create duration control buttons using reusable components
+    let durationControlBox = createCenteredBox(false, "8px");
+    let decreaseButton = createIncrementButton("−", 28);
+    let increaseButton = createIncrementButton("+", 28);
 
+    // Add click handlers
     decreaseButton.connect("clicked", () => {
       let current = this.settings.get_int("recording-duration");
       let newValue = Math.max(10, current - 10); // Minimum 10 seconds
@@ -1104,74 +1243,79 @@ export default class Speech2TextExtension extends Extension {
     clipboardSection.add_child(clipboardDescription);
     clipboardSection.add_child(clipboardCheckboxBox);
 
-    // Skip preview section (X11 only)
-    let skipPreviewSection = createVerticalBox();
-    let skipPreviewLabel = createStyledLabel(
-      "Auto-Insert Mode (X11 Only)",
-      "subtitle"
-    );
-    let skipPreviewDescription = createStyledLabel(
-      "Skip the preview dialog and insert text immediately after recording. Only works on X11.",
-      "description"
-    );
+    // Skip preview section (X11 only) - hide entirely on Wayland
+    const isWayland = Meta.is_wayland_compositor();
+    let skipPreviewSection = null;
 
-    let skipPreviewCheckboxBox = createHorizontalBox();
-    let skipPreviewCheckboxLabel = createStyledLabel(
-      "Auto-insert:",
-      "normal",
-      "min-width: 130px;"
-    );
-
-    let isSkipPreviewEnabled = this.settings.get_boolean("skip-preview-x11");
-    this.skipPreviewCheckbox = new St.Button({
-      style: `
-        width: 20px;
-        height: 20px;
-        border-radius: 3px;
-        border: 2px solid ${COLORS.SECONDARY};
-        background-color: ${
-          isSkipPreviewEnabled ? COLORS.PRIMARY : "transparent"
-        };
-        margin-right: 10px;
-      `,
-      reactive: true,
-      can_focus: true,
-    });
-
-    this.skipPreviewCheckboxIcon = new St.Label({
-      text: isSkipPreviewEnabled ? "✓" : "",
-      style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
-    });
-    this.skipPreviewCheckbox.add_child(this.skipPreviewCheckboxIcon);
-
-    this.skipPreviewCheckbox.connect("clicked", () => {
-      let currentState = this.settings.get_boolean("skip-preview-x11");
-      let newState = !currentState;
-
-      this.settings.set_boolean("skip-preview-x11", newState);
-
-      this.skipPreviewCheckbox.set_style(`
-        width: 20px;
-        height: 20px;
-        border-radius: 3px;
-        border: 2px solid ${COLORS.SECONDARY};
-        background-color: ${newState ? COLORS.PRIMARY : "transparent"};
-        margin-right: 10px;
-      `);
-
-      this.skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
-      Main.notify(
-        "Speech2Text",
-        `Auto-insert mode ${newState ? "enabled" : "disabled"} (X11 only)`
+    if (!isWayland) {
+      skipPreviewSection = createVerticalBox();
+      let skipPreviewLabel = createStyledLabel(
+        "Auto-Insert Mode (X11 Only)",
+        "subtitle"
       );
-    });
+      let skipPreviewDescription = createStyledLabel(
+        "Skip the preview dialog and insert text immediately after recording. Only works on X11.",
+        "description"
+      );
 
-    skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
-    skipPreviewCheckboxBox.add_child(this.skipPreviewCheckbox);
+      let skipPreviewCheckboxBox = createHorizontalBox();
+      let skipPreviewCheckboxLabel = createStyledLabel(
+        "Auto-insert:",
+        "normal",
+        "min-width: 130px;"
+      );
 
-    skipPreviewSection.add_child(skipPreviewLabel);
-    skipPreviewSection.add_child(skipPreviewDescription);
-    skipPreviewSection.add_child(skipPreviewCheckboxBox);
+      let isSkipPreviewEnabled = this.settings.get_boolean("skip-preview-x11");
+      this.skipPreviewCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${
+            isSkipPreviewEnabled ? COLORS.PRIMARY : "transparent"
+          };
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
+
+      this.skipPreviewCheckboxIcon = new St.Label({
+        text: isSkipPreviewEnabled ? "✓" : "",
+        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+      });
+      this.skipPreviewCheckbox.add_child(this.skipPreviewCheckboxIcon);
+
+      this.skipPreviewCheckbox.connect("clicked", () => {
+        let currentState = this.settings.get_boolean("skip-preview-x11");
+        let newState = !currentState;
+
+        this.settings.set_boolean("skip-preview-x11", newState);
+
+        this.skipPreviewCheckbox.set_style(`
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `);
+
+        this.skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
+        Main.notify(
+          "Speech2Text",
+          `Auto-insert mode ${newState ? "enabled" : "disabled"} (X11 only)`
+        );
+      });
+
+      skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
+      skipPreviewCheckboxBox.add_child(this.skipPreviewCheckbox);
+
+      skipPreviewSection.add_child(skipPreviewLabel);
+      skipPreviewSection.add_child(skipPreviewDescription);
+      skipPreviewSection.add_child(skipPreviewCheckboxBox);
+    }
 
     // Assemble window
     settingsWindow.add_child(headerBox);
@@ -1180,8 +1324,12 @@ export default class Speech2TextExtension extends Extension {
     settingsWindow.add_child(durationSection);
     settingsWindow.add_child(createSeparator());
     settingsWindow.add_child(clipboardSection);
-    settingsWindow.add_child(createSeparator());
-    settingsWindow.add_child(skipPreviewSection);
+
+    // Only add skip preview section on X11
+    if (!isWayland && skipPreviewSection) {
+      settingsWindow.add_child(createSeparator());
+      settingsWindow.add_child(skipPreviewSection);
+    }
 
     // Create modal overlay
     let overlay = new St.Widget({
