@@ -378,6 +378,23 @@ class DBusRecordingDialog {
     }
   }
 
+  _copyToClipboard(text) {
+    try {
+      // Use St.Clipboard for proper GNOME Shell clipboard integration
+      const clipboard = St.Clipboard.get_default();
+      clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
+      console.log("✅ Text copied to clipboard successfully");
+
+      // Show a brief notification
+      Main.notify("Speech2Text", "Text copied to clipboard!");
+      return true;
+    } catch (e) {
+      console.error(`❌ Error copying to clipboard: ${e}`);
+      Main.notify("Speech2Text Error", "Failed to copy to clipboard");
+      return false;
+    }
+  }
+
   showPreview(text) {
     this.isPreviewMode = true;
     this.transcribedText = text;
@@ -432,8 +449,17 @@ class DBusRecordingDialog {
     const clutterText = textEntry.get_clutter_text();
     clutterText.set_line_wrap(true);
     clutterText.set_line_wrap_mode(2); // PANGO_WRAP_WORD
+    clutterText.set_single_line_mode(false);
+    clutterText.set_activatable(false);
 
     this.container.add_child(textEntry);
+
+    // Focus the text entry after a short delay and select all text
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      textEntry.grab_key_focus();
+      clutterText.set_selection(0, text.length);
+      return false;
+    });
 
     // Create new button box for preview
     const buttonBox = createHorizontalBox();
@@ -459,7 +485,11 @@ class DBusRecordingDialog {
     copyButton.connect("clicked", () => {
       // Copy to clipboard and close
       const finalText = textEntry.get_text();
-      // This will be handled by the service
+      console.log(`Copying text to clipboard: "${finalText}"`);
+
+      // Copy to clipboard using our own method
+      this._copyToClipboard(finalText);
+
       this.close();
       this.onCancel?.();
     });
@@ -507,14 +537,45 @@ class DBusRecordingDialog {
   }
 
   showError(message) {
-    this.statusLabel.set_text(`Error: ${message}`);
-    this.statusLabel.set_style(`color: ${COLORS.DANGER}; font-size: 14px;`);
+    console.log(`Showing error: ${message}`);
 
-    // Stop timer
-    if (this.timerInterval) {
-      GLib.source_remove(this.timerInterval);
-      this.timerInterval = null;
+    // Update the recording label to show error
+    if (this.recordingLabel) {
+      this.recordingLabel.set_text("Error");
+      this.recordingLabel.set_style(
+        `font-size: 20px; font-weight: bold; color: ${COLORS.DANGER};`
+      );
     }
+
+    // Update the icon to show error
+    if (this.recordingIcon) {
+      this.recordingIcon.set_text("❌");
+    }
+
+    // Update instructions to show error message
+    if (this.instructionLabel) {
+      this.instructionLabel.set_text(`${message}\nPress Escape to close.`);
+      this.instructionLabel.set_style(
+        `font-size: 16px; color: ${COLORS.DANGER}; text-align: center;`
+      );
+    }
+
+    // Hide the stop button and progress bar
+    if (this.stopButton) {
+      this.stopButton.hide();
+    }
+    if (this.progressContainer) {
+      this.progressContainer.hide();
+    }
+
+    // Show only cancel button
+    if (this.cancelButton) {
+      this.cancelButton.show();
+      this.cancelButton.set_label("Close");
+    }
+
+    // Stop the timer
+    this.stopTimer();
   }
 
   startTimer() {

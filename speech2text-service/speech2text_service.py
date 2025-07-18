@@ -206,8 +206,24 @@ class Speech2TextService(dbus.service.Object):
             
             process.wait()
             
-            # Check if we have valid audio
-            if os.path.exists(audio_file) and os.path.getsize(audio_file) > 1000:
+            # Give a small delay for file system to flush the audio data
+            time.sleep(0.2)
+            
+            # Check if we have valid audio with retry logic for short recordings
+            audio_valid = False
+            for attempt in range(3):  # Try up to 3 times
+                if os.path.exists(audio_file):
+                    file_size = os.path.getsize(audio_file)
+                    # Lower threshold to 400 bytes (just above WAV header size)
+                    # and ensure file has some content
+                    if file_size > 400:
+                        audio_valid = True
+                        break
+                # Small delay between attempts
+                if attempt < 2:
+                    time.sleep(0.1)
+            
+            if audio_valid:
                 recording_info['status'] = 'recorded'
                 self.RecordingStopped(recording_id, "completed")
                 
@@ -215,7 +231,8 @@ class Speech2TextService(dbus.service.Object):
                 self._transcribe_audio(recording_id)
             else:
                 recording_info['status'] = 'failed'
-                self.RecordingError(recording_id, "No audio recorded or file too small")
+                file_size = os.path.getsize(audio_file) if os.path.exists(audio_file) else 0
+                self.RecordingError(recording_id, f"No audio recorded or file too small (size: {file_size} bytes)")
                 
         except Exception as e:
             recording_info['status'] = 'failed'
