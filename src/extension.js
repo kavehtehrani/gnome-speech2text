@@ -353,6 +353,7 @@ export default class Speech2TextExtension extends Extension {
     // Clean up recording state manager
     if (this.recordingStateManager) {
       this.recordingStateManager.cleanup();
+      this.recordingStateManager = null;
     }
 
     // Close settings dialog
@@ -364,7 +365,12 @@ export default class Speech2TextExtension extends Extension {
     // Destroy D-Bus manager
     if (this.dbusManager) {
       this.dbusManager.destroy();
+      this.dbusManager = null;
     }
+
+    // Clear settings reference
+    this.settings = null;
+    this.currentKeybinding = null;
 
     // Remove keybinding
     try {
@@ -373,10 +379,18 @@ export default class Speech2TextExtension extends Extension {
       console.error(`Error removing keybinding: ${e}`);
     }
 
-    // Clean up button
+    // Clean up button references
     if (button) {
       button.destroy();
       button = null;
+    }
+
+    if (this.button) {
+      this.button = null;
+    }
+
+    if (this.icon) {
+      this.icon = null;
     }
   }
 }
