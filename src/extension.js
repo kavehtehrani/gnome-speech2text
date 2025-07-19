@@ -28,57 +28,11 @@ import {
 } from "./lib/buttonUtils.js";
 import { SettingsDialog } from "./lib/settingsDialog.js";
 import { RecordingDialog } from "./lib/recordingDialog.js";
+import { DBusManager } from "./lib/dbusManager.js";
+import { ShortcutCapture } from "./lib/shortcutCapture.js";
 import { safeDisconnect, cleanupModal } from "./lib/resourceUtils.js";
 
 let button;
-
-// D-Bus interface XML for the speech2text service
-const Speech2TextInterface = `
-<node>
-  <interface name="org.gnome.Speech2Text">
-    <method name="StartRecording">
-      <arg direction="in" type="i" name="duration" />
-      <arg direction="in" type="b" name="copy_to_clipboard" />
-      <arg direction="in" type="b" name="preview_mode" />
-      <arg direction="out" type="s" name="recording_id" />
-    </method>
-    <method name="StopRecording">
-      <arg direction="in" type="s" name="recording_id" />
-      <arg direction="out" type="b" name="success" />
-    </method>
-    <method name="TypeText">
-      <arg direction="in" type="s" name="text" />
-      <arg direction="in" type="b" name="copy_to_clipboard" />
-      <arg direction="out" type="b" name="success" />
-    </method>
-    <method name="GetServiceStatus">
-      <arg direction="out" type="s" name="status" />
-    </method>
-    <method name="CheckDependencies">
-      <arg direction="out" type="b" name="all_available" />
-      <arg direction="out" type="as" name="missing_dependencies" />
-    </method>
-    <signal name="RecordingStarted">
-      <arg type="s" name="recording_id" />
-    </signal>
-    <signal name="RecordingStopped">
-      <arg type="s" name="recording_id" />
-      <arg type="s" name="reason" />
-    </signal>
-    <signal name="TranscriptionReady">
-      <arg type="s" name="recording_id" />
-      <arg type="s" name="text" />
-    </signal>
-    <signal name="RecordingError">
-      <arg type="s" name="recording_id" />
-      <arg type="s" name="error_message" />
-    </signal>
-    <signal name="TextTyped">
-      <arg type="s" name="text" />
-      <arg type="b" name="success" />
-    </signal>
-  </interface>
-</node>`;
 
 export default class Speech2TextExtension extends Extension {
   constructor(metadata) {
@@ -88,113 +42,26 @@ export default class Speech2TextExtension extends Extension {
     this.settingsDialog = null;
     this.currentKeybinding = null;
     this.currentRecordingId = null;
-    this.dbusProxy = null;
-    this.signalConnections = [];
+    this.dbusManager = new DBusManager();
   }
 
-  async _initDBusProxy() {
-    try {
-      const Speech2TextProxy =
-        Gio.DBusProxy.makeProxyWrapper(Speech2TextInterface);
-
-      this.dbusProxy = new Speech2TextProxy(
-        Gio.DBus.session,
-        "org.gnome.Speech2Text",
-        "/org/gnome/Speech2Text"
-      );
-
-      // Connect to D-Bus signals
-      this.signalConnections.push(
-        this.dbusProxy.connectSignal(
-          "RecordingStarted",
-          (proxy, sender, [recordingId]) => {
-            console.log(`Recording started: ${recordingId}`);
-          }
-        )
-      );
-
-      this.signalConnections.push(
-        this.dbusProxy.connectSignal(
-          "RecordingStopped",
-          (proxy, sender, [recordingId, reason]) => {
-            console.log(`Recording stopped: ${recordingId}, reason: ${reason}`);
-          }
-        )
-      );
-
-      this.signalConnections.push(
-        this.dbusProxy.connectSignal(
-          "TranscriptionReady",
-          (proxy, sender, [recordingId, text]) => {
-            console.log(`Transcription ready: ${recordingId}, text: ${text}`);
-            this._handleTranscriptionReady(recordingId, text);
-          }
-        )
-      );
-
-      this.signalConnections.push(
-        this.dbusProxy.connectSignal(
-          "RecordingError",
-          (proxy, sender, [recordingId, errorMessage]) => {
-            console.log(
-              `Recording error: ${recordingId}, error: ${errorMessage}`
-            );
-            this._handleRecordingError(recordingId, errorMessage);
-          }
-        )
-      );
-
-      this.signalConnections.push(
-        this.dbusProxy.connectSignal(
-          "TextTyped",
-          (proxy, sender, [text, success]) => {
-            if (success) {
-              Main.notify("Speech2Text", "Text inserted successfully!");
-            } else {
-              Main.notify("Speech2Text Error", "Failed to insert text.");
-            }
-          }
-        )
-      );
-
-      return true;
-    } catch (e) {
-      console.error(`Failed to initialize D-Bus proxy: ${e}`);
+  async _initDBus() {
+    const initialized = await this.dbusManager.initialize();
+    if (!initialized) {
       return false;
     }
-  }
 
-  async _checkServiceStatus() {
-    if (!this.dbusProxy) {
-      return { available: false, error: "D-Bus proxy not initialized" };
-    }
+    // Connect signals with handlers
+    this.dbusManager.connectSignals({
+      onTranscriptionReady: (recordingId, text) => {
+        this._handleTranscriptionReady(recordingId, text);
+      },
+      onRecordingError: (recordingId, errorMessage) => {
+        this._handleRecordingError(recordingId, errorMessage);
+      },
+    });
 
-    try {
-      const [status] = await this.dbusProxy.GetServiceStatusAsync();
-
-      if (status.startsWith("dependencies_missing:")) {
-        const missing = status
-          .substring("dependencies_missing:".length)
-          .split(",");
-        return {
-          available: false,
-          error: `Missing dependencies: ${missing.join(", ")}`,
-        };
-      }
-
-      if (status.startsWith("ready:")) {
-        return { available: true };
-      }
-
-      if (status.startsWith("error:")) {
-        const error = status.substring("error:".length);
-        return { available: false, error };
-      }
-
-      return { available: false, error: "Unknown service status" };
-    } catch (e) {
-      return { available: false, error: `Service not available: ${e.message}` };
-    }
+    return true;
   }
 
   _handleTranscriptionReady(recordingId, text) {
@@ -244,8 +111,8 @@ export default class Speech2TextExtension extends Extension {
   async enable() {
     console.log("Enabling Speech2Text extension (D-Bus version)");
 
-    // Initialize D-Bus proxy
-    const dbusInitialized = await this._initDBusProxy();
+    // Initialize D-Bus manager
+    const dbusInitialized = await this._initDBus();
     if (!dbusInitialized) {
       Main.notify(
         "Speech2Text Error",
@@ -255,7 +122,7 @@ export default class Speech2TextExtension extends Extension {
     }
 
     // Check service status
-    const serviceStatus = await this._checkServiceStatus();
+    const serviceStatus = await this.dbusManager.checkServiceStatus();
     if (!serviceStatus.available) {
       Main.notify(
         "Speech2Text Error",
@@ -330,162 +197,8 @@ export default class Speech2TextExtension extends Extension {
   }
 
   captureNewShortcut(callback) {
-    // Create a modal dialog to capture new shortcut
-    let captureWindow = new St.BoxLayout({
-      style_class: "capture-shortcut-window",
-      vertical: true,
-      style: `
-        background-color: rgba(20, 20, 20, 0.95);
-        border-radius: 12px;
-        padding: 30px;
-        min-width: 400px;
-        border: ${STYLES.DIALOG_BORDER};
-      `,
-    });
-
-    let instructionLabel = createStyledLabel(
-      "Press the key combination you want to use",
-      "subtitle"
-    );
-    let hintLabel = createStyledLabel("Press Escape to cancel", "description");
-
-    captureWindow.add_child(instructionLabel);
-    captureWindow.add_child(hintLabel);
-
-    // Create modal overlay
-    let overlay = new St.Widget({
-      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-
-    overlay.add_child(captureWindow);
-
-    let monitor = Main.layoutManager.primaryMonitor;
-    overlay.set_size(monitor.width, monitor.height);
-    overlay.set_position(monitor.x, monitor.y);
-
-    // Center the capture window
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [windowWidth, windowHeight] = captureWindow.get_size();
-      if (windowWidth === 0) windowWidth = 400;
-      if (windowHeight === 0) windowHeight = 200;
-
-      captureWindow.set_position(
-        (monitor.width - windowWidth) / 2,
-        (monitor.height - windowHeight) / 2
-      );
-      return false;
-    });
-
-    Main.layoutManager.addTopChrome(overlay);
-
-    // State tracking for modifier keys
-    let modifierState = {
-      control: false,
-      shift: false,
-      alt: false,
-      super: false,
-    };
-
-    let statusLabel = createStyledLabel(
-      "Waiting for key combination...",
-      "normal",
-      `color: ${COLORS.LIGHT_GRAY}; font-size: 14px; margin-top: 10px;`
-    );
-    captureWindow.add_child(statusLabel);
-
-    // Function to update the display
-    const updateDisplay = () => {
-      let parts = [];
-      if (modifierState.control) parts.push("Ctrl");
-      if (modifierState.shift) parts.push("Shift");
-      if (modifierState.alt) parts.push("Alt");
-      if (modifierState.super) parts.push("Super");
-
-      let display =
-        parts.length > 0 ? parts.join(" + ") : "Waiting for key combination...";
-      statusLabel.set_text(display);
-    };
-
-    // Capture keyboard input with better modifier handling
-    let keyPressHandler = overlay.connect("key-press-event", (actor, event) => {
-      const keyval = event.get_key_symbol();
-      const state = event.get_state();
-      const keyName = Clutter.keyval_name(keyval);
-
-      if (keyval === Clutter.KEY_Escape) {
-        // Cancel capture
-        cleanupModal(overlay, { keyPressHandler, keyReleaseHandler });
-        callback(null);
-        return Clutter.EVENT_STOP;
-      }
-
-      // Update modifier state based on actual key presses
-      if (keyName === "Control_L" || keyName === "Control_R") {
-        modifierState.control = true;
-        updateDisplay();
-        return Clutter.EVENT_STOP;
-      }
-      if (keyName === "Shift_L" || keyName === "Shift_R") {
-        modifierState.shift = true;
-        updateDisplay();
-        return Clutter.EVENT_STOP;
-      }
-      if (keyName === "Alt_L" || keyName === "Alt_R") {
-        modifierState.alt = true;
-        updateDisplay();
-        return Clutter.EVENT_STOP;
-      }
-      if (keyName === "Super_L" || keyName === "Super_R") {
-        modifierState.super = true;
-        updateDisplay();
-        return Clutter.EVENT_STOP;
-      }
-
-      // If it's a regular key (not just a modifier), complete the shortcut
-      if (
-        keyName &&
-        !keyName.includes("_L") &&
-        !keyName.includes("_R") &&
-        !keyName.startsWith("Control") &&
-        !keyName.startsWith("Shift") &&
-        !keyName.startsWith("Alt") &&
-        !keyName.startsWith("Super")
-      ) {
-        // Build final shortcut string
-        let shortcut = "";
-        if (modifierState.control) shortcut += "<Control>";
-        if (modifierState.shift) shortcut += "<Shift>";
-        if (modifierState.alt) shortcut += "<Alt>";
-        if (modifierState.super) shortcut += "<Super>";
-        shortcut += keyName.toLowerCase();
-
-        // Clean up and return result
-        cleanupModal(overlay, { keyPressHandler, keyReleaseHandler });
-        callback(shortcut);
-        return Clutter.EVENT_STOP;
-      }
-
-      return Clutter.EVENT_STOP;
-    });
-
-    // Also handle key release to reset modifier state if needed
-    let keyReleaseHandler = overlay.connect(
-      "key-release-event",
-      (actor, event) => {
-        const keyval = event.get_key_symbol();
-        const keyName = Clutter.keyval_name(keyval);
-
-        // Don't reset modifiers on release - let user build combination
-        // This allows holding multiple modifiers before pressing the final key
-        return Clutter.EVENT_STOP;
-      }
-    );
-
-    overlay.grab_key_focus();
-    overlay.set_reactive(true);
+    const shortcutCapture = new ShortcutCapture();
+    shortcutCapture.capture(callback);
   }
 
   showSettingsWindow() {
@@ -537,7 +250,7 @@ export default class Speech2TextExtension extends Extension {
       // Stop current recording
       console.log(`Stopping recording: ${this.currentRecordingId}`);
       try {
-        await this.dbusProxy.StopRecordingAsync(this.currentRecordingId);
+        await this.dbusManager.stopRecording(this.currentRecordingId);
       } catch (e) {
         console.error(`Error stopping recording: ${e}`);
       }
@@ -558,7 +271,7 @@ export default class Speech2TextExtension extends Extension {
         `Starting recording: duration=${recordingDuration}, clipboard=${copyToClipboard}, skipPreview=${skipPreviewX11}`
       );
 
-      const [recordingId] = await this.dbusProxy.StartRecordingAsync(
+      const recordingId = await this.dbusManager.startRecording(
         recordingDuration,
         copyToClipboard,
         previewMode
@@ -575,8 +288,8 @@ export default class Speech2TextExtension extends Extension {
           // Cancel callback
           console.log("Recording cancelled by user");
           if (this.currentRecordingId) {
-            this.dbusProxy
-              .StopRecordingAsync(this.currentRecordingId)
+            this.dbusManager
+              .stopRecording(this.currentRecordingId)
               .catch(console.error);
           }
           this.currentRecordingId = null;
@@ -595,8 +308,8 @@ export default class Speech2TextExtension extends Extension {
           // Stop callback
           console.log("Stop recording button clicked");
           if (this.currentRecordingId) {
-            this.dbusProxy
-              .StopRecordingAsync(this.currentRecordingId)
+            this.dbusManager
+              .stopRecording(this.currentRecordingId)
               .catch(console.error);
           }
         },
@@ -624,7 +337,7 @@ export default class Speech2TextExtension extends Extension {
       const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
       console.log(`Typing text via D-Bus: "${text}"`);
 
-      await this.dbusProxy.TypeTextAsync(text.trim(), copyToClipboard);
+      await this.dbusManager.typeText(text.trim(), copyToClipboard);
     } catch (e) {
       console.error(`Error typing text: ${e}`);
       Main.notify("Speech2Text Error", "Failed to insert text.");
@@ -635,9 +348,9 @@ export default class Speech2TextExtension extends Extension {
     console.log("Disabling Speech2Text extension (D-Bus version)");
 
     // Stop any active recording
-    if (this.currentRecordingId && this.dbusProxy) {
-      this.dbusProxy
-        .StopRecordingAsync(this.currentRecordingId)
+    if (this.currentRecordingId && this.dbusManager) {
+      this.dbusManager
+        .stopRecording(this.currentRecordingId)
         .catch(console.error);
       this.currentRecordingId = null;
     }
@@ -654,13 +367,10 @@ export default class Speech2TextExtension extends Extension {
       this.settingsDialog = null;
     }
 
-    // Disconnect D-Bus signals
-    this.signalConnections.forEach((connection) => {
-      if (this.dbusProxy) {
-        this.dbusProxy.disconnectSignal(connection);
-      }
-    });
-    this.signalConnections = [];
+    // Destroy D-Bus manager
+    if (this.dbusManager) {
+      this.dbusManager.destroy();
+    }
 
     // Remove keybinding
     try {
@@ -674,9 +384,6 @@ export default class Speech2TextExtension extends Extension {
       button.destroy();
       button = null;
     }
-
-    // Clear D-Bus proxy
-    this.dbusProxy = null;
   }
 }
 
