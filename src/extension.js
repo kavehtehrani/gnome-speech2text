@@ -203,22 +203,6 @@ export default class Speech2TextExtension extends Extension {
       this.showSettingsWindow();
     });
     this.button.menu.addMenuItem(settingsItem);
-
-    // Separator
-    this.button.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-    // Current shortcut display
-    this.shortcutLabel = new PopupMenu.PopupMenuItem("", { reactive: false });
-    this.updateShortcutLabel();
-    this.button.menu.addMenuItem(this.shortcutLabel);
-  }
-
-  updateShortcutLabel() {
-    if (this.currentKeybinding) {
-      this.shortcutLabel.label.set_text(`Shortcut: ${this.currentKeybinding}`);
-    } else {
-      this.shortcutLabel.label.set_text("No shortcut set");
-    }
   }
 
   captureNewShortcut(callback) {
