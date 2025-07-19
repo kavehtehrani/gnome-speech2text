@@ -28,6 +28,7 @@ import {
 } from "./lib/buttonUtils.js";
 import { SettingsDialog } from "./lib/settingsDialog.js";
 import { RecordingDialog } from "./lib/recordingDialog.js";
+import { ServiceSetupDialog } from "./lib/setupDialog.js";
 import { DBusManager } from "./lib/dbusManager.js";
 import { ShortcutCapture } from "./lib/shortcutCapture.js";
 import { RecordingStateManager } from "./lib/recordingStateManager.js";
@@ -120,9 +121,8 @@ export default class Speech2TextExtension extends Extension {
     // Initialize D-Bus manager
     const dbusInitialized = await this._initDBus();
     if (!dbusInitialized) {
-      Main.notify(
-        "Speech2Text Error",
-        "Failed to connect to speech-to-text service. Please ensure the service is running."
+      this._showServiceSetupDialog(
+        "Failed to connect to speech-to-text service"
       );
       return;
     }
@@ -130,10 +130,7 @@ export default class Speech2TextExtension extends Extension {
     // Check service status
     const serviceStatus = await this.dbusManager.checkServiceStatus();
     if (!serviceStatus.available) {
-      Main.notify(
-        "Speech2Text Error",
-        `Service unavailable: ${serviceStatus.error}`
-      );
+      this._showServiceSetupDialog(serviceStatus.error);
       return;
     }
 
@@ -328,6 +325,11 @@ export default class Speech2TextExtension extends Extension {
     previewDialog.open();
     console.log("Showing preview in opened dialog");
     previewDialog.showPreview(text);
+  }
+
+  _showServiceSetupDialog(errorMessage) {
+    const setupDialog = new ServiceSetupDialog(errorMessage);
+    setupDialog.show();
   }
 
   async _typeText(text) {
