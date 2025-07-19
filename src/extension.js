@@ -30,6 +30,7 @@ import { SettingsDialog } from "./lib/settingsDialog.js";
 import { RecordingDialog } from "./lib/recordingDialog.js";
 import { DBusManager } from "./lib/dbusManager.js";
 import { ShortcutCapture } from "./lib/shortcutCapture.js";
+import { RecordingStateManager } from "./lib/recordingStateManager.js";
 import { safeDisconnect, cleanupModal } from "./lib/resourceUtils.js";
 
 let button;
@@ -37,12 +38,11 @@ let button;
 export default class Speech2TextExtension extends Extension {
   constructor(metadata) {
     super(metadata);
-    this.recordingDialog = null;
     this.settings = null;
     this.settingsDialog = null;
     this.currentKeybinding = null;
-    this.currentRecordingId = null;
     this.dbusManager = new DBusManager();
+    this.recordingStateManager = null; // Will be initialized after icon creation
   }
 
   async _initDBus() {
@@ -51,7 +51,7 @@ export default class Speech2TextExtension extends Extension {
       return false;
     }
 
-    // Connect signals with handlers
+    // Connect signals with handlers - will be updated after recording state manager is initialized
     this.dbusManager.connectSignals({
       onTranscriptionReady: (recordingId, text) => {
         this._handleTranscriptionReady(recordingId, text);
@@ -65,47 +65,29 @@ export default class Speech2TextExtension extends Extension {
   }
 
   _handleTranscriptionReady(recordingId, text) {
-    if (recordingId !== this.currentRecordingId) {
-      console.log(
-        `Received transcription for different recording: ${recordingId}`
-      );
+    if (!this.recordingStateManager) {
+      console.log("Recording state manager not initialized");
       return;
     }
 
-    // Check if we should skip preview and auto-insert
-    const skipPreviewX11 = this.settings.get_boolean("skip-preview-x11");
-    const isWayland = Meta.is_wayland_compositor();
+    const result = this.recordingStateManager.handleTranscriptionReady(
+      recordingId,
+      text,
+      this.settings
+    );
 
-    if (this.recordingDialog) {
-      if (!isWayland && skipPreviewX11) {
-        // Auto-insert mode: close dialog and insert text directly
-        console.log("Auto-inserting text (skip preview enabled)");
-        this.recordingDialog.close();
-        this.recordingDialog = null;
-        this.currentRecordingId = null;
-        this.icon.set_style("");
-        this._typeText(text);
-      } else {
-        // Normal mode: show preview dialog
-        this.recordingDialog.showPreview(text);
-      }
-    } else {
-      // No dialog, insert directly (fallback)
-      this._typeText(text);
+    if (result && result.action === "insert") {
+      this._typeText(result.text);
     }
   }
 
   _handleRecordingError(recordingId, errorMessage) {
-    if (recordingId !== this.currentRecordingId) {
-      console.log(`Received error for different recording: ${recordingId}`);
+    if (!this.recordingStateManager) {
+      console.log("Recording state manager not initialized");
       return;
     }
 
-    if (this.recordingDialog) {
-      this.recordingDialog.showError(errorMessage);
-    } else {
-      Main.notify("Speech2Text Error", errorMessage);
-    }
+    this.recordingStateManager.handleRecordingError(recordingId, errorMessage);
   }
 
   async enable() {
@@ -144,6 +126,22 @@ export default class Speech2TextExtension extends Extension {
       style_class: "system-status-icon",
     });
     button.add_child(this.icon);
+
+    // Initialize recording state manager
+    this.recordingStateManager = new RecordingStateManager(
+      this.icon,
+      this.dbusManager
+    );
+
+    // Update signal handlers to use recording state manager
+    this.dbusManager.connectSignals({
+      onTranscriptionReady: (recordingId, text) => {
+        this._handleTranscriptionReady(recordingId, text);
+      },
+      onRecordingError: (recordingId, errorMessage) => {
+        this._handleRecordingError(recordingId, errorMessage);
+      },
+    });
 
     // Create popup menu
     this.createPopupMenu();
@@ -246,85 +244,52 @@ export default class Speech2TextExtension extends Extension {
   async toggleRecording() {
     console.log("=== TOGGLE RECORDING (D-Bus) ===");
 
-    if (this.currentRecordingId) {
+    if (!this.recordingStateManager) {
+      console.log("Recording state manager not initialized");
+      return;
+    }
+
+    if (this.recordingStateManager.isRecording()) {
       // Stop current recording
-      console.log(`Stopping recording: ${this.currentRecordingId}`);
-      try {
-        await this.dbusManager.stopRecording(this.currentRecordingId);
-      } catch (e) {
-        console.error(`Error stopping recording: ${e}`);
-      }
+      await this.recordingStateManager.stopRecording();
       return;
     }
 
     // Start new recording
-    try {
-      const recordingDuration = this.settings.get_int("recording-duration");
-      const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
-      const skipPreviewX11 = this.settings.get_boolean("skip-preview-x11");
-
-      // Always use preview mode for D-Bus service (it just controls service behavior)
-      // We'll handle the skip-preview logic in the extension when we get the transcription
-      const previewMode = true;
-
-      console.log(
-        `Starting recording: duration=${recordingDuration}, clipboard=${copyToClipboard}, skipPreview=${skipPreviewX11}`
-      );
-
-      const recordingId = await this.dbusManager.startRecording(
-        recordingDuration,
-        copyToClipboard,
-        previewMode
-      );
-
-      this.currentRecordingId = recordingId;
-      this.icon.set_style(`color: ${COLORS.PRIMARY};`);
-
-      console.log(`Recording started with ID: ${recordingId}`);
-
-      // Always show recording dialog during recording
-      this.recordingDialog = new RecordingDialog(
-        () => {
-          // Cancel callback
-          console.log("Recording cancelled by user");
-          if (this.currentRecordingId) {
-            this.dbusManager
-              .stopRecording(this.currentRecordingId)
-              .catch(console.error);
-          }
-          this.currentRecordingId = null;
-          this.recordingDialog = null;
-          this.icon.set_style("");
-        },
-        (text) => {
-          // Insert callback
-          console.log(`Inserting text: ${text}`);
-          this._typeText(text);
-          this.currentRecordingId = null;
-          this.recordingDialog = null;
-          this.icon.set_style("");
-        },
-        () => {
-          // Stop callback
-          console.log("Stop recording button clicked");
-          if (this.currentRecordingId) {
-            this.dbusManager
-              .stopRecording(this.currentRecordingId)
-              .catch(console.error);
-          }
-        },
-        recordingDuration
-      );
-
-      this.recordingDialog.open();
-    } catch (e) {
-      console.error(`Error starting recording: ${e}`);
+    const success = await this.recordingStateManager.startRecording(
+      this.settings
+    );
+    if (!success) {
       Main.notify(
         "Speech2Text Error",
-        `Failed to start recording: ${e.message}`
+        "Failed to start recording. Please try again."
       );
-      this.icon.set_style("");
+      return;
     }
+
+    // Create and show recording dialog
+    const recordingDialog = new RecordingDialog(
+      () => {
+        // Cancel callback
+        this.recordingStateManager.cancelRecording();
+        this.recordingStateManager.setRecordingDialog(null);
+      },
+      (text) => {
+        // Insert callback
+        console.log(`Inserting text: ${text}`);
+        this._typeText(text);
+        this.recordingStateManager.setRecordingDialog(null);
+      },
+      () => {
+        // Stop callback
+        console.log("Stop recording button clicked");
+        this.recordingStateManager.stopRecording();
+      },
+      this.settings.get_int("recording-duration")
+    );
+
+    this.recordingStateManager.setRecordingDialog(recordingDialog);
+    recordingDialog.open();
   }
 
   async _typeText(text) {
@@ -347,18 +312,9 @@ export default class Speech2TextExtension extends Extension {
   disable() {
     console.log("Disabling Speech2Text extension (D-Bus version)");
 
-    // Stop any active recording
-    if (this.currentRecordingId && this.dbusManager) {
-      this.dbusManager
-        .stopRecording(this.currentRecordingId)
-        .catch(console.error);
-      this.currentRecordingId = null;
-    }
-
-    // Close recording dialog
-    if (this.recordingDialog) {
-      this.recordingDialog.close();
-      this.recordingDialog = null;
+    // Clean up recording state manager
+    if (this.recordingStateManager) {
+      this.recordingStateManager.cleanup();
     }
 
     // Close settings dialog
