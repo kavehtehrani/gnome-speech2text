@@ -64,20 +64,44 @@ export default class Speech2TextExtension extends Extension {
     return true;
   }
 
+  _handleRecordingStopped(recordingId, reason) {
+    if (!this.recordingStateManager) {
+      console.log("Recording state manager not initialized");
+      return;
+    }
+
+    console.log(
+      `Extension: Recording stopped - ID: ${recordingId}, reason: ${reason}`
+    );
+    if (reason === "completed") {
+      // Recording completed automatically - don't close dialog yet
+      this.recordingStateManager.handleRecordingCompleted(recordingId);
+    }
+    // For manual stops (reason === "stopped"), the dialog is already closed
+    // in the stopRecording method
+  }
+
   _handleTranscriptionReady(recordingId, text) {
     if (!this.recordingStateManager) {
       console.log("Recording state manager not initialized");
       return;
     }
 
+    console.log(
+      `Extension: Transcription ready - ID: ${recordingId}, text: "${text}"`
+    );
     const result = this.recordingStateManager.handleTranscriptionReady(
       recordingId,
       text,
       this.settings
     );
 
+    console.log(`Extension: Transcription result - action: ${result?.action}`);
     if (result && result.action === "insert") {
       this._typeText(result.text);
+    } else if (result && result.action === "createPreview") {
+      console.log("Creating new preview dialog for transcribed text");
+      this._showPreviewDialog(result.text);
     }
   }
 
@@ -135,6 +159,9 @@ export default class Speech2TextExtension extends Extension {
 
     // Update signal handlers to use recording state manager
     this.dbusManager.connectSignals({
+      onRecordingStopped: (recordingId, reason) => {
+        this._handleRecordingStopped(recordingId, reason);
+      },
       onTranscriptionReady: (recordingId, text) => {
         this._handleTranscriptionReady(recordingId, text);
       },
@@ -289,7 +316,34 @@ export default class Speech2TextExtension extends Extension {
     );
 
     this.recordingStateManager.setRecordingDialog(recordingDialog);
+    console.log(`Extension: Created and set recording dialog, opening now`);
     recordingDialog.open();
+  }
+
+  _showPreviewDialog(text) {
+    console.log("Creating preview dialog for text:", text);
+
+    // Create a new preview-only dialog
+    const previewDialog = new RecordingDialog(
+      () => {
+        // Cancel callback - just close
+        previewDialog.close();
+      },
+      (finalText) => {
+        // Insert callback
+        console.log(`Inserting text from preview: ${finalText}`);
+        this._typeText(finalText);
+        previewDialog.close();
+      },
+      null, // No stop callback needed for preview-only
+      0 // No duration for preview-only
+    );
+
+    // First open the dialog, then show preview
+    console.log("Opening preview dialog");
+    previewDialog.open();
+    console.log("Showing preview in opened dialog");
+    previewDialog.showPreview(text);
   }
 
   async _typeText(text) {
