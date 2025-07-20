@@ -1,2 +1,7 @@
 openai-whisper
 torch
+
+# Optional Wayland support dependencies
+# Install these for enhanced Wayland text insertion capabilities:
+# pip install pywayland (for virtual keyboard protocol support)
+# System packages: ydotool, wtype, wl-clipboard

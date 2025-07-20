@@ -22,5 +22,28 @@
             <summary>Skip preview dialog on X11</summary>
             <description>If enabled (X11 only), the extension will insert the transcribed text immediately after recording, without showing the preview dialog. Has no effect on Wayland.</description>
         </key>
+        <key name="skip-preview-wayland" type="b">
+            <default>false</default>
+            <summary>Skip preview dialog on Wayland</summary>
+            <description>If enabled (Wayland only), the extension will insert the transcribed text immediately after recording, without showing the preview dialog. Has no effect on X11.</description>
+        </key>
+        <key name="wayland-text-insertion-method" type="s">
+            <default>'auto'</default>
+            <choices>
+                <choice value='auto'/>
+                <choice value='ydotool'/>
+                <choice value='wtype'/>
+                <choice value='virtual_keyboard'/>
+                <choice value='clipboard_paste'/>
+                <choice value='clipboard_only'/>
+            </choices>
+            <summary>Wayland text insertion method</summary>
+            <description>Method to use for inserting text on Wayland. 'auto' tries methods in order of reliability. 'clipboard_only' copies to clipboard without attempting to paste.</description>
+        </key>
+        <key name="wayland-show-insertion-notifications" type="b">
+            <default>true</default>
+            <summary>Show text insertion notifications on Wayland</summary>
+            <description>Show notifications about text insertion method used and success/failure status on Wayland.</description>
+        </key>
     </schema>
 </schemalist>

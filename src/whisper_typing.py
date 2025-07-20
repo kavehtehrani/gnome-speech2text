@@ -230,20 +230,74 @@ def transcribe_audio(audio_file):
         except:
             pass
 
-def type_text(text):
-    """Type the transcribed text using xdotool"""
+def type_text(text, display_server=None, wayland_method=None, show_notifications=False):
+    """Type the transcribed text using appropriate method for display server"""
     if not text:
-        return
+        return False
         
+    if display_server is None:
+        display_server = detect_display_server()
+    
     print("⌨️ Typing text...", flush=True)
     
     try:
-        # Use xdotool to type the text
-        subprocess.run(['xdotool', 'type', '--delay', '10', text], check=True)
-        print("✅ Text typed successfully!", flush=True)
+        if display_server == 'wayland':
+            return type_text_wayland(text, wayland_method, show_notifications)
+        else:
+            # Use xdotool for X11
+            subprocess.run(['xdotool', 'type', '--delay', '10', text], check=True)
+            print("✅ Text typed successfully!", flush=True)
+            return True
         
     except Exception as e:
         print("❌ Error typing text: {}".format(e), flush=True)
+        return False
+
+def type_text_wayland(text, method=None, show_notifications=False):
+    """Type text on Wayland using the wayland_typing module"""
+    try:
+        import sys
+        import os
+        
+        # Add the current directory to Python path to import wayland_typing
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        
+        from wayland_typing import WaylandTextInserter
+        
+        inserter = WaylandTextInserter()
+        
+        if show_notifications:
+            capabilities = inserter.get_capabilities()
+            print("🔍 Wayland capabilities: {}".format(capabilities), flush=True)
+        
+        success = inserter.insert_text(text, method)
+        
+        if success:
+            print("✅ Text inserted successfully on Wayland!", flush=True)
+            if show_notifications:
+                preferred_method = inserter._get_preferred_method()
+                print("📋 Used method: {}".format(preferred_method), flush=True)
+        else:
+            print("❌ Failed to insert text on Wayland", flush=True)
+            # Fallback to clipboard if direct insertion fails
+            print("🔄 Falling back to clipboard...", flush=True)
+            success = copy_to_clipboard(text, 'wayland')
+            if success:
+                print("📋 Text copied to clipboard as fallback", flush=True)
+                return True
+        
+        return success
+        
+    except ImportError as e:
+        print("❌ Wayland typing module not available: {}".format(e), flush=True)
+        print("🔄 Falling back to clipboard...", flush=True)
+        return copy_to_clipboard(text, 'wayland')
+    except Exception as e:
+        print("❌ Error with Wayland text insertion: {}".format(e), flush=True)
+        print("🔄 Falling back to clipboard...", flush=True)
+        return copy_to_clipboard(text, 'wayland')
 
 def main():
     """Main function to orchestrate recording, transcription, and typing"""
@@ -255,6 +309,10 @@ def main():
                        help='Copy transcribed text to clipboard in addition to typing')
     parser.add_argument('--preview-mode', action='store_true',
                        help='Output transcribed text for preview instead of typing directly')
+    parser.add_argument('--wayland-method', type=str, choices=['auto', 'ydotool', 'wtype', 'virtual_keyboard', 'clipboard_paste', 'clipboard_only'],
+                       help='Wayland text insertion method to use')
+    parser.add_argument('--wayland-notifications', action='store_true',
+                       help='Show detailed notifications about Wayland text insertion')
     args = parser.parse_args()
     
     # Validate duration (10 seconds to 5 minutes)
@@ -274,6 +332,10 @@ def main():
         print("📋 Clipboard copying enabled", flush=True)
     if args.preview_mode:
         print("👁️ Preview mode enabled", flush=True)
+    if args.wayland_method:
+        print("🖥️ Wayland method specified: {}".format(args.wayland_method), flush=True)
+    if args.wayland_notifications:
+        print("🔔 Wayland notifications enabled", flush=True)
     
     # Detect display server early for better error reporting
     display_server = detect_display_server()
@@ -304,26 +366,51 @@ def main():
         if not copy_success:
             print("⚠️ Failed to copy to clipboard, but continuing with typing", flush=True)
     
+    # Handle clipboard-only mode for Wayland
+    if args.wayland_method == 'clipboard_only':
+        if copy_to_clipboard(text, display_server):
+            print("📋 Text copied to clipboard (clipboard-only mode)", flush=True)
+        else:
+            print("❌ Failed to copy text to clipboard", flush=True)
+        return
+    
     # Type the transcribed text
-    type_text(text)
+    type_success = type_text(text, display_server, args.wayland_method, args.wayland_notifications)
+    if not type_success:
+        print("⚠️ Text insertion failed, but text may have been copied to clipboard", flush=True)
     
     print("🎉 Done!", flush=True)
 
 def type_text_only():
     """Standalone function to type text provided via command line argument"""
-    parser = argparse.ArgumentParser(description='Type text using xdotool')
+    parser = argparse.ArgumentParser(description='Type text using appropriate method')
     parser.add_argument('text', help='Text to type')
     parser.add_argument('--copy-to-clipboard', action='store_true',
                        help='Copy text to clipboard in addition to typing')
+    parser.add_argument('--wayland-method', type=str, choices=['auto', 'ydotool', 'wtype', 'virtual_keyboard', 'clipboard_paste', 'clipboard_only'],
+                       help='Wayland text insertion method to use')
+    parser.add_argument('--wayland-notifications', action='store_true',
+                       help='Show detailed notifications about Wayland text insertion')
     args = parser.parse_args()
     
+    display_server = detect_display_server()
+    
     if args.copy_to_clipboard:
-        display_server = detect_display_server()
         copy_success = copy_to_clipboard(args.text, display_server)
         if not copy_success:
             print("⚠️ Failed to copy to clipboard, but continuing with typing", flush=True)
     
-    type_text(args.text)
+    # Handle clipboard-only mode for Wayland
+    if args.wayland_method == 'clipboard_only':
+        if copy_to_clipboard(args.text, display_server):
+            print("📋 Text copied to clipboard (clipboard-only mode)", flush=True)
+        else:
+            print("❌ Failed to copy text to clipboard", flush=True)
+        return
+    
+    type_success = type_text(args.text, display_server, args.wayland_method, args.wayland_notifications)
+    if not type_success:
+        print("⚠️ Text insertion failed, but text may have been copied to clipboard", flush=True)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--type-only":

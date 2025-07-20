@@ -651,42 +651,164 @@ read
     durationSection.add_child(currentDurationBox);
     durationSection.add_child(durationButtonsBox);
 
-    // --- X11-only: Skip preview checkbox ---
-    let skipPreviewSection = null;
-    if (!IS_WAYLAND) {
-      skipPreviewSection = createVerticalBox();
-      let skipPreviewLabel = createStyledLabel(
-        "Skip Preview (X11 only)",
-        "subtitle"
+    // Skip preview section (for both X11 and Wayland)
+    let skipPreviewSection = createVerticalBox();
+    
+    let skipPreviewLabel = createStyledLabel(
+      IS_WAYLAND ? "Skip Preview (Wayland)" : "Skip Preview (X11)",
+      "subtitle"
+    );
+    
+    let skipPreviewDescription = createStyledLabel(
+      "If enabled, the extension will insert the transcribed text immediately after recording, without showing the preview dialog.",
+      "description"
+    );
+    
+    // Checkbox
+    let skipPreviewCheckboxBox = createHorizontalBox();
+    let skipPreviewCheckboxLabel = createStyledLabel(
+      "Skip preview and insert immediately:",
+      "normal",
+      "min-width: 250px;"
+    );
+    
+    let settingKey = IS_WAYLAND ? "skip-preview-wayland" : "skip-preview-x11";
+    let skipPreviewEnabled = this.settings.get_boolean(settingKey);
+    
+    let skipPreviewCheckbox = new St.Button({
+      style: `
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${
+          skipPreviewEnabled ? COLORS.PRIMARY : "transparent"
+        };
+        margin-right: 10px;
+      `,
+      reactive: true,
+      can_focus: true,
+    });
+    
+    let skipPreviewCheckboxIcon = new St.Label({
+      text: skipPreviewEnabled ? "✓" : "",
+      style: `
+        color: white;
+        font-size: 14px;
+        font-weight: bold;
+        text-align: center;
+      `,
+    });
+    
+    skipPreviewCheckbox.add_child(skipPreviewCheckboxIcon);
+    skipPreviewCheckbox.connect("clicked", () => {
+      let currentState = this.settings.get_boolean(settingKey);
+      let newState = !currentState;
+      this.settings.set_boolean(settingKey, newState);
+      skipPreviewCheckbox.set_style(`
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${newState ? COLORS.PRIMARY : "transparent"};
+        margin-right: 10px;
+      `);
+      skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
+      Main.notify(
+        "Speech2Text",
+        `Skip preview is now ${newState ? "enabled" : "disabled"}`
       );
-      let skipPreviewDescription = createStyledLabel(
-        "If enabled, the extension will insert the transcribed text immediately after recording, without showing the preview dialog.",
+    });
+    
+    skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
+    skipPreviewCheckboxBox.add_child(skipPreviewCheckbox);
+    skipPreviewSection.add_child(skipPreviewLabel);
+    skipPreviewSection.add_child(skipPreviewDescription);
+    skipPreviewSection.add_child(skipPreviewCheckboxBox);
+
+    // Wayland-specific settings section
+    let waylandSection = null;
+    if (IS_WAYLAND) {
+      waylandSection = createVerticalBox();
+      
+      let waylandLabel = createStyledLabel("Wayland Text Insertion", "subtitle");
+      let waylandDescription = createStyledLabel(
+        "Configure how text is inserted on Wayland. Different methods have varying compatibility.",
         "description"
       );
-      // Checkbox
-      let skipPreviewCheckboxBox = createHorizontalBox();
-      let skipPreviewCheckboxLabel = createStyledLabel(
-        "Skip preview and insert immediately:",
+      
+      // Method selection
+      let methodBox = createHorizontalBox();
+      let methodLabel = createStyledLabel(
+        "Insertion method:",
         "normal",
-        "min-width: 250px;"
+        "min-width: 130px;"
       );
-      let skipPreviewEnabled = this.settings.get_boolean("skip-preview-x11");
-      let skipPreviewCheckbox = new St.Button({
+      
+      // Create method selection dropdown (simulated with buttons)
+      let currentMethod = this.settings.get_string("wayland-text-insertion-method");
+      let methodDisplay = new St.Label({
+        text: currentMethod || "auto",
+        style: `
+          font-size: 14px;
+          color: ${COLORS.PRIMARY};
+          background-color: rgba(255, 140, 0, 0.1);
+          padding: 8px 12px;
+          border-radius: 6px;
+          border: 1px solid ${COLORS.PRIMARY};
+          min-width: 120px;
+          text-align: center;
+        `,
+      });
+      
+      methodBox.add_child(methodLabel);
+      methodBox.add_child(methodDisplay);
+      
+      // Method selection buttons
+      let methodButtonsBox = createHorizontalBox("8px");
+      
+      const methods = [
+        { value: "auto", label: "Auto" },
+        { value: "ydotool", label: "ydotool" },
+        { value: "wtype", label: "wtype" },
+        { value: "clipboard_paste", label: "Clipboard + Paste" },
+        { value: "clipboard_only", label: "Clipboard Only" }
+      ];
+      
+      methods.forEach(method => {
+        let button = createHoverButton(method.label, COLORS.SECONDARY, COLORS.INFO);
+        button.connect("clicked", () => {
+          this.settings.set_string("wayland-text-insertion-method", method.value);
+          methodDisplay.set_text(method.value);
+          Main.notify("Speech2Text", `Wayland method set to: ${method.label}`);
+        });
+        methodButtonsBox.add_child(button);
+      });
+      
+      // Notifications checkbox
+      let notificationBox = createHorizontalBox();
+      let notificationLabel = createStyledLabel(
+        "Show insertion notifications:",
+        "normal",
+        "min-width: 200px;"
+      );
+      
+      let notificationsEnabled = this.settings.get_boolean("wayland-show-insertion-notifications");
+      let notificationCheckbox = new St.Button({
         style: `
           width: 20px;
           height: 20px;
           border-radius: 3px;
           border: 2px solid ${COLORS.SECONDARY};
-          background-color: ${
-            skipPreviewEnabled ? COLORS.PRIMARY : "transparent"
-          };
+          background-color: ${notificationsEnabled ? COLORS.PRIMARY : "transparent"};
           margin-right: 10px;
         `,
         reactive: true,
         can_focus: true,
       });
-      let skipPreviewCheckboxIcon = new St.Label({
-        text: skipPreviewEnabled ? "✓" : "",
+      
+      let notificationCheckboxIcon = new St.Label({
+        text: notificationsEnabled ? "✓" : "",
         style: `
           color: white;
           font-size: 14px;
@@ -694,12 +816,13 @@ read
           text-align: center;
         `,
       });
-      skipPreviewCheckbox.add_child(skipPreviewCheckboxIcon);
-      skipPreviewCheckbox.connect("clicked", () => {
-        let currentState = this.settings.get_boolean("skip-preview-x11");
+      
+      notificationCheckbox.add_child(notificationCheckboxIcon);
+      notificationCheckbox.connect("clicked", () => {
+        let currentState = this.settings.get_boolean("wayland-show-insertion-notifications");
         let newState = !currentState;
-        this.settings.set_boolean("skip-preview-x11", newState);
-        skipPreviewCheckbox.set_style(`
+        this.settings.set_boolean("wayland-show-insertion-notifications", newState);
+        notificationCheckbox.set_style(`
           width: 20px;
           height: 20px;
           border-radius: 3px;
@@ -707,17 +830,21 @@ read
           background-color: ${newState ? COLORS.PRIMARY : "transparent"};
           margin-right: 10px;
         `);
-        skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
+        notificationCheckboxIcon.set_text(newState ? "✓" : "");
         Main.notify(
           "Speech2Text",
-          `Skip preview is now ${newState ? "enabled" : "disabled"}`
+          `Wayland notifications ${newState ? "enabled" : "disabled"}`
         );
       });
-      skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
-      skipPreviewCheckboxBox.add_child(skipPreviewCheckbox);
-      skipPreviewSection.add_child(skipPreviewLabel);
-      skipPreviewSection.add_child(skipPreviewDescription);
-      skipPreviewSection.add_child(skipPreviewCheckboxBox);
+      
+      notificationBox.add_child(notificationLabel);
+      notificationBox.add_child(notificationCheckbox);
+      
+      waylandSection.add_child(waylandLabel);
+      waylandSection.add_child(waylandDescription);
+      waylandSection.add_child(methodBox);
+      waylandSection.add_child(methodButtonsBox);
+      waylandSection.add_child(notificationBox);
     }
 
     // Separator line
@@ -897,7 +1024,12 @@ read
     settingsWindow.add_child(shortcutSection);
     settingsWindow.add_child(separator);
     settingsWindow.add_child(durationSection);
-    if (skipPreviewSection) settingsWindow.add_child(skipPreviewSection);
+    settingsWindow.add_child(skipPreviewSection);
+    if (waylandSection) {
+      let waylandSeparator = createSeparator();
+      settingsWindow.add_child(waylandSeparator);
+      settingsWindow.add_child(waylandSection);
+    }
     settingsWindow.add_child(clipboardSeparator);
     settingsWindow.add_child(clipboardSection);
     settingsWindow.add_child(troubleshootingSeparator);
@@ -1407,9 +1539,10 @@ read
       // Get clipboard setting
       const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
 
-      // Get skip-preview-x11 setting (only relevant on X11)
-      const skipPreviewX11 =
-        !IS_WAYLAND && this.settings.get_boolean("skip-preview-x11");
+      // Get skip-preview settings for current display server
+      const skipPreview = IS_WAYLAND 
+        ? this.settings.get_boolean("skip-preview-wayland")
+        : this.settings.get_boolean("skip-preview-x11");
 
       // Build command arguments
       let args = [
@@ -1423,6 +1556,19 @@ read
       // Add clipboard flag if enabled
       if (copyToClipboard) {
         args.push("--copy-to-clipboard");
+      }
+
+      // Add Wayland-specific arguments if on Wayland
+      if (IS_WAYLAND) {
+        const waylandMethod = this.settings.get_string("wayland-text-insertion-method");
+        if (waylandMethod && waylandMethod !== "auto") {
+          args.push("--wayland-method", waylandMethod);
+        }
+        
+        const showNotifications = this.settings.get_boolean("wayland-show-insertion-notifications");
+        if (showNotifications) {
+          args.push("--wayland-notifications");
+        }
       }
 
       const [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
@@ -1514,8 +1660,8 @@ read
                       `🎯 Finished capturing transcribed text: "${transcribedText}"`
                     );
 
-                    // If skipping preview (on X11), insert immediately and close dialog
-                    if (skipPreviewX11) {
+                    // If skipping preview, insert immediately and close dialog
+                    if (skipPreview) {
                       if (transcribedText.trim()) {
                         log("🎯 Skipping preview, inserting text immediately");
                         this._typeText(transcribedText.trim());
@@ -1733,6 +1879,19 @@ read
         args.push("--copy-to-clipboard");
       }
 
+      // Add Wayland-specific arguments if on Wayland
+      if (IS_WAYLAND) {
+        const waylandMethod = this.settings.get_string("wayland-text-insertion-method");
+        if (waylandMethod && waylandMethod !== "auto") {
+          args.push("--wayland-method", waylandMethod);
+        }
+        
+        const showNotifications = this.settings.get_boolean("wayland-show-insertion-notifications");
+        if (showNotifications) {
+          args.push("--wayland-notifications");
+        }
+      }
+
       // Execute the typing command
       const [success, pid] = GLib.spawn_async(
         null,
@@ -1749,18 +1908,22 @@ read
         GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, status) => {
           log(`🎯 Text typing process completed with status: ${status}`);
           if (status === 0) {
-            Main.notify("Speech2Text", "Text inserted successfully!");
+            const message = IS_WAYLAND ? "Text processed successfully!" : "Text inserted successfully!";
+            Main.notify("Speech2Text", message);
           } else {
-            Main.notify("Speech2Text Error", "Failed to insert text.");
+            const message = IS_WAYLAND ? "Failed to process text." : "Failed to insert text.";
+            Main.notify("Speech2Text Error", message);
           }
         });
       } else {
         log("❌ Failed to start text typing process");
-        Main.notify("Speech2Text Error", "Failed to insert text.");
+        const message = IS_WAYLAND ? "Failed to process text." : "Failed to insert text.";
+        Main.notify("Speech2Text Error", message);
       }
     } catch (e) {
       log(`❌ Error typing text: ${e}`);
-      Main.notify("Speech2Text Error", "Failed to insert text.");
+      const message = IS_WAYLAND ? "Failed to process text." : "Failed to insert text.";
+      Main.notify("Speech2Text Error", message);
     }
   }
 }
