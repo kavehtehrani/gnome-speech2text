@@ -1,8 +1,8 @@
 /**
- * Tests for constants.js module
+ * Tests for constants.ts module
  */
 
-import { COLORS, STYLES } from '../../../src/lib/constants.js';
+import { COLORS, STYLES } from '../../../src/lib/constants.ts';
 
 describe('Constants Module', () => {
   describe('COLORS', () => {
@@ -25,7 +25,7 @@ describe('Constants Module', () => {
     });
 
     test('all colors should be strings', () => {
-      Object.values(COLORS).forEach(color => {
+      Object.values(COLORS).forEach((color: string) => {
         expect(typeof color).toBe('string');
       });
     });
@@ -46,7 +46,7 @@ describe('Constants Module', () => {
     });
 
     test('all styles should be strings', () => {
-      Object.values(STYLES).forEach(style => {
+      Object.values(STYLES).forEach((style: string) => {
         expect(typeof style).toBe('string');
       });
     });

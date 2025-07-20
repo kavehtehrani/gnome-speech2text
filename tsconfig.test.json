@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": false,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "exactOptionalPropertyTypes": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "isolatedModules": true
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ]
+}

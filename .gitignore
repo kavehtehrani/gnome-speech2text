@@ -7,3 +7,10 @@
 node_modules
 test-env
 coverage
+
+# TypeScript compiled output in src/js/
+/src/js/
+
+# Keep Python files
+!/src/whisper_typing.py
+!/src/wayland_typing.py

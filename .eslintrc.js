@@ -8,6 +8,8 @@ module.exports = {
   extends: [
     'eslint:recommended',
   ],
+  parser: '@typescript-eslint/parser',
+  plugins: ['@typescript-eslint'],
   parserOptions: {
     ecmaVersion: 'latest',
     sourceType: 'module',
@@ -32,9 +34,21 @@ module.exports = {
     PopupMenu: 'readonly',
   },
   rules: {
-    'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     'no-console': 'warn',
     'prefer-const': 'error',
     'no-var': 'error',
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/no-explicit-any': 'warn',
   },
+  overrides: [
+    {
+      files: ['*.js'],
+      rules: {
+        '@typescript-eslint/no-var-requires': 'off',
+      },
+    },
+  ],
 };

@@ -1,7 +1,14 @@
 import GLib from "gi://GLib";
 
+export interface FocusState {
+  hasActiveWindow: boolean;
+  windowId: string | null;
+  currentFocus: any;
+  error?: any;
+}
+
 // Focus debugging utility function
-export function debugFocusState(context = "") {
+export function debugFocusState(context = ""): FocusState {
   const prefix = context ? `🔍 ${context} FOCUS DEBUG` : "🔍 FOCUS DEBUG";
 
   try {
@@ -50,7 +57,7 @@ export function debugFocusState(context = "") {
 }
 
 // Helper function to establish X11 focus context when no active window exists
-export function establishX11FocusContext(callback = null) {
+export function establishX11FocusContext(callback: (() => void) | null = null): boolean {
   try {
     // Try to find and focus any available window to establish X11 context
     const [findSuccess, findStdout] = GLib.spawn_command_line_sync(

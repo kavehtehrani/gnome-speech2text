@@ -1,8 +1,19 @@
 import GLib from "gi://GLib";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
+export interface EventHandlers {
+  clickHandlerId?: number;
+  keyPressHandlerId?: number;
+  [key: string]: number | undefined;
+}
+
+export interface CleanupResult {
+  cleanedDialog: boolean;
+  cleanedProcess: boolean;
+}
+
 // Helper to safely disconnect event handlers
-export function safeDisconnect(actor, handlerId, handlerName = "handler") {
+export function safeDisconnect(actor: any, handlerId: number | undefined, handlerName = "handler"): boolean {
   try {
     if (actor && handlerId) {
       actor.disconnect(handlerId);
@@ -16,7 +27,7 @@ export function safeDisconnect(actor, handlerId, handlerName = "handler") {
 }
 
 // Modal dialog cleanup utility
-export function cleanupModal(overlay, handlers = {}) {
+export function cleanupModal(overlay: any, handlers: EventHandlers = {}): boolean {
   try {
     // Disconnect event handlers
     if (handlers.clickHandlerId) {
@@ -40,7 +51,7 @@ export function cleanupModal(overlay, handlers = {}) {
 }
 
 // Process cleanup utility with signal support
-export function cleanupProcess(pid, signal = "USR1", processName = "process") {
+export function cleanupProcess(pid: number | null, signal = "USR1", processName = "process"): boolean {
   if (!pid) return false;
 
   try {
@@ -54,7 +65,7 @@ export function cleanupProcess(pid, signal = "USR1", processName = "process") {
 }
 
 // Recording state cleanup utility
-export function cleanupRecordingState(extension, iconResetStyle = "") {
+export function cleanupRecordingState(extension: any, iconResetStyle = ""): CleanupResult {
   let cleanedDialog = false;
   let cleanedProcess = false;
 

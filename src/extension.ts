@@ -29,14 +29,23 @@ import {
 } from "./lib/resourceUtils.js";
 import { RecordingDialog } from "./lib/recordingDialog.js";
 import { runSetupScript, checkSetupStatus } from "./lib/setupUtils.js";
+import { ExtensionMetadata } from "./types/extension.js";
 
-let button;
+let button: PanelMenu.Button | null;
 
 // At the top of the file, after imports, cache IS_WAYLAND
 const IS_WAYLAND = Meta.is_wayland_compositor();
 
 export default class WhisperTypingExtension extends Extension {
-  constructor(metadata) {
+  public recordingDialog: RecordingDialog | null;
+  public recordingProcess: number | null;
+  public settings: any | null;
+  public currentKeybinding: string | null;
+  public recordingIcon: St.Label;
+  public icon: St.Icon;
+  public button: PanelMenu.Button | null;
+  
+  constructor(metadata: ExtensionMetadata) {
     super(metadata);
     this.recordingDialog = null;
     this.recordingProcess = null;
@@ -72,9 +81,9 @@ export default class WhisperTypingExtension extends Extension {
     let terminalCmd = null;
 
     // Find an available terminal
-    for (let terminal of terminals) {
+    for (const terminal of terminals) {
       try {
-        let [success] = GLib.spawn_command_line_sync(`which ${terminal}`);
+        const [success] = GLib.spawn_command_line_sync(`which ${terminal}`);
         if (success) {
           terminalCmd = terminal;
           break;
@@ -202,7 +211,7 @@ read
         ];
       }
 
-      let [success, pid] = GLib.spawn_async(
+      const [success, pid] = GLib.spawn_async(
         null, // working directory
         terminalArgs,
         null, // envp
@@ -220,11 +229,11 @@ read
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
           try {
             // Find and focus the setup terminal window
-            let [findSuccess, findStdout] = GLib.spawn_command_line_sync(
+            const [findSuccess, findStdout] = GLib.spawn_command_line_sync(
               'xdotool search --name "Speech2Text Setup" 2>/dev/null || true'
             );
             if (findSuccess && findStdout) {
-              let windowId = new TextDecoder().decode(findStdout).trim();
+              const windowId = new TextDecoder().decode(findStdout).trim();
               if (windowId) {
                 GLib.spawn_command_line_sync(
                   `xdotool windowactivate ${windowId} 2>/dev/null || true`
@@ -368,7 +377,7 @@ read
 
   createPopupMenu() {
     // Add menu item for settings
-    let settingsItem = new PopupMenu.PopupMenuItem("Settings");
+    const settingsItem = new PopupMenu.PopupMenuItem("Settings");
     settingsItem.connect("activate", () => {
       this.showSettingsWindow();
     });
@@ -394,7 +403,7 @@ read
 
   showSettingsWindow() {
     // Create settings window
-    let settingsWindow = new St.BoxLayout({
+    const settingsWindow = new St.BoxLayout({
       style_class: "settings-window",
       vertical: true,
       style: `
@@ -408,7 +417,7 @@ read
     });
 
     // Header box for icon, title, and close button
-    let headerBox = new St.BoxLayout({
+    const headerBox = new St.BoxLayout({
       vertical: false,
       style: "spacing: 16px; margin-bottom: 18px; align-items: center;",
       x_align: Clutter.ActorAlign.FILL,
@@ -416,16 +425,16 @@ read
     });
 
     // Icon
-    let titleIcon = createStyledLabel("🎤", "icon", "");
+    const titleIcon = createStyledLabel("🎤", "icon", "");
     titleIcon.set_y_align(Clutter.ActorAlign.CENTER);
 
     // Title label
-    let titleLabel = createStyledLabel("Gnome Speech2Text Settings", "title");
+    const titleLabel = createStyledLabel("Gnome Speech2Text Settings", "title");
     titleLabel.set_x_expand(true);
     titleLabel.set_y_align(Clutter.ActorAlign.CENTER);
 
     // Close button (X)
-    let closeButton = createTextButton("×", COLORS.SECONDARY, COLORS.DANGER, {
+    const closeButton = createTextButton("×", COLORS.SECONDARY, COLORS.DANGER, {
       fontSize: "24px",
       buttonProps: { y_align: Clutter.ActorAlign.CENTER },
     });
@@ -435,19 +444,19 @@ read
     headerBox.add_child(closeButton);
 
     // Keyboard shortcut section
-    let shortcutSection = createVerticalBox();
+    const shortcutSection = createVerticalBox();
 
-    let shortcutLabel = createStyledLabel("Keyboard Shortcut", "subtitle");
+    const shortcutLabel = createStyledLabel("Keyboard Shortcut", "subtitle");
 
-    let shortcutDescription = createStyledLabel(
+    const shortcutDescription = createStyledLabel(
       "Set the keyboard combination to toggle recording on/off",
       "description"
     );
 
     // Current shortcut display and edit
-    let currentShortcutBox = createHorizontalBox();
+    const currentShortcutBox = createHorizontalBox();
 
-    let currentShortcutLabel = createStyledLabel(
+    const currentShortcutLabel = createStyledLabel(
       "Current:",
       "normal",
       "min-width: 80px;"
@@ -455,7 +464,7 @@ read
 
     this.currentShortcutDisplay = new St.Label({
       text: (() => {
-        let shortcuts = this.settings.get_strv("toggle-recording");
+        const shortcuts = this.settings.get_strv("toggle-recording");
         if (shortcuts.length > 0) {
           return shortcuts[0];
         } else {
@@ -463,7 +472,7 @@ read
         }
       })(),
       style: (() => {
-        let shortcuts = this.settings.get_strv("toggle-recording");
+        const shortcuts = this.settings.get_strv("toggle-recording");
         if (shortcuts.length > 0) {
           return `
             font-size: 14px; 
@@ -492,24 +501,24 @@ read
     currentShortcutBox.add_child(this.currentShortcutDisplay);
 
     // Button container for all shortcut-related buttons
-    let shortcutButtonsBox = createHorizontalBox("8px");
+    const shortcutButtonsBox = createHorizontalBox("8px");
 
     // Change shortcut button
-    let changeShortcutButton = createHoverButton(
+    const changeShortcutButton = createHoverButton(
       "Change Shortcut",
       COLORS.INFO,
       "#0077ee"
     );
 
     // Reset to default button
-    let resetToDefaultButton = createHoverButton(
+    const resetToDefaultButton = createHoverButton(
       "Reset to Default",
       COLORS.PRIMARY,
       "#ff9d1a"
     );
 
     // Remove shortcut button
-    let removeShortcutButton = createHoverButton(
+    const removeShortcutButton = createHoverButton(
       "Remove Shortcut",
       COLORS.WARNING,
       "#e74c3c"
@@ -521,7 +530,7 @@ read
     shortcutButtonsBox.add_child(removeShortcutButton);
 
     // Instructions
-    let instructionsLabel = createStyledLabel(
+    const instructionsLabel = createStyledLabel(
       "Click 'Change Shortcut' and then press the key combination you want to use.\nPress Escape to cancel the change.",
       "small",
       "margin-bottom: 12px;"
@@ -534,19 +543,19 @@ read
     shortcutSection.add_child(instructionsLabel);
 
     // Recording Duration section
-    let durationSection = createVerticalBox();
+    const durationSection = createVerticalBox();
 
-    let durationLabel = createStyledLabel("Recording Duration", "subtitle");
+    const durationLabel = createStyledLabel("Recording Duration", "subtitle");
 
-    let durationDescription = createStyledLabel(
+    const durationDescription = createStyledLabel(
       "Maximum recording time before auto-stop (10 seconds to 5 minutes)",
       "description"
     );
 
     // Current duration display and controls
-    let currentDurationBox = createHorizontalBox();
+    const currentDurationBox = createHorizontalBox();
 
-    let currentDurationLabel = createStyledLabel(
+    const currentDurationLabel = createStyledLabel(
       "Current:",
       "normal",
       "min-width: 80px;"
@@ -587,10 +596,10 @@ read
     currentDurationBox.add_child(this.currentDurationDisplay);
 
     // Duration control buttons
-    let durationButtonsBox = createHorizontalBox("10px");
+    const durationButtonsBox = createHorizontalBox("10px");
 
     // Decrease duration button
-    let decreaseDurationButton = createTextButton(
+    const decreaseDurationButton = createTextButton(
       "-10s",
       COLORS.SECONDARY,
       COLORS.WARNING,
@@ -598,7 +607,7 @@ read
     );
 
     // Increase duration button
-    let increaseDurationButton = createTextButton(
+    const increaseDurationButton = createTextButton(
       "+10s",
       COLORS.SECONDARY,
       COLORS.SUCCESS,
@@ -606,7 +615,7 @@ read
     );
 
     // Reset to default button
-    let resetDurationButton = createTextButton(
+    const resetDurationButton = createTextButton(
       "Reset (1 min)",
       COLORS.SECONDARY,
       COLORS.INFO,
@@ -619,8 +628,8 @@ read
 
     // Button handlers
     decreaseDurationButton.connect("clicked", () => {
-      let currentDur = this.settings.get_int("recording-duration");
-      let newDur = Math.max(10, currentDur - 10); // Minimum 10 seconds
+      const currentDur = this.settings.get_int("recording-duration");
+      const newDur = Math.max(10, currentDur - 10); // Minimum 10 seconds
       this.settings.set_int("recording-duration", newDur);
       this.currentDurationDisplay.set_text(formatDuration(newDur));
       Main.notify(
@@ -630,8 +639,8 @@ read
     });
 
     increaseDurationButton.connect("clicked", () => {
-      let currentDur = this.settings.get_int("recording-duration");
-      let newDur = Math.min(300, currentDur + 10); // Maximum 5 minutes
+      const currentDur = this.settings.get_int("recording-duration");
+      const newDur = Math.min(300, currentDur + 10); // Maximum 5 minutes
       this.settings.set_int("recording-duration", newDur);
       this.currentDurationDisplay.set_text(formatDuration(newDur));
       Main.notify(
@@ -652,30 +661,30 @@ read
     durationSection.add_child(durationButtonsBox);
 
     // Skip preview section (for both X11 and Wayland)
-    let skipPreviewSection = createVerticalBox();
+    const skipPreviewSection = createVerticalBox();
     
-    let skipPreviewLabel = createStyledLabel(
+    const skipPreviewLabel = createStyledLabel(
       IS_WAYLAND ? "Skip Preview (Wayland)" : "Skip Preview (X11)",
       "subtitle"
     );
     
-    let skipPreviewDescription = createStyledLabel(
+    const skipPreviewDescription = createStyledLabel(
       "If enabled, the extension will insert the transcribed text immediately after recording, without showing the preview dialog.",
       "description"
     );
     
     // Checkbox
-    let skipPreviewCheckboxBox = createHorizontalBox();
-    let skipPreviewCheckboxLabel = createStyledLabel(
+    const skipPreviewCheckboxBox = createHorizontalBox();
+    const skipPreviewCheckboxLabel = createStyledLabel(
       "Skip preview and insert immediately:",
       "normal",
       "min-width: 250px;"
     );
     
-    let settingKey = IS_WAYLAND ? "skip-preview-wayland" : "skip-preview-x11";
-    let skipPreviewEnabled = this.settings.get_boolean(settingKey);
+    const settingKey = IS_WAYLAND ? "skip-preview-wayland" : "skip-preview-x11";
+    const skipPreviewEnabled = this.settings.get_boolean(settingKey);
     
-    let skipPreviewCheckbox = new St.Button({
+    const skipPreviewCheckbox = new St.Button({
       style: `
         width: 20px;
         height: 20px;
@@ -690,7 +699,7 @@ read
       can_focus: true,
     });
     
-    let skipPreviewCheckboxIcon = new St.Label({
+    const skipPreviewCheckboxIcon = new St.Label({
       text: skipPreviewEnabled ? "✓" : "",
       style: `
         color: white;
@@ -702,8 +711,8 @@ read
     
     skipPreviewCheckbox.add_child(skipPreviewCheckboxIcon);
     skipPreviewCheckbox.connect("clicked", () => {
-      let currentState = this.settings.get_boolean(settingKey);
-      let newState = !currentState;
+      const currentState = this.settings.get_boolean(settingKey);
+      const newState = !currentState;
       this.settings.set_boolean(settingKey, newState);
       skipPreviewCheckbox.set_style(`
         width: 20px;
@@ -731,23 +740,23 @@ read
     if (IS_WAYLAND) {
       waylandSection = createVerticalBox();
       
-      let waylandLabel = createStyledLabel("Wayland Text Insertion", "subtitle");
-      let waylandDescription = createStyledLabel(
+      const waylandLabel = createStyledLabel("Wayland Text Insertion", "subtitle");
+      const waylandDescription = createStyledLabel(
         "Configure how text is inserted on Wayland. Different methods have varying compatibility.",
         "description"
       );
       
       // Method selection
-      let methodBox = createHorizontalBox();
-      let methodLabel = createStyledLabel(
+      const methodBox = createHorizontalBox();
+      const methodLabel = createStyledLabel(
         "Insertion method:",
         "normal",
         "min-width: 130px;"
       );
       
       // Create method selection dropdown (simulated with buttons)
-      let currentMethod = this.settings.get_string("wayland-text-insertion-method");
-      let methodDisplay = new St.Label({
+      const currentMethod = this.settings.get_string("wayland-text-insertion-method");
+      const methodDisplay = new St.Label({
         text: currentMethod || "auto",
         style: `
           font-size: 14px;
@@ -765,7 +774,7 @@ read
       methodBox.add_child(methodDisplay);
       
       // Method selection buttons
-      let methodButtonsBox = createHorizontalBox("8px");
+      const methodButtonsBox = createHorizontalBox("8px");
       
       const methods = [
         { value: "auto", label: "Auto" },
@@ -776,7 +785,7 @@ read
       ];
       
       methods.forEach(method => {
-        let button = createHoverButton(method.label, COLORS.SECONDARY, COLORS.INFO);
+        const button = createHoverButton(method.label, COLORS.SECONDARY, COLORS.INFO);
         button.connect("clicked", () => {
           this.settings.set_string("wayland-text-insertion-method", method.value);
           methodDisplay.set_text(method.value);
@@ -786,15 +795,15 @@ read
       });
       
       // Notifications checkbox
-      let notificationBox = createHorizontalBox();
-      let notificationLabel = createStyledLabel(
+      const notificationBox = createHorizontalBox();
+      const notificationLabel = createStyledLabel(
         "Show insertion notifications:",
         "normal",
         "min-width: 200px;"
       );
       
-      let notificationsEnabled = this.settings.get_boolean("wayland-show-insertion-notifications");
-      let notificationCheckbox = new St.Button({
+      const notificationsEnabled = this.settings.get_boolean("wayland-show-insertion-notifications");
+      const notificationCheckbox = new St.Button({
         style: `
           width: 20px;
           height: 20px;
@@ -807,7 +816,7 @@ read
         can_focus: true,
       });
       
-      let notificationCheckboxIcon = new St.Label({
+      const notificationCheckboxIcon = new St.Label({
         text: notificationsEnabled ? "✓" : "",
         style: `
           color: white;
@@ -819,8 +828,8 @@ read
       
       notificationCheckbox.add_child(notificationCheckboxIcon);
       notificationCheckbox.connect("clicked", () => {
-        let currentState = this.settings.get_boolean("wayland-show-insertion-notifications");
-        let newState = !currentState;
+        const currentState = this.settings.get_boolean("wayland-show-insertion-notifications");
+        const newState = !currentState;
         this.settings.set_boolean("wayland-show-insertion-notifications", newState);
         notificationCheckbox.set_style(`
           width: 20px;
@@ -848,29 +857,29 @@ read
     }
 
     // Separator line
-    let separator = createSeparator();
+    const separator = createSeparator();
 
     // Clipboard section
-    let clipboardSection = createVerticalBox();
+    const clipboardSection = createVerticalBox();
 
-    let clipboardLabel = createStyledLabel("Clipboard Options", "subtitle");
+    const clipboardLabel = createStyledLabel("Clipboard Options", "subtitle");
 
-    let clipboardDescription = createStyledLabel(
+    const clipboardDescription = createStyledLabel(
       "Configure whether transcribed text should be copied to clipboard",
       "description"
     );
 
     // Clipboard checkbox
-    let clipboardCheckboxBox = createHorizontalBox();
+    const clipboardCheckboxBox = createHorizontalBox();
 
-    let clipboardCheckboxLabel = createStyledLabel(
+    const clipboardCheckboxLabel = createStyledLabel(
       "Copy to clipboard:",
       "normal",
       "min-width: 130px;"
     );
 
     // Create checkbox using St.Button with custom styling
-    let isClipboardEnabled = this.settings.get_boolean("copy-to-clipboard");
+    const isClipboardEnabled = this.settings.get_boolean("copy-to-clipboard");
 
     this.clipboardCheckbox = new St.Button({
       style: `
@@ -902,8 +911,8 @@ read
 
     // Checkbox click handler
     this.clipboardCheckbox.connect("clicked", () => {
-      let currentState = this.settings.get_boolean("copy-to-clipboard");
-      let newState = !currentState;
+      const currentState = this.settings.get_boolean("copy-to-clipboard");
+      const newState = !currentState;
 
       // Update settings
       this.settings.set_boolean("copy-to-clipboard", newState);
@@ -935,20 +944,20 @@ read
     clipboardSection.add_child(clipboardCheckboxBox);
 
     // Another separator line
-    let clipboardSeparator = createSeparator();
+    const clipboardSeparator = createSeparator();
 
     // Troubleshooting section
-    let troubleshootingSection = createVerticalBox();
+    const troubleshootingSection = createVerticalBox();
 
-    let troubleshootingLabel = createStyledLabel("Troubleshooting", "subtitle");
+    const troubleshootingLabel = createStyledLabel("Troubleshooting", "subtitle");
 
-    let troubleshootingDescription = createStyledLabel(
+    const troubleshootingDescription = createStyledLabel(
       "If the extension is not working properly, try reinstalling the Python environment:",
       "description"
     );
 
     // Install/Reinstall Python Environment button
-    let installPythonButton = createHoverButton(
+    const installPythonButton = createHoverButton(
       "Install/Reinstall Python Environment",
       COLORS.SUCCESS,
       "#34ce57"
@@ -978,23 +987,23 @@ read
     troubleshootingSection.add_child(installPythonButton);
 
     // Another separator line
-    let troubleshootingSeparator = createSeparator();
+    const troubleshootingSeparator = createSeparator();
 
     // Third separator line
-    let aboutSeparator = createSeparator();
+    const aboutSeparator = createSeparator();
 
     // About section
-    let aboutSection = createVerticalBox();
+    const aboutSection = createVerticalBox();
 
-    let aboutLabel = createStyledLabel("About", "subtitle");
+    const aboutLabel = createStyledLabel("About", "subtitle");
 
-    let aboutText = createStyledLabel(
+    const aboutText = createStyledLabel(
       "Speech2Text extension for GNOME Shell\nUses OpenAI Whisper for speech-to-text transcription",
       "description"
     );
 
     // GitHub link
-    let githubLink = createTextButton(
+    const githubLink = createTextButton(
       "GitHub Repository",
       COLORS.INFO,
       "#0077ee",
@@ -1026,7 +1035,7 @@ read
     settingsWindow.add_child(durationSection);
     settingsWindow.add_child(skipPreviewSection);
     if (waylandSection) {
-      let waylandSeparator = createSeparator();
+      const waylandSeparator = createSeparator();
       settingsWindow.add_child(waylandSeparator);
       settingsWindow.add_child(waylandSection);
     }
@@ -1038,7 +1047,7 @@ read
     settingsWindow.add_child(aboutSection);
 
     // Create modal overlay
-    let overlay = new St.Widget({
+    const overlay = new St.Widget({
       style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
       reactive: true,
       can_focus: true,
@@ -1048,7 +1057,7 @@ read
     overlay.add_child(settingsWindow);
 
     // Get proper screen dimensions
-    let monitor = Main.layoutManager.primaryMonitor;
+    const monitor = Main.layoutManager.primaryMonitor;
     overlay.set_size(monitor.width, monitor.height);
     overlay.set_position(monitor.x, monitor.y);
 
@@ -1123,7 +1132,7 @@ read
         // Ignore errors
       }
 
-      let defaultShortcut = "<Control><Shift><Alt>c";
+      const defaultShortcut = "<Control><Shift><Alt>c";
 
       // Update settings
       this.settings.set_strv("toggle-recording", [defaultShortcut]);
@@ -1199,7 +1208,7 @@ read
     closeSettings
   ) {
     // Store original shortcut for potential restoration
-    let originalShortcut = this.currentShortcutDisplay.get_text();
+    const originalShortcut = this.currentShortcutDisplay.get_text();
     let lastKeyCombo = null;
     let lastShortcut = null;
     let saveButtonClickId = null;
@@ -1237,13 +1246,13 @@ read
     // Function to restore original handlers
     const restoreHandlers = () => {
       // Get reference to settingsWindow from the overlay's children
-      let settingsWindowRef = overlay.get_first_child();
+      const settingsWindowRef = overlay.get_first_child();
 
       // Reconnect original click handler
       clickHandlerId = overlay.connect("button-press-event", (actor, event) => {
-        let [x, y] = event.get_coords();
-        let [windowX, windowY] = settingsWindowRef.get_position();
-        let [windowW, windowH] = settingsWindowRef.get_size();
+        const [x, y] = event.get_coords();
+        const [windowX, windowY] = settingsWindowRef.get_position();
+        const [windowW, windowH] = settingsWindowRef.get_size();
 
         // If click is outside settings window area, close it
         if (
@@ -1384,9 +1393,9 @@ read
     });
 
     // Capture key combinations on the overlay
-    let captureId = overlay.connect("key-press-event", (actor, event) => {
-      let keyval = event.get_key_symbol();
-      let state = event.get_state();
+    const captureId = overlay.connect("key-press-event", (actor, event) => {
+      const keyval = event.get_key_symbol();
+      const state = event.get_state();
 
       // Handle Escape to cancel
       if (keyval === Clutter.KEY_Escape) {
@@ -1403,7 +1412,7 @@ read
       if (state & Clutter.ModifierType.MOD1_MASK) currentCombo += "Alt+";
       if (state & Clutter.ModifierType.SUPER_MASK) currentCombo += "Super+";
 
-      let keyname = Clutter.keyval_name(keyval);
+      const keyname = Clutter.keyval_name(keyval);
       if (
         keyname &&
         keyname !== "Control_L" &&
@@ -1452,7 +1461,7 @@ read
     }
 
     // Get shortcut from settings
-    let shortcuts = this.settings.get_strv("toggle-recording");
+    const shortcuts = this.settings.get_strv("toggle-recording");
     if (shortcuts.length > 0) {
       this.currentKeybinding = shortcuts[0];
     } else {
@@ -1545,7 +1554,7 @@ read
         : this.settings.get_boolean("skip-preview-x11");
 
       // Build command arguments
-      let args = [
+      const args = [
         `${this.path}/venv/bin/python3`,
         `${this.path}/whisper_typing.py`,
         `--duration`,
@@ -1815,9 +1824,9 @@ read
     log(`this.recordingDialog = ${this.recordingDialog ? "EXISTS" : "NULL"}`);
     log(`Icon style = ${this.icon.get_style()}`);
 
-    let condition1 = this.recordingProcess;
-    let condition2 = this.recordingDialog;
-    let overallCondition = condition1 || condition2;
+    const condition1 = this.recordingProcess;
+    const condition2 = this.recordingDialog;
+    const overallCondition = condition1 || condition2;
 
     log(`Condition 1 (recordingProcess): ${condition1 ? "TRUE" : "FALSE"}`);
     log(`Condition 2 (recordingDialog): ${condition2 ? "TRUE" : "FALSE"}`);
@@ -1837,7 +1846,7 @@ read
         this.stopRecording();
       } else {
         // Fallback: if no dialog but there's a process, clean it up
-        let cleanup = cleanupRecordingState(this);
+        const cleanup = cleanupRecordingState(this);
         log(
           `Cleanup results: dialog=${cleanup.cleanedDialog}, process=${cleanup.cleanedProcess}`
         );
@@ -1867,7 +1876,7 @@ read
       const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
 
       // Build command arguments for typing
-      let args = [
+      const args = [
         `${this.path}/venv/bin/python3`,
         `${this.path}/whisper_typing.py`,
         `--type-only`,

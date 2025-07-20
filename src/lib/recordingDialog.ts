@@ -4,14 +4,35 @@ import St from "gi://St";
 import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { COLORS, STYLES } from "./constants.js";
-import { createHoverButton, createVerticalBox } from "./uiUtils.js";
+import { createHoverButton } from "./uiUtils.js";
 
 // Check Wayland status once at load
 const IS_WAYLAND = Meta.is_wayland_compositor();
 
+export interface RecordingDialogCallbacks {
+  onStop: () => void;
+  onCancel: () => void;
+  onInsert: (text: string) => void;
+}
+
 // Simple recording dialog using custom modal barrier
 export class RecordingDialog {
-  constructor(onStop, onCancel, onInsert, maxDuration = 60) {
+  public modalBarrier: St.Widget;
+  public dialogBox: St.BoxLayout;
+  public statusLabel: St.Label;
+  public timerLabel: St.Label;
+  public isPreviewMode: boolean;
+  public transcribedText: string;
+  
+  private onStop: () => void;
+  private onCancel: () => void;
+  private onInsert: (text: string) => void;
+  private maxDuration: number;
+  private startTime: number | null;
+  private elapsedTime: number;
+  private timerInterval: number | null;
+  
+  constructor(onStop: () => void, onCancel: () => void, onInsert: (text: string) => void, maxDuration = 60) {
     log("🎯 RecordingDialog constructor called");
 
     this.onStop = onStop;

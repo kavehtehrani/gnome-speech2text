@@ -1,10 +1,24 @@
-import Clutter from "gi://Clutter";
 import Meta from "gi://Meta";
 import St from "gi://St";
 import { COLORS, STYLES } from "./constants.js";
 
+export interface ButtonStyle {
+  normal: string;
+  hover: string;
+}
+
+export interface TextButtonOptions {
+  fontSize?: string;
+  padding?: string;
+  extraStyle?: string;
+  hoverExtraStyle?: string;
+  buttonProps?: Record<string, any>;
+}
+
+export type LabelStyle = "title" | "subtitle" | "description" | "normal" | "small" | "icon";
+
 // Helper function to create button styles
-export function createButtonStyle(baseColor, hoverColor) {
+export function createButtonStyle(baseColor: string, hoverColor: string): ButtonStyle {
   return {
     normal: `
       background-color: ${baseColor};
@@ -19,7 +33,7 @@ export function createButtonStyle(baseColor, hoverColor) {
 }
 
 // Helper function to add hand cursor on button hover
-export function addHandCursorToButton(button) {
+export function addHandCursorToButton(button: St.Button): void {
   button.connect("enter-event", () => {
     global.display.set_cursor(Meta.Cursor.POINTING_HAND);
   });
@@ -30,7 +44,7 @@ export function addHandCursorToButton(button) {
 }
 
 // Helper function to create a button with hover effects
-export function createHoverButton(label, baseColor, hoverColor) {
+export function createHoverButton(label: string, baseColor: string, hoverColor: string): St.Button {
   const styles = createButtonStyle(baseColor, hoverColor);
   const button = new St.Button({
     label: label,
@@ -55,7 +69,12 @@ export function createHoverButton(label, baseColor, hoverColor) {
 }
 
 // Create a simple text button with hover effects (no background style)
-export function createTextButton(label, normalColor, hoverColor, options = {}) {
+export function createTextButton(
+  label: string, 
+  normalColor: string, 
+  hoverColor: string, 
+  options: TextButtonOptions = {}
+): St.Button {
   const baseStyle = `
     font-size: ${options.fontSize || "14px"};
     padding: ${options.padding || "8px"};
@@ -100,7 +119,7 @@ export function createTextButton(label, normalColor, hoverColor, options = {}) {
 }
 
 // Create a label with predefined styles
-export function createStyledLabel(text, style = "normal", customStyle = "") {
+export function createStyledLabel(text: string, style: LabelStyle = "normal", customStyle = ""): St.Label {
   const styles = {
     title: `font-size: 20px; font-weight: bold; color: ${COLORS.WHITE};`,
     subtitle: `font-size: 18px; font-weight: bold; color: ${COLORS.WHITE}; margin-bottom: 10px;`,
@@ -121,7 +140,7 @@ export function createVerticalBox(
   spacing = "5px",
   marginTop = "5px",
   marginBottom = "5px"
-) {
+): St.BoxLayout {
   return new St.BoxLayout({
     vertical: true,
     style: `spacing: ${spacing}; margin-top: ${marginTop}; margin-bottom: ${marginBottom};`,
@@ -129,7 +148,7 @@ export function createVerticalBox(
 }
 
 // Create a horizontal box layout with standard spacing
-export function createHorizontalBox(spacing = "10px", marginBottom = "10px") {
+export function createHorizontalBox(spacing = "10px", marginBottom = "10px"): St.BoxLayout {
   return new St.BoxLayout({
     vertical: false,
     style: `spacing: ${spacing}; margin-bottom: ${marginBottom};`,
@@ -137,7 +156,7 @@ export function createHorizontalBox(spacing = "10px", marginBottom = "10px") {
 }
 
 // Create a separator line
-export function createSeparator() {
+export function createSeparator(): St.Widget {
   return new St.Widget({
     style: "background-color: #444; height: 1px; margin: 5px 5px;",
   });

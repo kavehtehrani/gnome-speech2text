@@ -3,35 +3,48 @@
   "version": "1.0.0",
   "description": "GNOME Shell extension for speech-to-text functionality using OpenAI Whisper",
   "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "build:dist": "npm run clean:dist && tsc --outDir ./dist --declaration true --sourceMap true",
+    "clean:artifacts": "find src -name '*.d.ts' -delete && find src -name '*.js.map' -delete && find src -name '*.d.ts.map' -delete",
+    "clean:dist": "rm -rf dist && mkdir -p dist",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:js": "jest tests/js",
     "test:python": "cd src && python -m pytest ../tests/python",
     "test:integration": "jest tests/integration",
-    "lint": "eslint src/**/*.js",
-    "lint:fix": "eslint src/**/*.js --fix"
+    "lint": "eslint 'src/**/*.{js,ts}'",
+    "lint:fix": "eslint 'src/**/*.{js,ts}' --fix",
+    "type-check": "tsc --noEmit"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",
     "@babel/preset-env": "^7.23.0",
+    "@types/node": "^24.0.15",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
     "babel-jest": "^29.7.0",
     "eslint": "^8.50.0",
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
+    "jest-environment-jsdom": "^29.7.0",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3"
   },
   "jest": {
     "testEnvironment": "node",
+    "testRunner": "jest-jasmine2",
     "setupFilesAfterEnv": [
-      "<rootDir>/tests/setup.js"
+      "<rootDir>/tests/setup.ts"
     ],
     "testMatch": [
-      "**/tests/js/**/*.test.js",
-      "**/tests/integration/**/*.test.js"
+      "**/tests/js/**/*.test.{js,ts}",
+      "**/tests/integration/**/*.test.{js,ts}"
     ],
     "collectCoverageFrom": [
-      "src/**/*.js",
-      "!src/whisper_typing.py"
+      "src/**/*.{js,ts}",
+      "!src/whisper_typing.py",
+      "!src/types/**/*"
     ],
     "coverageDirectory": "coverage",
     "coverageReporters": [
@@ -39,7 +52,28 @@
       "lcov",
       "html"
     ],
-    "testRunner": "jest-jasmine2"
+    "moduleNameMapper": {
+      "^gi://Clutter$": "<rootDir>/tests/__mocks__/gi-clutter.js",
+      "^gi://Gio$": "<rootDir>/tests/__mocks__/gi-gio.js",
+      "^gi://GLib$": "<rootDir>/tests/__mocks__/gi-glib.js",
+      "^gi://Meta$": "<rootDir>/tests/__mocks__/gi-meta.js",
+      "^gi://Shell$": "<rootDir>/tests/__mocks__/gi-shell.js",
+      "^gi://St$": "<rootDir>/tests/__mocks__/gi-st.js",
+      "^resource:///org/gnome/shell/ui/main.js$": "<rootDir>/tests/__mocks__/main.js",
+      "^resource:///org/gnome/shell/ui/panelMenu.js$": "<rootDir>/tests/__mocks__/panelMenu.js",
+      "^resource:///org/gnome/shell/ui/popupMenu.js$": "<rootDir>/tests/__mocks__/popupMenu.js",
+      "^resource:///org/gnome/shell/extensions/extension.js$": "<rootDir>/tests/__mocks__/extension.js",
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "transform": {
+      "^.+\\.ts$": ["ts-jest", {
+        "tsconfig": "tsconfig.test.json"
+      }],
+      "^.+\\.js$": ["babel-jest"]
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(.*\\.mjs$))"
+    ]
   },
   "babel": {
     "presets": [

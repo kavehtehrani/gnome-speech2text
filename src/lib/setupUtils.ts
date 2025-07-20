@@ -1,7 +1,7 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
-export function runSetupScript(extensionPath) {
+export function runSetupScript(extensionPath: string): boolean {
   try {
     const setupScript = `${extensionPath}/scripts/setup_env.sh`;
     const file = Gio.File.new_for_path(setupScript);
@@ -50,7 +50,7 @@ export function runSetupScript(extensionPath) {
   }
 }
 
-export function checkSetupStatus(extensionPath) {
+export function checkSetupStatus(extensionPath: string): { needsSetup: boolean; message?: string } {
   const venvPath = `${extensionPath}/venv`;
   const venvDir = Gio.File.new_for_path(venvPath);
 

@@ -7,8 +7,26 @@ jest.mock('gi://GLib', () => ({
   spawn_async: jest.fn(),
 }), { virtual: true });
 
+// Define mock process interface
+interface MockProcess {
+  pid: number;
+  stdin: {
+    write: jest.Mock;
+    end: jest.Mock;
+  };
+  stdout: {
+    on: jest.Mock;
+    pipe: jest.Mock;
+  };
+  stderr: {
+    on: jest.Mock;
+  };
+  on: jest.Mock;
+  kill: jest.Mock;
+}
+
 describe('Extension-Python Integration', () => {
-  let mockProcess;
+  let mockProcess: MockProcess;
   
   beforeEach(() => {
     mockProcess = {
@@ -30,7 +48,7 @@ describe('Extension-Python Integration', () => {
     
     // Mock GLib.spawn_async
     const GLib = require('gi://GLib');
-    GLib.spawn_async.mockImplementation((workingDir, argv, envp, flags, childSetup, callback) => {
+    GLib.spawn_async.mockImplementation((workingDir: string, argv: string[], envp: string[] | null, flags: number, childSetup: any, callback: (error: null, pid: number) => void) => {
       // Simulate successful process spawn
       setTimeout(() => callback(null, mockProcess.pid), 0);
       return true;
@@ -71,7 +89,7 @@ describe('Extension-Python Integration', () => {
       const testOutput = '🎤 Recording started\n';
       
       // Mock stdout data handler
-      const stdoutHandler = jest.fn((event, callback) => {
+      const stdoutHandler = jest.fn((event: string, callback: (data: string) => void) => {
         if (event === 'data') {
           setTimeout(() => callback(testOutput), 0);
         }
@@ -87,7 +105,7 @@ describe('Extension-Python Integration', () => {
     });
 
     test('should handle Python process completion', (done) => {
-      const processHandler = jest.fn((event, callback) => {
+      const processHandler = jest.fn((event: string, callback: (exitCode: number) => void) => {
         if (event === 'exit') {
           setTimeout(() => callback(0), 0);
         }
@@ -103,7 +121,7 @@ describe('Extension-Python Integration', () => {
 
     test('should handle Python process errors', (done) => {
       const errorMessage = 'Recording failed';
-      const stderrHandler = jest.fn((event, callback) => {
+      const stderrHandler = jest.fn((event: string, callback: (data: string) => void) => {
         if (event === 'data') {
           setTimeout(() => callback(errorMessage), 0);
         }
@@ -146,7 +164,7 @@ describe('Extension-Python Integration', () => {
       const transcriptionOutput = '✅ Transcription complete: Hello world';
       
       // Simulate parsing logic
-      const parseTranscription = (output) => {
+      const parseTranscription = (output: string): string | null => {
         const match = output.match(/✅ Transcription complete: (.+)/);
         return match ? match[1] : null;
       };
@@ -158,7 +176,7 @@ describe('Extension-Python Integration', () => {
     test('should handle empty transcription', () => {
       const emptyOutput = '✅ Transcription complete: ';
       
-      const parseTranscription = (output) => {
+      const parseTranscription = (output: string): string | null => {
         const match = output.match(/✅ Transcription complete: (.+)/);
         return match ? match[1].trim() : null;
       };
@@ -174,7 +192,7 @@ describe('Extension-Python Integration', () => {
         '✅ Transcription complete: Test message'
       ];
       
-      statusMessages.forEach(message => {
+      statusMessages.forEach((message: string) => {
         expect(message).toMatch(/^[🎤🔄✅]/);
       });
     });
