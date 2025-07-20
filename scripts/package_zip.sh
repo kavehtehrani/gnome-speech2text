@@ -19,18 +19,19 @@ mkdir -p "$DIST_DIR"
 
 # Create temporary directory
 TEMP_DIR=$(mktemp -d)
-EXTENSION_DIR="$TEMP_DIR/gnome-speech2text@klocal"
+EXTENSION_DIR="$TEMP_DIR/gnome-speech2text@kaveh.page"
 
 echo -e "${YELLOW}Creating extension directory...${NC}"
 # Create extension directory
 mkdir -p "$EXTENSION_DIR"
 
 echo -e "${YELLOW}Copying extension files...${NC}"
-# Copy core extension files
-cp -r "$SRC_DIR/extension.js" "$EXTENSION_DIR/"
-cp -r "$SRC_DIR/lib" "$EXTENSION_DIR/"
+# Copy compiled JavaScript files from src/js/
+cp -r "$SRC_DIR/js/extension.js" "$EXTENSION_DIR/"
+cp -r "$SRC_DIR/js/lib" "$EXTENSION_DIR/"
 cp -r "$SRC_DIR/metadata.json" "$EXTENSION_DIR/"
 cp -r "$SRC_DIR/whisper_typing.py" "$EXTENSION_DIR/"
+cp -r "$SRC_DIR/wayland_typing.py" "$EXTENSION_DIR/"
 cp -r "$SRC_DIR/schemas" "$EXTENSION_DIR/"
 cp -r "$SRC_DIR/icons" "$EXTENSION_DIR/"
 
@@ -53,6 +54,14 @@ if [ -f "$PROJECT_ROOT/CHANGELOG.md" ]; then
     cp "$PROJECT_ROOT/CHANGELOG.md" "$EXTENSION_DIR/"
 fi
 
+if [ -f "$PROJECT_ROOT/CLAUDE.md" ]; then
+    cp "$PROJECT_ROOT/CLAUDE.md" "$EXTENSION_DIR/"
+fi
+
+if [ -f "$PROJECT_ROOT/TESTING.md" ]; then
+    cp "$PROJECT_ROOT/TESTING.md" "$EXTENSION_DIR/"
+fi
+
 # Create zip file
 echo -e "${YELLOW}Creating zip package...${NC}"
 cd "$EXTENSION_DIR" || exit
@@ -72,11 +81,11 @@ echo -e "${GREEN}   📏 Size: ${ZIP_SIZE}${NC}"
 echo ""
 echo -e "${BLUE}📋 Package contents:${NC}"
 echo "   • Extension core files (extension.js, metadata.json, etc.)"
-echo "   • Modular library files (lib/ directory with utility modules)"
-echo "   • Python scripts (whisper_typing.py)"
+echo "   • Compiled JavaScript files (lib/ directory with utility modules)"
+echo "   • Python scripts (whisper_typing.py, wayland_typing.py)"
 echo "   • All installation scripts (install.sh, uninstall.sh, setup_env.sh, etc.)"
 echo "   • GSettings schemas"
 echo "   • Icons and assets"
-echo "   • Documentation (README.md, LICENSE, etc.)"
+echo "   • Documentation (README.md, LICENSE, CLAUDE.md, etc.)"
 echo ""
 echo -e "${YELLOW}💡 To install: Run ./scripts/install.sh from the extracted package${NC}"
