@@ -7,7 +7,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Get the directory where the script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SRC_DIR="$PROJECT_ROOT/src"
 DIST_DIR="$PROJECT_ROOT/dist"
@@ -19,7 +19,7 @@ mkdir -p "$DIST_DIR"
 
 # Create temporary directory
 TEMP_DIR=$(mktemp -d)
-EXTENSION_DIR="$TEMP_DIR/gnome-speech2text@kaveh.page"
+EXTENSION_DIR="$TEMP_DIR/gnome-speech2text@klocal"
 
 echo -e "${YELLOW}Creating extension directory...${NC}"
 # Create extension directory
@@ -56,7 +56,7 @@ fi
 # Create zip file
 echo -e "${YELLOW}Creating zip package...${NC}"
 cd "$EXTENSION_DIR" || exit
-zip -r "$DIST_DIR/gnome-speech2text@kaveh.page.zip" . > /dev/null
+zip -r "$DIST_DIR/gnome-speech2text@kaveh.page.zip" . >/dev/null
 
 # Get zip file size
 ZIP_SIZE=$(du -h "$DIST_DIR/gnome-speech2text@kaveh.page.zip" | cut -f1)
@@ -79,4 +79,4 @@ echo "   • GSettings schemas"
 echo "   • Icons and assets"
 echo "   • Documentation (README.md, LICENSE, etc.)"
 echo ""
-echo -e "${YELLOW}💡 To install: Run ./scripts/install.sh from the extracted package${NC}" 
+echo -e "${YELLOW}💡 To install: Run ./scripts/install.sh from the extracted package${NC}"

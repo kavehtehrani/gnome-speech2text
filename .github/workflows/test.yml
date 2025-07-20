@@ -100,9 +100,9 @@ jobs:
     - name: Check extension structure
       run: |
         # Verify required files exist
-        test -f src/extension.js
+        test -f src/js/extension.js || test -f src/extension.ts
         test -f src/metadata.json
         test -f src/whisper_typing.py
-        test -d src/lib
+        test -d src/js/lib
         test -d src/schemas
         test -d src/icons

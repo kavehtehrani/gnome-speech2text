@@ -28,7 +28,7 @@ import {
   cleanupRecordingState,
 } from "./lib/resourceUtils.js";
 import { RecordingDialog } from "./lib/recordingDialog.js";
-import { runSetupScript, checkSetupStatus } from "./lib/setupUtils.js";
+import { checkSetupStatus } from "./lib/setupUtils.js";
 import { ExtensionMetadata } from "./types/extension.js";
 
 let button: PanelMenu.Button | null;
@@ -88,7 +88,7 @@ export default class WhisperTypingExtension extends Extension {
           terminalCmd = terminal;
           break;
         }
-      } catch (e) {
+      } catch {
         // Continue to next terminal
       }
     }
@@ -244,17 +244,17 @@ read
                 log(`Focused setup terminal window: ${windowId}`);
               }
             }
-          } catch (e) {
+          } catch {
             log(`Could not focus terminal window: ${e}`);
           }
           return false; // Don't repeat
         });
 
         // Clean up temp script when process completes
-        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, status) => {
+        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, (pid, _status) => {
           try {
             GLib.unlink(tempScript);
-          } catch (e) {
+          } catch {
             // Ignore cleanup errors
           }
           GLib.spawn_close_pid(pid);
@@ -264,7 +264,7 @@ read
       } else {
         throw new Error("Failed to launch terminal");
       }
-    } catch (e) {
+    } catch {
       log(`Error launching terminal setup: ${e}`);
       Main.notify(
         "Speech2Text Error",
@@ -1097,7 +1097,7 @@ read
     closeButton.connect("clicked", closeSettings);
 
     // Click outside to close - but make sure to block all background clicks
-    clickHandlerId = overlay.connect("button-press-event", (actor, event) => {
+    clickHandlerId = overlay.connect("button-press-event", (_actor, _event) => {
       // Block all background clicks but don't close the window
       return Clutter.EVENT_STOP;
     });
@@ -1128,7 +1128,7 @@ read
       // Remove existing keybinding
       try {
         Main.wm.removeKeybinding("toggle-recording");
-      } catch (e) {
+      } catch {
         // Ignore errors
       }
 
@@ -1189,7 +1189,7 @@ read
 
         // Show confirmation
         Main.notify("Speech2Text", "Keyboard shortcut removed");
-      } catch (e) {
+      } catch {
         log(`Error removing keybinding: ${e}`);
         Main.notify("Speech2Text", "Error removing keyboard shortcut");
       }
@@ -1456,7 +1456,7 @@ read
     // Always remove existing keybinding first
     try {
       Main.wm.removeKeybinding("toggle-recording");
-    } catch (e) {
+    } catch {
       // Ignore errors if keybinding doesn't exist
     }
 
@@ -1486,7 +1486,7 @@ read
         }
       );
       log(`Keybinding registered: ${this.currentKeybinding}`);
-    } catch (e) {
+    } catch {
       log(`Error registering keybinding: ${e}`);
     }
   }
@@ -1532,7 +1532,7 @@ read
         log("⚠️ Failed to send SIGUSR1, trying SIGTERM");
         GLib.spawn_command_line_sync(`kill -TERM ${this.recordingProcess}`);
       }
-    } catch (e) {
+    } catch {
       log(`❌ Error sending signal: ${e}`);
     }
     // Don't cleanup yet - let the process finish and show preview
@@ -1580,7 +1580,7 @@ read
         }
       }
 
-      const [success, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
+      const [success, pid, _stdin, stdout, _stderr] = GLib.spawn_async_with_pipes(
         null,
         args,
         null,
@@ -1727,7 +1727,7 @@ read
 
                   readOutput();
                 }
-              } catch (e) {
+              } catch {
                 log(`Error reading stdout: ${e}`);
               }
             }
@@ -1773,7 +1773,7 @@ read
           // If successful and preview is showing, everything is working correctly
         });
       }
-    } catch (e) {
+    } catch {
       log(`Error starting recording: ${e}`);
       cleanupRecordingState(this);
     }
@@ -1787,7 +1787,7 @@ read
     try {
       Main.wm.removeKeybinding("toggle-recording");
       log("Keybinding removed");
-    } catch (e) {
+    } catch {
       log(`Error removing keybinding: ${e}`);
     }
 
@@ -1929,7 +1929,7 @@ read
         const message = IS_WAYLAND ? "Failed to process text." : "Failed to insert text.";
         Main.notify("Speech2Text Error", message);
       }
-    } catch (e) {
+    } catch {
       log(`❌ Error typing text: ${e}`);
       const message = IS_WAYLAND ? "Failed to process text." : "Failed to insert text.";
       Main.notify("Speech2Text Error", message);
@@ -1937,6 +1937,7 @@ read
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function init(metadata) {
   return new WhisperTypingExtension(metadata);
 }

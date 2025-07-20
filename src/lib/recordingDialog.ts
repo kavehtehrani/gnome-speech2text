@@ -72,7 +72,7 @@ export class RecordingDialog {
           if (Clutter.get_key_name) {
             keyname = Clutter.get_key_name(keyval) || `keycode-${keyval}`;
           }
-        } catch (nameError) {
+        } catch {
           keyname = `keycode-${keyval}`;
         }
 

@@ -57,9 +57,10 @@ class TestDisplayServerDetection:
     def test_detect_x11_via_display_env(self, mock_environment):
         """Test X11 detection via DISPLAY"""
         mock_environment['XDG_SESSION_TYPE'] = ''
-        mock_environment['WAYLAND_DISPLAY'] = None
+        if 'WAYLAND_DISPLAY' in mock_environment:
+            del mock_environment['WAYLAND_DISPLAY']
         mock_environment['DISPLAY'] = ':0'
-        with patch.dict(os.environ, mock_environment):
+        with patch.dict(os.environ, mock_environment, clear=False):
             result = whisper_typing.detect_display_server()
             assert result == 'x11'
 

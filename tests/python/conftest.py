@@ -48,8 +48,4 @@ def mock_environment():
         'XDG_SESSION_TYPE': 'x11',
         'DISPLAY': ':0'
     }
-    with patch.dict(os.environ, env_vars, clear=False):
-        # Remove WAYLAND_DISPLAY if it exists
-        if 'WAYLAND_DISPLAY' in os.environ:
-            del os.environ['WAYLAND_DISPLAY']
-        yield env_vars
+    return env_vars
