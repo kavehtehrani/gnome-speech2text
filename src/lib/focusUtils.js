@@ -5,7 +5,7 @@ export function debugFocusState(context = "") {
   const prefix = context ? `🔍 ${context} FOCUS DEBUG` : "🔍 FOCUS DEBUG";
 
   try {
-    let currentFocus = global.stage.get_key_focus();
+    const currentFocus = global.stage.get_key_focus();
     log(
       `${prefix} - Current stage focus: ${
         currentFocus ? currentFocus.toString() : "NULL"
@@ -18,7 +18,7 @@ export function debugFocusState(context = "") {
     );
 
     if (success && stdout) {
-      let windowId = new TextDecoder().decode(stdout).trim();
+      const windowId = new TextDecoder().decode(stdout).trim();
       log(`${prefix} - Active X11 window ID: ${windowId}`);
 
       // Get window name
@@ -26,7 +26,7 @@ export function debugFocusState(context = "") {
         `xdotool getwindowname ${windowId}`
       );
       if (nameSuccess && nameStdout) {
-        let windowName = new TextDecoder().decode(nameStdout).trim();
+        const windowName = new TextDecoder().decode(nameStdout).trim();
         log(`${prefix} - Active window name: ${windowName}`);
       }
 
@@ -58,7 +58,7 @@ export function establishX11FocusContext(callback = null) {
     );
 
     if (findSuccess && findStdout) {
-      let anyWindowId = new TextDecoder().decode(findStdout).trim();
+      const anyWindowId = new TextDecoder().decode(findStdout).trim();
       if (anyWindowId) {
         log(
           `🔍 FOCUS DEBUG - Found window ${anyWindowId}, focusing it to establish X11 context`

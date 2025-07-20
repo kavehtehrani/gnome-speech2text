@@ -31,8 +31,8 @@ export function addHandCursorToButton(button) {
 
 // Helper function to create a button with hover effects
 export function createHoverButton(label, baseColor, hoverColor) {
-  let styles = createButtonStyle(baseColor, hoverColor);
-  let button = new St.Button({
+  const styles = createButtonStyle(baseColor, hoverColor);
+  const button = new St.Button({
     label: label,
     style: styles.normal,
     reactive: true,
@@ -63,7 +63,7 @@ export function createTextButton(label, normalColor, hoverColor, options = {}) {
     transition: all 0.2s ease;
   `;
 
-  let button = new St.Button({
+  const button = new St.Button({
     label: label,
     style: `
       color: ${normalColor};

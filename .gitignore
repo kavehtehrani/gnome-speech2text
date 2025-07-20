@@ -4,3 +4,6 @@
 /archive/
 /test/
 /src/schemas/gschemas.compiled
+node_modules
+test-env
+coverage

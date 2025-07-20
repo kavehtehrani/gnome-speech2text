@@ -38,7 +38,7 @@ export class RecordingDialog {
     this.modalBarrier.connect("key-press-event", (actor, event) => {
       try {
         // Get the key symbol safely
-        let keyval = event.get_key_symbol ? event.get_key_symbol() : null;
+        const keyval = event.get_key_symbol ? event.get_key_symbol() : null;
 
         if (!keyval) {
           log(`🎯 KEYBOARD EVENT: Could not get key symbol`);
@@ -621,7 +621,7 @@ export class RecordingDialog {
 
     // Determine color based on progress
     let barColor = COLORS.PRIMARY;
-    let textColor = "white";
+    const textColor = "white";
 
     if (progress > 0.8) {
       barColor = progress > 0.95 ? COLORS.DANGER : COLORS.WARNING;
