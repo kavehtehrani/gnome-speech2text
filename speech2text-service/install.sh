@@ -2,6 +2,13 @@
 
 set -e
 
+# Check if running interactively
+INTERACTIVE=true
+if [ ! -t 0 ]; then
+    INTERACTIVE=false
+    echo "Running in non-interactive mode (piped execution)"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,6 +33,22 @@ version_ge() {
     printf '%s\n%s\n' "$2" "$1" | sort -V -C
 }
 
+# Helper function for interactive prompts
+ask_user() {
+    local prompt="$1"
+    local default="$2"
+    local response=""
+    
+    if [ "$INTERACTIVE" = true ]; then
+        read -p "$prompt" response
+    else
+        echo "$prompt$default (non-interactive default)"
+        response="$default"
+    fi
+    
+    echo "$response"
+}
+
 print_status "Installing GNOME Speech2Text D-Bus Service"
 
 echo ""
@@ -35,7 +58,7 @@ echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, pytho
 echo "We need to run the following command to install all dependencies:"
 echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip"
 echo ""
-read -p "Would you like to install all dependencies at once? [Y/n]: " install_all
+install_all=$(ask_user "Would you like to install all dependencies at once? [Y/n]: " "Y")
 case "$install_all" in
     [Nn]* ) 
         echo "Checking dependencies individually..."
@@ -63,7 +86,7 @@ if ! command_exists python3; then
     echo "Please run the following command to install Python 3:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_python
+    install_python=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_python" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3 || error_exit "Failed to install Python 3"
@@ -92,7 +115,7 @@ if ! command_exists pip3; then
     echo "Please run the following command to install pip3:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-pip${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_pip
+    install_pip=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_pip" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-pip || error_exit "Failed to install pip3"
@@ -113,7 +136,7 @@ if ! command_exists ffmpeg; then
     echo "Please run the following command to install it:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y ffmpeg${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_ffmpeg
+    install_ffmpeg=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_ffmpeg" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y ffmpeg || error_exit "Failed to install ffmpeg"
@@ -131,7 +154,7 @@ if ! command_exists xdotool; then
     echo "Please run the following command to install it:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y xdotool${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_xdotool
+    install_xdotool=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_xdotool" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y xdotool || error_exit "Failed to install xdotool"
@@ -157,7 +180,7 @@ if [ "$CLIPBOARD_AVAILABLE" = false ]; then
     echo "Please run the following command to install xclip:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y xclip${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_xclip
+    install_xclip=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_xclip" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y xclip || echo -e "${YELLOW}Warning:${NC} Failed to install xclip, continuing without clipboard support"
@@ -177,7 +200,7 @@ if ! python3 -c "import dbus" 2>/dev/null; then
     echo "Please run the following command to install it:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-dbus${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_dbus
+    install_dbus=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_dbus" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-dbus || error_exit "Failed to install python3-dbus"
@@ -194,7 +217,7 @@ if ! python3 -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
     echo "Please run the following command to install it:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-gi${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_gi
+    install_gi=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_gi" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-gi || error_exit "Failed to install python3-gi"
@@ -221,7 +244,7 @@ if ! python3 -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
     echo "Please run the following command to install python3-venv:"
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-venv${NC}"
     echo ""
-    read -p "Would you like to run this command now? [y/N]: " install_venv
+    install_venv=$(ask_user "Would you like to run this command now? [y/N]: " "y")
     case "$install_venv" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-venv || error_exit "Failed to install python3-venv"
