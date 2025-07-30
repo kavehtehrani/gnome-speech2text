@@ -260,22 +260,45 @@ print_status "Upgrading pip..."
 "$VENV_DIR/bin/pip" install --upgrade pip
 
 print_status "Installing Python dependencies..."
-"$VENV_DIR/bin/pip" install -r requirements.txt
 
-print_status "Installing service files..."
+# Handle file downloads/copies based on execution mode
+if [ "$INTERACTIVE" = false ]; then
+    # Running via wget pipe - download all files from GitHub
+    print_status "Downloading files from GitHub..."
+    REPO_BASE="https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service"
+    
+    wget -q "$REPO_BASE/requirements.txt" -O "$SERVICE_DIR/requirements.txt" || error_exit "Failed to download requirements.txt"
+    wget -q "$REPO_BASE/speech2text_service.py" -O "$SERVICE_DIR/speech2text_service.py" || error_exit "Failed to download speech2text_service.py"
+    wget -q "$REPO_BASE/speech2text-service" -O "$SERVICE_DIR/speech2text-service" || error_exit "Failed to download speech2text-service"
+    wget -q "$REPO_BASE/org.gnome.Speech2Text.service" -O "/tmp/org.gnome.Speech2Text.service" || error_exit "Failed to download service file"
+    
+    chmod +x "$SERVICE_DIR/speech2text-service"
+else
+    # Running locally - copy local files
+    cp requirements.txt "$SERVICE_DIR/requirements.txt" || error_exit "requirements.txt not found in current directory"
+    cp speech2text_service.py "$SERVICE_DIR/" || error_exit "speech2text_service.py not found in current directory"
+    cp speech2text-service "$SERVICE_DIR/" || error_exit "speech2text-service not found in current directory"
+    chmod +x "$SERVICE_DIR/speech2text-service"
+fi
 
-# Copy service files
-cp speech2text_service.py "$SERVICE_DIR/"
-cp speech2text-service "$SERVICE_DIR/"
-chmod +x "$SERVICE_DIR/speech2text-service"
+"$VENV_DIR/bin/pip" install -r "$SERVICE_DIR/requirements.txt"
 
+print_status "Installing D-Bus service..."
 # Install D-Bus service file
 DBUS_SERVICE_DIR="$HOME/.local/share/dbus-1/services"
 mkdir -p "$DBUS_SERVICE_DIR"
 
 # Update the service file with correct path
-sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/speech2text-service|g" \
-    org.gnome.Speech2Text.service > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+if [ "$INTERACTIVE" = false ]; then
+    # Use the downloaded file from /tmp
+    sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/speech2text-service|g" \
+        /tmp/org.gnome.Speech2Text.service > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+    rm -f /tmp/org.gnome.Speech2Text.service
+else
+    # Use the local file
+    sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/speech2text-service|g" \
+        org.gnome.Speech2Text.service > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+fi
 
 print_status "Creating desktop entry..."
 DESKTOP_DIR="$HOME/.local/share/applications"
