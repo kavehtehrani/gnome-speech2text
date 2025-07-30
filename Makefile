@@ -84,6 +84,7 @@ clean:
 	fi
 	@echo "🧹 Removing D-Bus service..."
 	@systemctl --user stop speech2text-service 2>/dev/null || true
+	@pkill -f "speech2text_service.py" 2>/dev/null || true
 	@if [ -d "$(HOME)/.local/share/gnome-speech2text-service" ]; then \
 		rm -rf $(HOME)/.local/share/gnome-speech2text-service; \
 		echo "✅ Service directory removed"; \
@@ -102,6 +103,8 @@ clean:
 	else \
 		echo "ℹ️  Desktop entry not found"; \
 	fi
+	@echo "🧹 Resetting extension settings..."
+	@gsettings reset org.shell.extensions.gnome-speech2text first-run 2>/dev/null || echo "ℹ️  Settings already at defaults"
 	@echo "🎯 Complete cleanup finished!"
 
 # Clean only D-Bus service (for testing)

@@ -11,7 +11,11 @@ import {
   createHorizontalBox,
   createStyledLabel,
 } from "./uiUtils.js";
-import { createCenteredBox, createHeaderLayout } from "./buttonUtils.js";
+import {
+  createCenteredBox,
+  createHeaderLayout,
+  createCloseButton,
+} from "./buttonUtils.js";
 import { cleanupModal } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
@@ -77,7 +81,9 @@ export class ServiceSetupDialog {
     titleContainer.add_child(headerIcon);
     titleContainer.add_child(headerText);
 
-    const headerBox = createHeaderLayout(titleContainer);
+    // Create top-right close button
+    this.closeButton = createCloseButton(32);
+    const headerBox = createHeaderLayout(titleContainer, this.closeButton);
 
     // Status message
     const statusLabel = new St.Label({
@@ -478,6 +484,9 @@ This service needs to be installed separately from the extension.`,
     this.dialogContainer.add_child(buttonBox);
 
     this.overlay.add_child(this.dialogContainer);
+
+    // Close button handler
+    this.closeButton.connect("clicked", () => this.close());
 
     // Keyboard handling
     this.keyPressHandler = this.overlay.connect(
