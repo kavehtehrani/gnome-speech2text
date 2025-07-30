@@ -231,7 +231,7 @@ This service needs to be installed separately from the extension.`,
     });
 
     const dependenciesBox = new St.Label({
-      text: "sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip",
+      text: "sudo apt install python3 python3-pip python3-venv ffmpeg xclip",
       style: `
         background-color: ${COLORS.DARK_GRAY};
         border: 1px solid ${COLORS.SECONDARY};
@@ -296,7 +296,7 @@ This service needs to be installed separately from the extension.`,
 
     copyDepsInlineButton.connect("clicked", () => {
       this._copyToClipboard(
-        "sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip"
+        "sudo apt install python3 python3-pip python3-venv ffmpeg xclip"
       );
       Main.notify("Speech2Text", "Dependencies command copied to clipboard!");
     });
@@ -527,15 +527,40 @@ This service needs to be installed separately from the extension.`,
 
   _openUrl(url) {
     try {
-      GLib.spawn_command_line_async(`xdg-open ${url}`);
+      // Use D-Bus portal API for opening URLs safely
+      const portal = Gio.DBusProxy.new_sync(
+        Gio.DBus.session,
+        Gio.DBusProxyFlags.NONE,
+        null,
+        "org.freedesktop.portal.Desktop",
+        "/org/freedesktop/portal/desktop",
+        "org.freedesktop.portal.OpenURI",
+        null
+      );
+
+      portal.call_sync(
+        "OpenURI",
+        new GLib.Variant("(ssa{sv})", ["", url, {}]),
+        Gio.DBusCallFlags.NONE,
+        -1,
+        null
+      );
+
       Main.notify("Speech2Text", "Opening GitHub repository in browser...");
     } catch (e) {
-      console.error(`Error opening URL: ${e}`);
-      Main.notify(
-        "Speech2Text Error",
-        "Failed to open browser. URL copied to clipboard."
-      );
-      this._copyToClipboard(url);
+      console.error(`Error opening URL via portal: ${e}`);
+      try {
+        // Fallback to xdg-open if portal fails
+        Gio.app_info_launch_default_for_uri(url, null);
+        Main.notify("Speech2Text", "Opening GitHub repository in browser...");
+      } catch (fallbackError) {
+        console.error(`Error opening URL: ${fallbackError}`);
+        Main.notify(
+          "Speech2Text Error",
+          "Failed to open browser. URL copied to clipboard."
+        );
+        this._copyToClipboard(url);
+      }
     }
   }
 
@@ -555,41 +580,35 @@ This service needs to be installed separately from the extension.`,
         return;
       }
 
-      // Try different terminal emulators to run the install.sh directly
-      const terminalCommands = [
-        `gnome-terminal --working-directory="${extensionDir}/speech2text-service" -- bash -c "./install.sh; echo; echo 'Press Enter to close...'; read"`,
-        `xterm -e "cd '${extensionDir}/speech2text-service' && ./install.sh && echo && echo 'Press Enter to close...' && read"`,
-        `konsole --workdir "${extensionDir}/speech2text-service" -e bash -c "./install.sh; echo; echo 'Press Enter to close...'; read"`,
-        `terminator --working-directory="${extensionDir}/speech2text-service" -e "bash -c './install.sh; echo; echo Press Enter to close...; read'"`,
-        `x-terminal-emulator -e bash -c "cd '${extensionDir}/speech2text-service' && ./install.sh && echo && echo 'Press Enter to close...' && read"`,
-      ];
+      // Use proper async subprocess to open gnome-terminal safely
+      try {
+        const proc = Gio.Subprocess.new(
+          [
+            "gnome-terminal",
+            `--working-directory=${extensionDir}/speech2text-service`,
+            "--",
+            "bash",
+            "-c",
+            './install.sh; echo; echo "Press Enter to close..."; read',
+          ],
+          Gio.SubprocessFlags.NONE
+        );
 
-      let terminalOpened = false;
-      for (const cmd of terminalCommands) {
-        try {
-          GLib.spawn_command_line_async(cmd);
-          terminalOpened = true;
-          break;
-        } catch (e) {
-          // Try next terminal emulator
-          continue;
-        }
-      }
-
-      if (terminalOpened) {
         Main.notify(
           "Speech2Text",
           this.isFirstRun
             ? "🚀 Setting up Speech2Text for you! Follow the terminal instructions."
-            : this.isManualRequest
-            ? "🔧 Opening service installation guide in terminal..."
-            : "Opening service installation in terminal..."
+            : "🔧 Opening service installation in terminal..."
         );
         this.close();
-      } else {
+      } catch (terminalError) {
+        // Fallback: copy to clipboard if gnome-terminal unavailable (very rare)
+        console.error(`Could not open gnome-terminal: ${terminalError}`);
+        const installCommand = `cd "${extensionDir}/speech2text-service" && ./install.sh`;
+        this._copyToClipboard(installCommand);
         Main.notify(
-          "Speech2Text Error",
-          "Could not open terminal. Please use manual installation."
+          "Speech2Text",
+          "Could not open terminal. Installation command copied to clipboard - please paste in your terminal."
         );
       }
     } catch (e) {

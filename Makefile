@@ -5,8 +5,9 @@ EXTENSION_UUID = gnome-speech2text@kaveh.page
 EXTENSION_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas
+SCHEMA_ID = org.shell.extensions.speech2text
 
-.PHONY: help install compile-schemas restart-shell clean clean-service package dev-install
+.PHONY: help install compile-schemas restart-shell clean clean-service package dev-install clean-install status verify-schema
 
 # Default target
 help:
@@ -15,13 +16,16 @@ help:
 	@echo ""
 	@echo "Available targets:"
 	@echo "  install          - Install extension to user directory"
+	@echo "  clean-install    - Clean old files + install (recommended)"
 	@echo "  compile-schemas  - Compile GSettings schemas"
 	@echo "  restart-shell    - Restart GNOME Shell (X11 only)"
-	@echo "  setup           - Install + compile schemas + restart"
+	@echo "  setup           - Clean install + compile schemas + restart"
 	@echo "  clean           - Remove installed extension AND D-Bus service"
 	@echo "  clean-service   - Remove only D-Bus service (for testing)"
 	@echo "  package         - Create distribution package"
 	@echo "  dev-install     - Development install (install + compile + restart)"
+	@echo "  status          - Check extension installation status"
+	@echo "  verify-schema   - Verify schema is properly installed"
 	@echo ""
 	@echo "Usage: make <target>"
 
@@ -62,10 +66,23 @@ restart-shell:
 	fi
 
 # Complete setup process
-setup: install compile-schemas restart-shell
+setup: clean-install compile-schemas restart-shell
 	@echo ""
 	@echo "🎉 Extension setup completed!"
 	@echo "   The extension should now be available in GNOME Extensions."
+
+# Clean install (ensures old schema files are removed)
+clean-install:
+	@echo "🧹 Cleaning old installation..."
+	@if [ -d "$(EXTENSION_DIR)" ]; then \
+		rm -rf $(EXTENSION_DIR); \
+		echo "✅ Removed old extension files"; \
+	fi
+	@echo "📦 Installing extension to $(EXTENSION_DIR)..."
+	@mkdir -p $(EXTENSION_DIR)
+	@cp -r $(SOURCE_DIR)/* $(EXTENSION_DIR)/
+	@cp -r speech2text-service $(EXTENSION_DIR)/
+	@echo "✅ Extension installed successfully!"
 
 # Development install (quick iteration)
 dev-install: install compile-schemas
@@ -111,7 +128,7 @@ clean:
 		echo "ℹ️  Desktop entry not found"; \
 	fi
 	@echo "🧹 Resetting extension settings..."
-	@gsettings reset org.shell.extensions.gnome-speech2text first-run 2>/dev/null || echo "ℹ️  Settings already at defaults"
+	@gsettings reset $(SCHEMA_ID) first-run 2>/dev/null || echo "ℹ️  Settings already at defaults"
 	@echo "🎯 Complete cleanup finished!"
 
 # Clean only D-Bus service (for testing)
@@ -167,4 +184,23 @@ status:
 	else \
 		echo "   ❌ Schemas not compiled"; \
 	fi
-	@echo "   Session: $(XDG_SESSION_TYPE)" 
+	@echo "   Session: $(XDG_SESSION_TYPE)"
+
+# Verify schema installation
+verify-schema:
+	@echo "🔍 Verifying schema installation..."
+	@if [ -f "$(SCHEMAS_DIR)/$(SCHEMA_ID).gschema.xml" ]; then \
+		echo "   ✅ Schema file found: $(SCHEMA_ID).gschema.xml"; \
+	else \
+		echo "   ❌ Schema file missing: $(SCHEMA_ID).gschema.xml"; \
+		echo "   Available schemas:"; \
+		ls -la $(SCHEMAS_DIR)/*.gschema.xml 2>/dev/null || echo "   No schema files found"; \
+	fi
+	@if [ -f "$(SCHEMAS_DIR)/gschemas.compiled" ]; then \
+		echo "   ✅ Schema compiled successfully"; \
+		gsettings list-schemas | grep "$(SCHEMA_ID)" > /dev/null && \
+		echo "   ✅ Schema registered with GSettings" || \
+		echo "   ❌ Schema not registered with GSettings"; \
+	else \
+		echo "   ❌ Schema not compiled"; \
+	fi 
