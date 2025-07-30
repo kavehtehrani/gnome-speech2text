@@ -1,114 +1,40 @@
 import Clutter from "gi://Clutter";
 import GLib from "gi://GLib";
-import St from "gi://St";
 import Meta from "gi://Meta";
+import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+
 import { COLORS, STYLES } from "./constants.js";
-import { createHoverButton, createVerticalBox } from "./uiUtils.js";
+import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
 
-// Check Wayland status once at load
-const IS_WAYLAND = Meta.is_wayland_compositor();
-
-// Simple recording dialog using custom modal barrier
+// Enhanced recording dialog for D-Bus version (matches original design)
 export class RecordingDialog {
-  constructor(onStop, onCancel, onInsert, maxDuration = 60) {
-    log("🎯 RecordingDialog constructor called");
+  constructor(onCancel, onInsert, onStop, maxDuration = 60) {
+    console.log("DBusRecordingDialog constructor called");
 
-    this.onStop = onStop;
     this.onCancel = onCancel;
-    this.onInsert = onInsert; // New callback for inserting text
-    this.maxDuration = maxDuration; // Maximum recording duration in seconds
-    this.startTime = null; // Will be set when recording starts
-    this.elapsedTime = 0; // Current elapsed time
-    this.timerInterval = null; // Timer interval reference
-    this.isPreviewMode = false; // Track whether we're in preview mode
-    this.transcribedText = ""; // Store the transcribed text
+    this.onInsert = onInsert;
+    this.onStop = onStop;
+    this.maxDuration = maxDuration;
+    this.startTime = null;
+    this.elapsedTime = 0;
+    this.timerInterval = null;
+    this.isPreviewMode = false;
+    this.transcribedText = "";
 
-    // Create modal barrier that covers the entire screen
+    this._buildDialog();
+  }
+
+  _buildDialog() {
+    // Create modal barrier
     this.modalBarrier = new St.Widget({
-      style: `
-        background-color: ${COLORS.TRANSPARENT_BLACK_30};
-      `,
+      style: `background-color: ${COLORS.TRANSPARENT_BLACK_30};`,
       reactive: true,
       can_focus: true,
       track_hover: true,
     });
 
-    // Set up keyboard event handling for the modal barrier
-    this.modalBarrier.connect("key-press-event", (actor, event) => {
-      try {
-        // Get the key symbol safely
-        let keyval = event.get_key_symbol ? event.get_key_symbol() : null;
-
-        if (!keyval) {
-          log(`🎯 KEYBOARD EVENT: Could not get key symbol`);
-          return Clutter.EVENT_PROPAGATE;
-        }
-
-        // Try to get key name safely
-        let keyname = "unknown";
-        try {
-          if (Clutter.get_key_name) {
-            keyname = Clutter.get_key_name(keyval) || `keycode-${keyval}`;
-          }
-        } catch (nameError) {
-          keyname = `keycode-${keyval}`;
-        }
-
-        log(`🎯 KEYBOARD EVENT RECEIVED: ${keyname} (${keyval})`);
-
-        if (keyval === Clutter.KEY_Escape) {
-          // Escape = Cancel (no transcription)
-          log(`🎯 Canceling recording via keyboard: ${keyname}`);
-          this.close();
-          this.onCancel?.();
-          return Clutter.EVENT_STOP;
-        } else if (
-          !this.isPreviewMode &&
-          (keyval === Clutter.KEY_space ||
-            keyval === Clutter.KEY_Return ||
-            keyval === Clutter.KEY_KP_Enter)
-        ) {
-          // Enter/Space = Stop and process (with transcription) - only in recording mode
-          log(`🎯 Stopping recording via keyboard: ${keyname}`);
-          // Don't close the dialog here - let the onStop callback handle the workflow
-          this.onStop?.();
-          return Clutter.EVENT_STOP;
-        } else if (
-          this.isPreviewMode &&
-          (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter)
-        ) {
-          // In preview mode, Enter behavior depends on display server
-          if (IS_WAYLAND) {
-            // On Wayland, Enter = Copy to clipboard and close
-            log(
-              `🎯 Copying text to clipboard via keyboard (Wayland): ${keyname}`
-            );
-            this._handleCopy();
-            this.close();
-            this.onCancel?.(); // Close without inserting
-          } else {
-            // On X11, Enter = Insert text
-            log(`🎯 Inserting text via keyboard (X11): ${keyname}`);
-            this._handleInsert();
-          }
-          return Clutter.EVENT_STOP;
-        }
-
-        return Clutter.EVENT_PROPAGATE;
-      } catch (e) {
-        log(`🎯 KEYBOARD EVENT ERROR: ${e}`);
-        return Clutter.EVENT_STOP;
-      }
-    });
-
-    this._buildDialog();
-
-    log("🎯 RecordingDialog constructor completed successfully");
-  }
-
-  _buildDialog() {
-    // Create main dialog container
+    // Main dialog container (matches original design)
     this.container = new St.Widget({
       style_class: "recording-dialog",
       style: `
@@ -221,16 +147,45 @@ export class RecordingDialog {
 
     // Connect button events
     this.stopButton.connect("clicked", () => {
-      log("🎯 Stop button clicked!");
-      // Don't close the dialog here - let the onStop callback handle the workflow
-      this.onStop?.();
+      console.log("Stop button clicked!");
+      this.showProcessing();
+      // Trigger the stop recording via the parent extension
+      if (this.onStop) {
+        this.onStop();
+      }
     });
 
     this.cancelButton.connect("clicked", () => {
-      log("🎯 Cancel button clicked!");
+      console.log("Cancel button clicked!");
       this.close();
       this.onCancel?.();
     });
+
+    // Keyboard handling
+    this.keyboardHandlerId = this.modalBarrier.connect(
+      "key-press-event",
+      (actor, event) => {
+        const keyval = event.get_key_symbol();
+        if (keyval === Clutter.KEY_Escape) {
+          this.close();
+          this.onCancel?.();
+          return Clutter.EVENT_STOP;
+        } else if (
+          keyval === Clutter.KEY_Return ||
+          keyval === Clutter.KEY_KP_Enter
+        ) {
+          if (!this.isPreviewMode) {
+            this.showProcessing();
+            // Trigger the stop recording
+            if (this.onStop) {
+              this.onStop();
+            }
+          }
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      }
+    );
 
     // Add to content box with proper alignment
     this.container.add_child(headerBox);
@@ -243,353 +198,6 @@ export class RecordingDialog {
 
     // Add to modal barrier
     this.modalBarrier.add_child(this.container);
-  }
-
-  _buildPreviewUI() {
-    // Clear existing content
-    this.container.remove_all_children();
-
-    // Preview header with copy button
-    const headerBox = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 15px;",
-      x_align: Clutter.ActorAlign.FILL,
-      y_align: Clutter.ActorAlign.CENTER,
-      x_expand: true,
-    });
-
-    // Left side - icon and title
-    const titleBox = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 15px;",
-      x_align: Clutter.ActorAlign.START,
-      y_align: Clutter.ActorAlign.CENTER,
-      x_expand: true,
-    });
-
-    const previewIcon = new St.Label({
-      text: "📝",
-      style: "font-size: 48px; text-align: center;",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    const previewLabel = new St.Label({
-      text: "Review & Insert",
-      style: `font-size: 20px; font-weight: bold; color: ${COLORS.WHITE};`,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    titleBox.add_child(previewIcon);
-    titleBox.add_child(previewLabel);
-
-    headerBox.add_child(titleBox);
-
-    // Instruction label
-    const instructionLabel = new St.Label({
-      text: "Review the transcribed text below.",
-      style: `font-size: 14px; color: ${COLORS.LIGHT_GRAY}; text-align: center; margin-bottom: 10px;`,
-    });
-
-    // Use St.Entry (designed for input) and hack it to be multiline
-    this.textEntry = new St.Entry({
-      text: this.transcribedText,
-      style: `
-        background-color: rgba(255, 255, 255, 0.1);
-        border: 2px solid ${COLORS.SECONDARY};
-        border-radius: 8px;
-        color: ${COLORS.WHITE};
-        font-size: 16px;
-        padding: 15px;
-        margin: 10px 0;
-        width: 400px;
-        caret-color: ${COLORS.PRIMARY};
-      `,
-      can_focus: true,
-      reactive: true,
-    });
-
-    // Make the St.Entry behave like a multiline text area
-    const clutterText = this.textEntry.get_clutter_text();
-    clutterText.set_line_wrap(true);
-    clutterText.set_line_wrap_mode(2); // WORD_CHAR wrapping
-    clutterText.set_single_line_mode(false);
-    clutterText.set_activatable(false); // Prevent Enter from triggering activation
-
-    // Intercept Enter key: Enter = insert, Shift+Enter = newline
-    clutterText.connect("key-press-event", (actor, event) => {
-      const keyval = event.get_key_symbol();
-      const state = event.get_state();
-      if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
-        // If Shift is held, allow newline
-        if (state & Clutter.ModifierType.SHIFT_MASK) {
-          return Clutter.EVENT_PROPAGATE;
-        }
-        // Otherwise, trigger insert
-        this._handleInsert();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
-    });
-
-    // Debug: Log the text that should be shown
-    log(`🎯 Setting text entry text to: "${this.transcribedText}"`);
-
-    // Action buttons
-    const buttonBox = new St.BoxLayout({
-      vertical: false,
-      style: "spacing: 10px;",
-      x_align: Clutter.ActorAlign.CENTER,
-    });
-
-    // Copy button
-    const copyButton = createHoverButton("📋 Copy", COLORS.INFO, "#42a5f5");
-
-    // Only show Insert button on X11, not on Wayland (since insertion doesn't work on Wayland)
-    let insertButton = null;
-    if (!IS_WAYLAND) {
-      insertButton = createHoverButton("Insert", COLORS.SUCCESS, "#66bb6a");
-    }
-
-    this.previewCancelButton = createHoverButton(
-      "Cancel",
-      COLORS.SECONDARY,
-      COLORS.DARK_GRAY
-    );
-
-    // Button event handlers
-    copyButton.connect("clicked", () => {
-      log("🎯 Copy button clicked!");
-      this._handleCopy();
-    });
-
-    if (insertButton) {
-      insertButton.connect("clicked", () => {
-        log("🎯 Insert button clicked!");
-        this._handleInsert();
-      });
-    }
-
-    this.previewCancelButton.connect("clicked", () => {
-      log("🎯 Preview Cancel button clicked!");
-      this.close();
-      this.onCancel?.();
-    });
-
-    // Add buttons to the box
-    buttonBox.add_child(copyButton);
-    if (insertButton) {
-      buttonBox.add_child(insertButton);
-    }
-    buttonBox.add_child(this.previewCancelButton);
-
-    // Instructions for keyboard shortcuts
-    const keyboardHint = new St.Label({
-      text: IS_WAYLAND
-        ? "Press Enter to copy to clipboard • Escape to cancel"
-        : "Press Enter to insert • Escape to cancel",
-      style: `font-size: 12px; color: ${COLORS.DARK_GRAY}; text-align: center; margin-top: 10px;`,
-    });
-
-    // Add all elements to container
-    this.container.add_child(headerBox);
-    headerBox.set_x_align(Clutter.ActorAlign.CENTER);
-    this.container.add_child(instructionLabel);
-    this.container.add_child(this.textEntry);
-    this.container.add_child(buttonBox);
-    this.container.add_child(keyboardHint);
-  }
-
-  _handleInsert() {
-    // Get the current text from the St.Entry
-    const textToInsert = this.textEntry
-      ? this.textEntry.get_text()
-      : this.transcribedText;
-
-    log(`🎯 Inserting text: "${textToInsert}"`);
-
-    this.close();
-
-    // Call the insert callback with the text
-    if (this.onInsert && textToInsert.trim()) {
-      this.onInsert(textToInsert.trim());
-    } else {
-      log("🎯 No text to insert or no callback provided");
-      this.onCancel?.();
-    }
-  }
-
-  _handleCopy() {
-    // Get the current text from the St.Entry
-    const textToCopy = this.textEntry
-      ? this.textEntry.get_text()
-      : this.transcribedText;
-
-    log(`🎯 Copying text to clipboard: "${textToCopy}"`);
-
-    if (!textToCopy.trim()) {
-      log("⚠️ No text to copy");
-      Main.notify("Speech2Text", "No text to copy");
-      return;
-    }
-
-    try {
-      // Use St.Clipboard to copy text
-      const clipboard = St.Clipboard.get_default();
-      clipboard.set_text(St.ClipboardType.CLIPBOARD, textToCopy.trim());
-
-      log("✅ Text copied to clipboard successfully");
-      Main.notify("Speech2Text", "Text copied to clipboard!");
-    } catch (e) {
-      log(`❌ Error copying to clipboard: ${e}`);
-      Main.notify("Speech2Text", "Failed to copy to clipboard");
-    }
-  }
-
-  showPreview(transcribedText) {
-    log(`🎯 Showing preview with text: "${transcribedText}"`);
-
-    // Check if dialog is still valid
-    if (!this.container || !this.container.get_parent()) {
-      log("⚠️ Dialog already disposed, cannot show preview");
-      return;
-    }
-
-    this.isPreviewMode = true;
-    this.transcribedText = transcribedText;
-
-    // Stop the timer if it's running
-    this.stopTimer();
-
-    // Clear the processing timeout
-    this.clearProcessingTimeout();
-
-    // Rebuild the UI for preview mode
-    this._buildPreviewUI();
-
-    // Focus the text entry so user can edit immediately if needed
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-      if (this.textEntry) {
-        this.textEntry.grab_key_focus();
-        // Position cursor at the end of the text
-        const clutterText = this.textEntry.get_clutter_text();
-        const textLength = this.transcribedText.length;
-        clutterText.set_cursor_position(textLength);
-      }
-      return false;
-    });
-  }
-
-  showProcessing() {
-    log("🎯 Showing processing state");
-
-    // Update the recording label to show processing
-    if (this.recordingLabel) {
-      this.recordingLabel.set_text("Processing...");
-    }
-
-    // Update the icon to show processing
-    if (this.recordingIcon) {
-      this.recordingIcon.set_text("🧠");
-    }
-
-    // Update instructions
-    if (this.instructionLabel) {
-      this.instructionLabel.set_text(
-        "Transcribing your speech...\nPress Escape to cancel."
-      );
-    }
-
-    // Hide the stop button but keep cancel button visible
-    if (this.stopButton) {
-      this.stopButton.hide();
-    }
-    if (this.cancelButton) {
-      this.cancelButton.show();
-      this.cancelButton.set_label("Cancel Processing");
-    }
-
-    // Stop the timer
-    this.stopTimer();
-
-    // Hide progress bar during processing
-    if (this.progressContainer) {
-      this.progressContainer.hide();
-    }
-
-    // Add a timeout to prevent getting stuck in processing forever
-    this.processingTimeout = GLib.timeout_add(
-      GLib.PRIORITY_DEFAULT,
-      30000,
-      () => {
-        log("⚠️ Processing timeout reached (30 seconds)");
-        this.showProcessingError("Transcription timed out. Please try again.");
-        return false; // Don't repeat
-      }
-    );
-  }
-
-  showProcessingError(message) {
-    log(`🎯 Showing processing error: ${message}`);
-
-    // Check if dialog is still valid before accessing UI elements
-    if (!this.container || !this.container.get_parent()) {
-      log("⚠️ Dialog already disposed, cannot show processing error");
-      return;
-    }
-
-    // Update the label to show error
-    if (this.recordingLabel) {
-      try {
-        this.recordingLabel.set_text("Error");
-      } catch (e) {
-        log(`⚠️ Error updating recording label: ${e}`);
-      }
-    }
-
-    // Update the icon to show error
-    if (this.recordingIcon) {
-      try {
-        this.recordingIcon.set_text("❌");
-      } catch (e) {
-        log(`⚠️ Error updating recording icon: ${e}`);
-      }
-    }
-
-    // Update instructions
-    if (this.instructionLabel) {
-      try {
-        this.instructionLabel.set_text(`${message}\nPress Escape to close.`);
-      } catch (e) {
-        log(`⚠️ Error updating instruction label: ${e}`);
-      }
-    }
-
-    // Show only cancel button
-    if (this.stopButton) {
-      try {
-        this.stopButton.hide();
-      } catch (e) {
-        log(`⚠️ Error hiding stop button: ${e}`);
-      }
-    }
-    if (this.cancelButton) {
-      try {
-        this.cancelButton.show();
-        this.cancelButton.set_label("Close");
-      } catch (e) {
-        log(`⚠️ Error updating cancel button: ${e}`);
-      }
-    }
-
-    // Clear the processing timeout
-    this.clearProcessingTimeout();
-  }
-
-  clearProcessingTimeout() {
-    if (this.processingTimeout) {
-      GLib.Source.remove(this.processingTimeout);
-      this.processingTimeout = null;
-    }
   }
 
   formatTimeDisplay(elapsed, maximum) {
@@ -628,7 +236,6 @@ export class RecordingDialog {
     }
 
     // Update progress bar fill
-    // Simple border radius: left side rounded, right side rounded only when complete
     const borderRadius = progress >= 1.0 ? "15px" : "15px 0px 0px 15px";
 
     this.progressBar.set_style(`
@@ -648,6 +255,44 @@ export class RecordingDialog {
     `);
   }
 
+  showProcessing() {
+    console.log("Showing processing state");
+
+    // Update the recording label to show processing
+    if (this.recordingLabel) {
+      this.recordingLabel.set_text("Processing...");
+    }
+
+    // Update the icon to show processing
+    if (this.recordingIcon) {
+      this.recordingIcon.set_text("🧠");
+    }
+
+    // Update instructions
+    if (this.instructionLabel) {
+      this.instructionLabel.set_text(
+        "Transcribing your speech...\nPress Escape to cancel."
+      );
+    }
+
+    // Hide the stop button but keep cancel button visible
+    if (this.stopButton) {
+      this.stopButton.hide();
+    }
+    if (this.cancelButton) {
+      this.cancelButton.show();
+      this.cancelButton.set_label("Cancel Processing");
+    }
+
+    // Stop the timer
+    this.stopTimer();
+
+    // Hide progress bar during processing
+    if (this.progressContainer) {
+      this.progressContainer.hide();
+    }
+  }
+
   startTimer() {
     this.startTime = Date.now();
     this.elapsedTime = 0;
@@ -659,6 +304,11 @@ export class RecordingDialog {
     this.timerInterval = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
       if (this.startTime) {
         this.updateTimeDisplay();
+
+        if (this.elapsedTime >= this.maxDuration) {
+          // Timer reached maximum - will be handled by service
+          return false;
+        }
         return true; // Continue the timer
       }
       return false; // Stop the timer
@@ -667,14 +317,237 @@ export class RecordingDialog {
 
   stopTimer() {
     if (this.timerInterval) {
-      GLib.Source.remove(this.timerInterval);
+      GLib.source_remove(this.timerInterval);
       this.timerInterval = null;
     }
     this.startTime = null;
   }
 
+  _copyToClipboard(text) {
+    try {
+      // Use St.Clipboard for proper GNOME Shell clipboard integration
+      const clipboard = St.Clipboard.get_default();
+      clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
+      console.log("✅ Text copied to clipboard successfully");
+
+      // Show a brief notification
+      Main.notify("Speech2Text", "Text copied to clipboard!");
+      return true;
+    } catch (e) {
+      console.error(`❌ Error copying to clipboard: ${e}`);
+      Main.notify("Speech2Text Error", "Failed to copy to clipboard");
+      return false;
+    }
+  }
+
+  showPreview(text) {
+    this.isPreviewMode = true;
+    this.transcribedText = text;
+
+    console.log(`Showing preview with text: "${text}"`);
+
+    // Check if we're on Wayland
+    const isWayland = Meta.is_wayland_compositor();
+
+    // Update UI for preview mode - change icon and label
+    if (this.recordingIcon) {
+      this.recordingIcon.set_text("📝");
+    }
+    if (this.recordingLabel) {
+      this.recordingLabel.set_text(
+        isWayland ? "Review & Copy" : "Review & Insert"
+      );
+    }
+
+    // Update instructions
+    if (this.instructionLabel) {
+      this.instructionLabel.set_text(
+        isWayland
+          ? "Review the transcribed text below. Text insertion is not available on Wayland."
+          : "Review the transcribed text below."
+      );
+    }
+
+    // Hide progress container
+    if (this.progressContainer) {
+      this.progressContainer.hide();
+    }
+
+    // Hide processing buttons
+    if (this.stopButton) {
+      this.stopButton.hide();
+    }
+    if (this.cancelButton) {
+      this.cancelButton.hide();
+    }
+
+    // Add text display for editing
+    const textEntry = new St.Entry({
+      text: text,
+      style: `
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 2px solid ${COLORS.SECONDARY};
+        border-radius: 8px;
+        color: ${COLORS.WHITE};
+        font-size: 16px;
+        padding: 15px;
+        margin: 10px 0;
+        width: 400px;
+        caret-color: ${COLORS.PRIMARY};
+      `,
+      can_focus: true,
+      reactive: true,
+    });
+
+    // Make it behave like multiline
+    const clutterText = textEntry.get_clutter_text();
+    clutterText.set_line_wrap(true);
+    clutterText.set_line_wrap_mode(2); // PANGO_WRAP_WORD
+    clutterText.set_single_line_mode(false);
+    clutterText.set_activatable(false);
+
+    this.container.add_child(textEntry);
+
+    // Focus the text entry after a short delay and select all text
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      textEntry.grab_key_focus();
+      clutterText.set_selection(0, text.length);
+      return false;
+    });
+
+    // Create new button box for preview
+    const buttonBox = createHorizontalBox();
+
+    // Only show insert button on X11
+    let insertButton = null;
+    if (!isWayland) {
+      insertButton = createHoverButton(
+        "Insert Text",
+        COLORS.SUCCESS,
+        "#34ce57"
+      );
+
+      insertButton.connect("clicked", () => {
+        const finalText = textEntry.get_text();
+        this.close();
+        this.onInsert?.(finalText);
+      });
+    }
+
+    const copyButton = createHoverButton(
+      isWayland ? "Copy" : "Copy Only",
+      COLORS.INFO,
+      "#0077ee"
+    );
+    const cancelButton = createHoverButton(
+      "Cancel",
+      COLORS.SECONDARY,
+      COLORS.DARK_GRAY
+    );
+
+    copyButton.connect("clicked", () => {
+      // Copy to clipboard and close
+      const finalText = textEntry.get_text();
+      console.log(`Copying text to clipboard: "${finalText}"`);
+
+      // Copy to clipboard using our own method
+      this._copyToClipboard(finalText);
+
+      this.close();
+      this.onCancel?.();
+    });
+
+    cancelButton.connect("clicked", () => {
+      this.close();
+      this.onCancel?.();
+    });
+
+    // Add buttons based on platform
+    if (insertButton) {
+      buttonBox.add_child(insertButton);
+    }
+    buttonBox.add_child(copyButton);
+    buttonBox.add_child(cancelButton);
+
+    this.container.add_child(buttonBox);
+
+    // Add keyboard hint
+    const keyboardHint = new St.Label({
+      text: isWayland
+        ? "Press Escape to cancel"
+        : "Press Enter to insert • Escape to cancel",
+      style: `font-size: 12px; color: ${COLORS.DARK_GRAY}; text-align: center; margin-top: 10px;`,
+    });
+    this.container.add_child(keyboardHint);
+
+    // Update keyboard handling for preview mode
+    this.modalBarrier.disconnect(this.keyboardHandlerId);
+    this.keyboardHandlerId = this.modalBarrier.connect(
+      "key-press-event",
+      (actor, event) => {
+        const keyval = event.get_key_symbol();
+        if (keyval === Clutter.KEY_Escape) {
+          this.close();
+          this.onCancel?.();
+          return Clutter.EVENT_STOP;
+        } else if (
+          !isWayland &&
+          (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter)
+        ) {
+          const finalText = textEntry.get_text();
+          this.close();
+          this.onInsert?.(finalText);
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      }
+    );
+  }
+
+  showError(message) {
+    console.log(`Showing error: ${message}`);
+
+    // Update the recording label to show error
+    if (this.recordingLabel) {
+      this.recordingLabel.set_text("Error");
+      this.recordingLabel.set_style(
+        `font-size: 20px; font-weight: bold; color: ${COLORS.DANGER};`
+      );
+    }
+
+    // Update the icon to show error
+    if (this.recordingIcon) {
+      this.recordingIcon.set_text("❌");
+    }
+
+    // Update instructions to show error message
+    if (this.instructionLabel) {
+      this.instructionLabel.set_text(`${message}\nPress Escape to close.`);
+      this.instructionLabel.set_style(
+        `font-size: 16px; color: ${COLORS.DANGER}; text-align: center;`
+      );
+    }
+
+    // Hide the stop button and progress bar
+    if (this.stopButton) {
+      this.stopButton.hide();
+    }
+    if (this.progressContainer) {
+      this.progressContainer.hide();
+    }
+
+    // Show only cancel button
+    if (this.cancelButton) {
+      this.cancelButton.show();
+      this.cancelButton.set_label("Close");
+    }
+
+    // Stop the timer
+    this.stopTimer();
+  }
+
   open() {
-    log("🎯 Opening custom modal dialog");
+    console.log("Opening DBus recording dialog");
 
     // Add to UI
     Main.layoutManager.addTopChrome(this.modalBarrier);
@@ -684,10 +557,10 @@ export class RecordingDialog {
     this.modalBarrier.set_position(monitor.x, monitor.y);
     this.modalBarrier.set_size(monitor.width, monitor.height);
 
-    // Center the dialog container within the barrier
+    // Center the dialog container within the barrier (matches original)
     this.container.set_position(
-      (monitor.width - 350) / 2,
-      (monitor.height - 240) / 2
+      (monitor.width - 450) / 2,
+      (monitor.height - 300) / 2
     );
 
     this.modalBarrier.show();
@@ -695,85 +568,33 @@ export class RecordingDialog {
     // Start the timer
     this.startTimer();
 
-    // X11 focus solution: Use xdotool to focus GNOME Shell window
-    log("🎯 Attempting X11 focus solution");
-
-    // Store reference to modalBarrier for the timeout callback
-    const modalBarrierRef = this.modalBarrier;
-
+    // Focus solution similar to original
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-      try {
-        // Get GNOME Shell's window ID and focus it
-        const [success, stdout] = GLib.spawn_command_line_sync(
-          'xdotool search --onlyvisible --class "gnome-shell" | head -1'
-        );
-
-        if (success && stdout) {
-          const windowId = new TextDecoder().decode(stdout).trim();
-          log(`🎯 Found GNOME Shell window ID: ${windowId}`);
-
-          if (windowId) {
-            // Focus the GNOME Shell window
-            GLib.spawn_command_line_sync(`xdotool windowfocus ${windowId}`);
-            log(`🎯 Focused GNOME Shell window ${windowId}`);
-
-            // Also try to activate it
-            GLib.spawn_command_line_sync(`xdotool windowactivate ${windowId}`);
-            log(`🎯 Activated GNOME Shell window ${windowId}`);
-          }
-        }
-
-        // Now try to focus our modal barrier - but only if it still exists
-        if (modalBarrierRef?.get_parent()) {
-          modalBarrierRef.grab_key_focus();
-          global.stage.set_key_focus(modalBarrierRef);
-
-          // Debug: Check if it worked
-          const currentFocus = global.stage.get_key_focus();
-          log(
-            `🎯 Final focus check: ${
-              currentFocus ? currentFocus.toString() : "NULL"
-            }`
-          );
-          log(
-            `🎯 Is modal barrier focused? ${currentFocus === modalBarrierRef}`
-          );
-        } else {
-          log(
-            `🎯 Modal barrier no longer exists or has no parent - skipping focus`
-          );
-        }
-      } catch (e) {
-        log(`⚠️ X11 focus error: ${e}`);
+      if (this.modalBarrier?.get_parent()) {
+        this.modalBarrier.grab_key_focus();
+        global.stage.set_key_focus(this.modalBarrier);
       }
-
       return false;
     });
   }
 
   close() {
-    log("🎯 Closing custom modal dialog");
+    console.log("Closing DBus recording dialog");
 
-    // Stop the timer
+    // Stop timer
     this.stopTimer();
 
-    // Clear the processing timeout
-    this.clearProcessingTimeout();
+    // Disconnect keyboard handler
+    if (this.keyboardHandlerId && this.modalBarrier) {
+      this.modalBarrier.disconnect(this.keyboardHandlerId);
+      this.keyboardHandlerId = null;
+    }
 
-    if (this.modalBarrier && this.modalBarrier.get_parent()) {
+    // Clean up modal
+    if (this.modalBarrier) {
       Main.layoutManager.removeChrome(this.modalBarrier);
-
-      // Add a small delay before nulling the barrier to ensure X11 focus code has time to run
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-        this.modalBarrier = null;
-        this.container = null;
-        return false; // Don't repeat
-      });
-    } else {
+      this.modalBarrier.destroy();
       this.modalBarrier = null;
-      this.container = null;
     }
   }
-
-  // Pulse animation methods removed - no longer needed
 }

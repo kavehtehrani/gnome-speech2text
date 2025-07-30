@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Get the directory where this script is located
+SERVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$SERVICE_DIR/venv"
+
+# Use the virtual environment's Python
+exec "$VENV_DIR/bin/python3" "$SERVICE_DIR/speech2text_service.py" 

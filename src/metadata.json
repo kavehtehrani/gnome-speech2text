@@ -7,5 +7,5 @@
   "url": "https://github.com/kavehtehrani/gnome-speech2text/",
   "author": "Kaveh Tehrani",
   "type": "extension",
-  "settings-schema": "org.gnome.shell.extensions.gnome-speech2text"
+  "settings-schema": "org.shell.extensions.speech2text"
 }
