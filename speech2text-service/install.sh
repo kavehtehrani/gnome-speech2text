@@ -267,10 +267,10 @@ if [ "$INTERACTIVE" = false ]; then
     print_status "Downloading files from GitHub..."
     REPO_BASE="https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service"
     
-    wget -q "$REPO_BASE/requirements.txt" -O "$SERVICE_DIR/requirements.txt" || error_exit "Failed to download requirements.txt"
-    wget -q "$REPO_BASE/speech2text_service.py" -O "$SERVICE_DIR/speech2text_service.py" || error_exit "Failed to download speech2text_service.py"
-    wget -q "$REPO_BASE/speech2text-service" -O "$SERVICE_DIR/speech2text-service" || error_exit "Failed to download speech2text-service"
-    wget -q "$REPO_BASE/org.gnome.Speech2Text.service" -O "/tmp/org.gnome.Speech2Text.service" || error_exit "Failed to download service file"
+    wget -4 -q "$REPO_BASE/requirements.txt" -O "$SERVICE_DIR/requirements.txt" || error_exit "Failed to download requirements.txt"
+    wget -4 -q "$REPO_BASE/speech2text_service.py" -O "$SERVICE_DIR/speech2text_service.py" || error_exit "Failed to download speech2text_service.py"
+    wget -4 -q "$REPO_BASE/speech2text-service" -O "$SERVICE_DIR/speech2text-service" || error_exit "Failed to download speech2text-service"
+    wget -4 -q "$REPO_BASE/org.gnome.Speech2Text.service" -O "/tmp/org.gnome.Speech2Text.service" || error_exit "Failed to download service file"
     
     chmod +x "$SERVICE_DIR/speech2text-service"
 else
