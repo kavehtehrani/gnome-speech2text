@@ -258,17 +258,15 @@ print_status "Creating desktop entry..."
 DESKTOP_DIR="$HOME/.local/share/applications"
 mkdir -p "$DESKTOP_DIR"
 
-cat > "$DESKTOP_DIR/gnome-speech2text-service.desktop" << EOF
-[Desktop Entry]
-Type=Application
-Name=GNOME Speech2Text Service
-Comment=D-Bus service for speech-to-text functionality
-Exec=$SERVICE_DIR/speech2text-service
-Icon=audio-input-microphone
-StartupNotify=false
-NoDisplay=true
-Categories=Utility;
-EOF
+echo "[Desktop Entry]" > "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Type=Application" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Name=GNOME Speech2Text Service" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Comment=D-Bus service for speech-to-text functionality" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Exec=$SERVICE_DIR/speech2text-service" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Icon=audio-input-microphone" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "StartupNotify=false" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "NoDisplay=true" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Categories=Utility;" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
 
 print_status "Installation complete!"
 echo ""
