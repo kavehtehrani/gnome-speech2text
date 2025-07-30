@@ -83,8 +83,15 @@ clean:
 		echo "ℹ️  Extension not found at $(EXTENSION_DIR)"; \
 	fi
 	@echo "🧹 Removing D-Bus service..."
-	@systemctl --user stop speech2text-service 2>/dev/null || true
-	@pkill -f "speech2text_service.py" 2>/dev/null || true
+	@PID=$$(ps aux | grep "speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
+	if [ ! -z "$$PID" ]; then \
+		echo "   Found process $$PID, terminating..."; \
+		kill $$PID 2>/dev/null || true; \
+		sleep 1; \
+		echo "   Process terminated"; \
+	else \
+		echo "   No speech2text processes found"; \
+	fi
 	@if [ -d "$(HOME)/.local/share/gnome-speech2text-service" ]; then \
 		rm -rf $(HOME)/.local/share/gnome-speech2text-service; \
 		echo "✅ Service directory removed"; \
@@ -110,7 +117,15 @@ clean:
 # Clean only D-Bus service (for testing)
 clean-service:
 	@echo "🧹 Removing D-Bus service only..."
-	@systemctl --user stop speech2text-service 2>/dev/null || true
+	@PID=$$(ps aux | grep "speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
+	if [ ! -z "$$PID" ]; then \
+		echo "   Found process $$PID, terminating..."; \
+		kill $$PID 2>/dev/null || true; \
+		sleep 1; \
+		echo "   Process terminated"; \
+	else \
+		echo "   No speech2text processes found"; \
+	fi
 	@if [ -d "$(HOME)/.local/share/gnome-speech2text-service" ]; then \
 		rm -rf $(HOME)/.local/share/gnome-speech2text-service; \
 		echo "✅ Service directory removed"; \
