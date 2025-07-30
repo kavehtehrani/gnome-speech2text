@@ -66,7 +66,7 @@ sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip
 
 ## Installation
 
-### Seamless Installation from GNOME Extensions Store (Work in Progress)
+### GNOME Extensions Store (Work in Progress)
 
 🚧 This extension is currently under review for the GNOME Extensions website. Once approved, it will be available for easy installation directly from the website.
 
@@ -88,61 +88,60 @@ This script will:
 - Check system dependencies and guide you through installing any missing ones
 - Install the D-Bus service automatically
 - Install the GNOME extension and compile schemas
-- Restart GNOME Shell (on X11) or provide instructions for Wayland
+- Provide instructions for restarting GNOME Shell
 - Give you clear next steps to start using the extension
 
 ### First Time Setup
 
 The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with automatic or manual installation options.
 
-### Manual Installation
-
-#### Step 1: Install the D-Bus Service
-
-The speech processing service must be installed separately:
-
-```bash
-# Clone the repository
-git clone https://github.com/kavehtehrani/gnome-speech2text.git
-cd gnome-speech2text
-
-# Install the D-Bus service
-cd speech2text-service
-./install.sh
-```
-
 This will:
 
-- Install Python dependencies in a virtual environment
-- Set up the D-Bus service files
-- Start the service automatically
+- Create a Python virtual environment
+- Install required Python packages (OpenAI Whisper, etc.)
+- Set up D-Bus service files
 
-#### Step 2: Install the GNOME Extension
+#### IMPORTANT: Restart GNOME Shell After Installation
 
-##### Option A: From GNOME Extensions Website
+**For X11 sessions:**
 
-[Link will be available after store approval]
+1. Press `Alt+F2`
+2. Type `r`
+3. Press `Enter`
 
-##### Option B: Manual Installation
+**For Wayland sessions:**
+
+1. Log out of your current session
+2. Log back in
+
+#### Troubleshooting Installation
+
+If the extension doesn't appear in GNOME Extensions:
 
 ```bash
-# From the repository root
-make setup
+# View extension logs
+journalctl /usr/bin/gnome-shell -f
+
+# Check installation status
+make status
+
+# Verify schema compilation
+make verify-schema
+
 ```
 
-This will install the extension, compile the GSettings schemas, and restart GNOME Shell automatically.
+If the D-Bus service isn't working:
 
-#### Step 3: Enable the Extension
+```bash
+# Check service status
+systemctl --user status speech2text-service
 
-1. Open GNOME Extensions app or GNOME Tweaks
-2. Enable "GNOME Speech2Text"
-3. **If service not installed**: A setup dialog will appear with installation instructions
-4. **If service installed**: The microphone icon will appear in your top panel
+# Restart the service
+systemctl --user restart speech2text-service
 
-#### Step 4: Restart GNOME Shell (if needed)
-
-- **X11**: Press Alt+F2, type 'r', press Enter
-- **Wayland**: Log out and log back in
+# View service logs
+journalctl --user -u speech2text-service -f
+```
 
 ## Usage
 
@@ -175,54 +174,13 @@ Right-click the microphone icon to access:
 
 ### Extension Shows "Service Unavailable"
 
-The D-Bus service is not running. Check service status:
-
-```bash
-# Check if service is running
-systemctl --user status speech2text-service
-
-# Start the service manually
-systemctl --user start speech2text-service
-
-# Enable auto-start
-systemctl --user enable speech2text-service
-```
-
-### Audio Recording Issues
-
-1. Check microphone permissions:
-
-   ```bash
-   # Test microphone access
-   ffmpeg -f pulse -i default -t 3 test.wav
-   ```
-
-2. Verify audio dependencies:
-   ```bash
-   # Check if PulseAudio/PipeWire is running
-   pulseaudio --check -v
-   ```
-
 ### Text Insertion Not Working
 
 1. **On X11**: Ensure xdotool is installed
 2. **On Wayland**: Text insertion is limited - use Copy to Clipboard instead
 3. Check if target application accepts simulated keyboard input
 
-### Python Dependencies Issues
-
-Reinstall the service environment:
-
-```bash
-# Remove existing service first
-make clean-service
-
-# Then reinstall
-cd speech2text-service
-./install.sh
-```
-
-### Viewing Logs
+### Viewing System Logs
 
 ```bash
 # Extension logs
@@ -239,23 +197,15 @@ systemctl --user status speech2text-service
 
 ### Remove Extension
 
-```bash
-rm -rf ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page
-```
-
-### Remove D-Bus Service
 
 ```bash
-# Remove D-Bus service using Makefile
-make clean-service
-
-# Or remove everything (extension + service)
+# Remove everything (extension + service)
 make clean
 ```
 
 ## Privacy & Security
 
-🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or external servers. The extension uses OpenAI's Whisper model locally, ensuring complete privacy of your voice data.
+🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or external servers. The extension uses OpenAI's Whisper model locally, ensuring privacy of your voice data.
 
 ## Development
 
@@ -278,26 +228,13 @@ make status
 make clean
 ```
 
-### D-Bus Service Development
-
-```bash
-cd speech2text-service
-
-# Install the service
-./install.sh
-
-# Test D-Bus interface
-cd ..
-python test-dbus.py
-```
-
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request or open issues.
 
 ### Reporting Issues
 
