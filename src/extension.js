@@ -170,7 +170,7 @@ export default class Speech2TextExtension extends Extension {
     this.button.menu.addMenuItem(settingsItem);
 
     // Setup Guide menu item
-    let setupItem = new PopupMenu.PopupMenuItem("Setup Guide");
+    let setupItem = new PopupMenu.PopupMenuItem("Setup");
     setupItem.connect("activate", () => {
       this._showServiceSetupDialog("Manual setup guide requested");
     });

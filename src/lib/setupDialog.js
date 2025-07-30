@@ -11,17 +11,14 @@ import {
   createHorizontalBox,
   createStyledLabel,
 } from "./uiUtils.js";
-import {
-  createCloseButton,
-  createCenteredBox,
-  createHeaderLayout,
-} from "./buttonUtils.js";
+import { createCenteredBox, createHeaderLayout } from "./buttonUtils.js";
 import { cleanupModal } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
   constructor(errorMessage, isFirstRun = false) {
     this.errorMessage = errorMessage;
     this.isFirstRun = isFirstRun;
+    this.isManualRequest = errorMessage === "Manual setup guide requested";
     this.overlay = null;
     this._buildDialog();
   }
@@ -56,33 +53,56 @@ export class ServiceSetupDialog {
     titleContainer.set_x_align(Clutter.ActorAlign.START);
     titleContainer.set_x_expand(true);
 
-    const headerIcon = createStyledLabel("⚠️", "icon", "font-size: 36px;");
+    const headerIcon = createStyledLabel(
+      this.isFirstRun ? "🎉" : this.isManualRequest ? "📚" : "⚠️",
+      "icon",
+      "font-size: 36px;"
+    );
     const headerText = createStyledLabel(
       this.isFirstRun
         ? "Welcome to GNOME Speech2Text!"
-        : "Service Installation Required",
+        : this.isManualRequest
+        ? "GNOME Speech2Text Setup Guide"
+        : "Service Installation Required (Initial Setup)",
       "title",
-      `color: ${this.isFirstRun ? COLORS.SUCCESS : COLORS.PRIMARY};`
+      `color: ${
+        this.isFirstRun
+          ? COLORS.SUCCESS
+          : this.isManualRequest
+          ? COLORS.INFO
+          : COLORS.PRIMARY
+      };`
     );
 
     titleContainer.add_child(headerIcon);
     titleContainer.add_child(headerText);
 
-    this.closeButton = createCloseButton(32);
-    const headerBox = createHeaderLayout(titleContainer, this.closeButton);
+    const headerBox = createHeaderLayout(titleContainer);
 
     // Status message
     const statusLabel = new St.Label({
       text: this.isFirstRun
         ? "Let's set up speech-to-text functionality for you!"
+        : this.isManualRequest
+        ? "Complete setup instructions and troubleshooting guide"
         : `Service Status: ${this.errorMessage}`,
       style: `
         font-size: 14px;
-        color: ${this.isFirstRun ? COLORS.SUCCESS : COLORS.DANGER};
+        color: ${
+          this.isFirstRun
+            ? COLORS.SUCCESS
+            : this.isManualRequest
+            ? COLORS.INFO
+            : COLORS.DANGER
+        };
         margin: 10px 0;
         padding: 10px;
         background-color: ${
-          this.isFirstRun ? "rgba(40, 167, 69, 0.1)" : "rgba(255, 0, 0, 0.1)"
+          this.isFirstRun
+            ? "rgba(40, 167, 69, 0.1)"
+            : this.isManualRequest
+            ? "rgba(23, 162, 184, 0.1)"
+            : "rgba(255, 0, 0, 0.1)"
         };
         border-radius: 5px;
       `,
@@ -93,6 +113,9 @@ export class ServiceSetupDialog {
       text: this.isFirstRun
         ? `To enable speech-to-text functionality, we need to install a background service.
 This is a one-time setup that handles audio recording and speech processing.`
+        : this.isManualRequest
+        ? `Instructions for installing and troubleshooting the Speech2Text service.
+Use this if you need to reinstall the service or help someone else set it up.`
         : `GNOME Speech2Text requires a background service for speech processing.
 This service needs to be installed separately from the extension.`,
       style: `
@@ -117,12 +140,16 @@ This service needs to be installed separately from the extension.`,
     const autoInstallDescription = new St.Label({
       text: this.isFirstRun
         ? "The easiest way is to use automatic installation - just one click!"
+        : this.isManualRequest
+        ? "Even if the service is already installed, you can reinstall or help others:"
         : "Click the button below to automatically install the service in a terminal:",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0 15px 0;`,
     });
 
     const autoInstallButtonWidget = createHoverButton(
-      "🚀 Automatic Installation",
+      this.isManualRequest
+        ? "🔧 Reinstall Service"
+        : "🚀 Automatic Installation",
       COLORS.SUCCESS,
       "#28a745"
     );
@@ -208,9 +235,70 @@ This service needs to be installed separately from the extension.`,
         font-size: 12px;
         padding: 10px;
         margin: 5px 0 10px 20px;
-        width: 600px;
+        width: 500px;
       `,
     });
+
+    // Copy button for dependencies command
+    const copyDepsInlineButton = new St.Button({
+      label: "📋 Copy",
+      style: `
+        background-color: ${COLORS.INFO};
+        border: 1px solid ${COLORS.INFO};
+        border-radius: 5px;
+        color: ${COLORS.WHITE};
+        font-size: 11px;
+        padding: 8px 12px;
+        margin: 5px 0 10px 10px;
+        min-width: 70px;
+        transition-duration: 150ms;
+      `,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Add hover effects with inline styles preserved
+    copyDepsInlineButton.connect("enter-event", () => {
+      copyDepsInlineButton.set_style(`
+        background-color: #0077ee;
+        border: 1px solid #0077ee;
+        border-radius: 5px;
+        color: ${COLORS.WHITE};
+        font-size: 11px;
+        padding: 8px 12px;
+        margin: 5px 0 10px 10px;
+        min-width: 70px;
+        transition-duration: 150ms;
+        transform: scale(1.05);
+      `);
+    });
+
+    copyDepsInlineButton.connect("leave-event", () => {
+      copyDepsInlineButton.set_style(`
+        background-color: ${COLORS.INFO};
+        border: 1px solid ${COLORS.INFO};
+        border-radius: 5px;
+        color: ${COLORS.WHITE};
+        font-size: 11px;
+        padding: 8px 12px;
+        margin: 5px 0 10px 10px;
+        min-width: 70px;
+        transition-duration: 150ms;
+      `);
+    });
+
+    copyDepsInlineButton.connect("clicked", () => {
+      this._copyToClipboard(
+        "sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip"
+      );
+      Main.notify("Speech2Text", "Dependencies command copied to clipboard!");
+    });
+
+    // Container for dependencies command + copy button
+    const dependenciesContainer = createHorizontalBox();
+    dependenciesContainer.add_child(dependenciesBox);
+    dependenciesContainer.add_child(copyDepsInlineButton);
 
     const step3 = new St.Label({
       text: "3. Download and install the service:",
@@ -228,9 +316,70 @@ This service needs to be installed separately from the extension.`,
         font-size: 12px;
         padding: 10px;
         margin: 5px 0 10px 20px;
-        width: 600px;
+        width: 500px;
       `,
     });
+
+    // Copy button for install command
+    const copyInstallInlineButton = new St.Button({
+      label: "📋 Copy",
+      style: `
+        background-color: ${COLORS.SUCCESS};
+        border: 1px solid ${COLORS.SUCCESS};
+        border-radius: 5px;
+        color: ${COLORS.WHITE};
+        font-size: 11px;
+        padding: 8px 12px;
+        margin: 5px 0 10px 10px;
+        min-width: 70px;
+        transition-duration: 150ms;
+      `,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Add hover effects with inline styles preserved
+    copyInstallInlineButton.connect("enter-event", () => {
+      copyInstallInlineButton.set_style(`
+        background-color: #34ce57;
+        border: 1px solid #34ce57;
+        border-radius: 5px;
+        color: ${COLORS.WHITE};
+        font-size: 11px;
+        padding: 8px 12px;
+        margin: 5px 0 10px 10px;
+        min-width: 70px;
+        transition-duration: 150ms;
+        transform: scale(1.05);
+      `);
+    });
+
+    copyInstallInlineButton.connect("leave-event", () => {
+      copyInstallInlineButton.set_style(`
+        background-color: ${COLORS.SUCCESS};
+        border: 1px solid ${COLORS.SUCCESS};
+        border-radius: 5px;
+        color: ${COLORS.WHITE};
+        font-size: 11px;
+        padding: 8px 12px;
+        margin: 5px 0 10px 10px;
+        min-width: 70px;
+        transition-duration: 150ms;
+      `);
+    });
+
+    copyInstallInlineButton.connect("clicked", () => {
+      this._copyToClipboard(
+        "wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash"
+      );
+      Main.notify("Speech2Text", "Install command copied to clipboard!");
+    });
+
+    // Container for install command + copy button
+    const installContainer = createHorizontalBox();
+    installContainer.add_child(installCommandBox);
+    installContainer.add_child(copyInstallInlineButton);
 
     const step4 = new St.Label({
       text: "4. Restart GNOME Shell:\n   • X11: Press Alt+F2, type 'r', press Enter\n   • Wayland: Log out and log back in",
@@ -307,47 +456,6 @@ This service needs to be installed separately from the extension.`,
     const buttonBox = createHorizontalBox();
     buttonBox.set_x_align(Clutter.ActorAlign.CENTER);
 
-    const copyDepsButton = createHoverButton(
-      "Copy Dependencies Command",
-      COLORS.INFO,
-      "#0077ee"
-    );
-
-    const copyInstallButton = createHoverButton(
-      "Copy Install Command",
-      COLORS.SUCCESS,
-      "#34ce57"
-    );
-
-    const closeButton = createHoverButton(
-      "Close",
-      COLORS.SECONDARY,
-      COLORS.DARK_GRAY
-    );
-
-    // Button actions
-    copyDepsButton.connect("clicked", () => {
-      this._copyToClipboard(
-        "sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip"
-      );
-      Main.notify("Speech2Text", "Dependencies command copied to clipboard!");
-    });
-
-    copyInstallButton.connect("clicked", () => {
-      this._copyToClipboard(
-        "wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash"
-      );
-      Main.notify("Speech2Text", "Install command copied to clipboard!");
-    });
-
-    closeButton.connect("clicked", () => {
-      this.close();
-    });
-
-    buttonBox.add_child(copyDepsButton);
-    buttonBox.add_child(copyInstallButton);
-    buttonBox.add_child(closeButton);
-
     // Assemble dialog
     this.dialogContainer.add_child(headerBox);
     this.dialogContainer.add_child(statusLabel);
@@ -360,9 +468,9 @@ This service needs to be installed separately from the extension.`,
     this.dialogContainer.add_child(instructionsTitle);
     this.dialogContainer.add_child(step1);
     this.dialogContainer.add_child(step2);
-    this.dialogContainer.add_child(dependenciesBox);
+    this.dialogContainer.add_child(dependenciesContainer);
     this.dialogContainer.add_child(step3);
-    this.dialogContainer.add_child(installCommandBox);
+    this.dialogContainer.add_child(installContainer);
     this.dialogContainer.add_child(step4);
     this.dialogContainer.add_child(manualTitle);
     this.dialogContainer.add_child(manualText);
@@ -370,9 +478,6 @@ This service needs to be installed separately from the extension.`,
     this.dialogContainer.add_child(buttonBox);
 
     this.overlay.add_child(this.dialogContainer);
-
-    // Close button handler
-    this.closeButton.connect("clicked", () => this.close());
 
     // Keyboard handling
     this.keyPressHandler = this.overlay.connect(
@@ -467,6 +572,8 @@ This service needs to be installed separately from the extension.`,
           "Speech2Text",
           this.isFirstRun
             ? "🚀 Setting up Speech2Text for you! Follow the terminal instructions."
+            : this.isManualRequest
+            ? "🔧 Opening service installation guide in terminal..."
             : "Opening service installation in terminal..."
         );
         this.close();
