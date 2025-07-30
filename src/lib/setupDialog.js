@@ -1,4 +1,5 @@
 import Clutter from "gi://Clutter";
+import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
@@ -8,77 +9,91 @@ import {
   createHoverButton,
   createVerticalBox,
   createHorizontalBox,
+  createStyledLabel,
 } from "./uiUtils.js";
+import {
+  createCloseButton,
+  createCenteredBox,
+  createHeaderLayout,
+} from "./buttonUtils.js";
 import { cleanupModal } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
-  constructor(errorMessage) {
+  constructor(errorMessage, isFirstRun = false) {
     this.errorMessage = errorMessage;
+    this.isFirstRun = isFirstRun;
     this.overlay = null;
     this._buildDialog();
   }
 
   _buildDialog() {
     // Create modal overlay
-    this.overlay = new Clutter.Actor({
+    this.overlay = new St.Widget({
+      style: "background-color: rgba(0,0,0,0.8);",
       reactive: true,
       can_focus: true,
+      track_hover: true,
     });
-    this.overlay.set_background_color(
-      Clutter.Color.from_string("rgba(0,0,0,0.8)")[1]
-    );
 
-    // Main dialog container
+    // Main dialog container (matching settings dialog styling exactly)
     this.dialogContainer = new St.BoxLayout({
+      style_class: "setup-dialog-window",
+      vertical: true,
       style: `
-        background-color: ${COLORS.SURFACE};
-        border: 2px solid ${COLORS.PRIMARY};
-        border-radius: 15px;
-        padding: 30px;
+        background-color: rgba(20, 20, 20, 0.95);
+        border-radius: 12px;
+        padding: 25px;
         min-width: 600px;
         max-width: 700px;
+        border: ${STYLES.DIALOG_BORDER};
       `,
-      vertical: true,
       x_align: Clutter.ActorAlign.CENTER,
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    // Header
-    const headerBox = createHorizontalBox();
+    // Header with close button (matching settings dialog pattern)
+    let titleContainer = createCenteredBox(false, "15px");
+    titleContainer.set_x_align(Clutter.ActorAlign.START);
+    titleContainer.set_x_expand(true);
 
-    const headerIcon = new St.Label({
-      text: "⚠️",
-      style: "font-size: 36px; margin-right: 15px;",
-    });
+    const headerIcon = createStyledLabel("⚠️", "icon", "font-size: 36px;");
+    const headerText = createStyledLabel(
+      this.isFirstRun
+        ? "Welcome to GNOME Speech2Text!"
+        : "Service Installation Required",
+      "title",
+      `color: ${this.isFirstRun ? COLORS.SUCCESS : COLORS.PRIMARY};`
+    );
 
-    const headerText = new St.Label({
-      text: "Service Installation Required",
-      style: `
-        font-size: 24px;
-        font-weight: bold;
-        color: ${COLORS.PRIMARY};
-      `,
-    });
+    titleContainer.add_child(headerIcon);
+    titleContainer.add_child(headerText);
 
-    headerBox.add_child(headerIcon);
-    headerBox.add_child(headerText);
+    this.closeButton = createCloseButton(32);
+    const headerBox = createHeaderLayout(titleContainer, this.closeButton);
 
-    // Error message
-    const errorLabel = new St.Label({
-      text: `Service Status: ${this.errorMessage}`,
+    // Status message
+    const statusLabel = new St.Label({
+      text: this.isFirstRun
+        ? "Let's set up speech-to-text functionality for you!"
+        : `Service Status: ${this.errorMessage}`,
       style: `
         font-size: 14px;
-        color: ${COLORS.DANGER};
+        color: ${this.isFirstRun ? COLORS.SUCCESS : COLORS.DANGER};
         margin: 10px 0;
         padding: 10px;
-        background-color: rgba(255, 0, 0, 0.1);
+        background-color: ${
+          this.isFirstRun ? "rgba(40, 167, 69, 0.1)" : "rgba(255, 0, 0, 0.1)"
+        };
         border-radius: 5px;
       `,
     });
 
     // Main explanation
     const explanationText = new St.Label({
-      text: `GNOME Speech2Text requires a background service for speech processing.
+      text: this.isFirstRun
+        ? `To enable speech-to-text functionality, we need to install a background service.
+This is a one-time setup that handles audio recording and speech processing.`
+        : `GNOME Speech2Text requires a background service for speech processing.
 This service needs to be installed separately from the extension.`,
       style: `
         font-size: 16px;
@@ -88,14 +103,87 @@ This service needs to be installed separately from the extension.`,
       `,
     });
 
+    // Automatic installation option
+    const autoInstallTitle = new St.Label({
+      text: "Automatic Installation (Recommended):",
+      style: `
+        font-size: 18px;
+        font-weight: bold;
+        color: ${COLORS.SUCCESS};
+        margin: 20px 0 10px 0;
+      `,
+    });
+
+    const autoInstallDescription = new St.Label({
+      text: this.isFirstRun
+        ? "The easiest way is to use automatic installation - just one click!"
+        : "Click the button below to automatically install the service in a terminal:",
+      style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0 15px 0;`,
+    });
+
+    const autoInstallButtonWidget = createHoverButton(
+      "🚀 Automatic Installation",
+      COLORS.SUCCESS,
+      "#28a745"
+    );
+
+    autoInstallButtonWidget.connect("clicked", () => {
+      this._runAutomaticInstall();
+    });
+
+    // Create container for auto install section
+    let autoInstallSection;
+    if (this.isFirstRun) {
+      // For first-run, add extra encouragement
+      const firstRunNote = new St.Label({
+        text: "💡 Tip: The automatic installation is the easiest option for new users!",
+        style: `
+          font-size: 13px;
+          color: ${COLORS.WARNING};
+          margin: 5px 0;
+          padding: 8px;
+          background-color: rgba(255, 193, 7, 0.1);
+          border-radius: 5px;
+          border-left: 3px solid ${COLORS.WARNING};
+        `,
+      });
+
+      autoInstallSection = createVerticalBox();
+      autoInstallSection.add_child(autoInstallButtonWidget);
+      autoInstallSection.add_child(firstRunNote);
+    } else {
+      autoInstallSection = autoInstallButtonWidget;
+    }
+
+    // Manual installation separator
+    const separatorLine = new St.Label({
+      text: "─".repeat(50),
+      style: `
+        color: ${COLORS.SECONDARY};
+        font-size: 12px;
+        margin: 20px 0;
+        text-align: center;
+      `,
+    });
+
+    const orLabel = new St.Label({
+      text: "OR install manually:",
+      style: `
+        font-size: 16px;
+        color: ${COLORS.SECONDARY};
+        margin: 10px 0;
+        text-align: center;
+      `,
+    });
+
     // Installation instructions
     const instructionsTitle = new St.Label({
-      text: "Installation Instructions:",
+      text: "Manual Installation Instructions:",
       style: `
         font-size: 18px;
         font-weight: bold;
         color: ${COLORS.PRIMARY};
-        margin: 20px 0 10px 0;
+        margin: 10px 0 10px 0;
       `,
     });
 
@@ -109,7 +197,7 @@ This service needs to be installed separately from the extension.`,
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
-    const dependenciesBox = new St.Entry({
+    const dependenciesBox = new St.Label({
       text: "sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip",
       style: `
         background-color: ${COLORS.DARK_GRAY};
@@ -122,8 +210,6 @@ This service needs to be installed separately from the extension.`,
         margin: 5px 0 10px 20px;
         width: 600px;
       `,
-      can_focus: true,
-      editable: false,
     });
 
     const step3 = new St.Label({
@@ -131,7 +217,7 @@ This service needs to be installed separately from the extension.`,
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
-    const installCommandBox = new St.Entry({
+    const installCommandBox = new St.Label({
       text: "wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash",
       style: `
         background-color: ${COLORS.DARK_GRAY};
@@ -144,12 +230,10 @@ This service needs to be installed separately from the extension.`,
         margin: 5px 0 10px 20px;
         width: 600px;
       `,
-      can_focus: true,
-      editable: false,
     });
 
     const step4 = new St.Label({
-      text: "4. Restart GNOME Shell (Alt+F2, type 'r', press Enter) or log out and back in",
+      text: "4. Restart GNOME Shell:\n   • X11: Press Alt+F2, type 'r', press Enter\n   • Wayland: Log out and log back in",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
@@ -169,8 +253,8 @@ This service needs to be installed separately from the extension.`,
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
-    const repoLinkBox = new St.Entry({
-      text: "https://github.com/kavehtehrani/gnome-speech2text",
+    const repoLinkBox = new St.Button({
+      label: "https://github.com/kavehtehrani/gnome-speech2text",
       style: `
         background-color: ${COLORS.DARK_GRAY};
         border: 1px solid ${COLORS.INFO};
@@ -180,9 +264,43 @@ This service needs to be installed separately from the extension.`,
         padding: 10px;
         margin: 5px 0 10px 20px;
         width: 400px;
+        text-decoration: underline;
       `,
+      reactive: true,
       can_focus: true,
-      editable: false,
+      track_hover: true,
+    });
+
+    repoLinkBox.connect("clicked", () => {
+      this._openUrl("https://github.com/kavehtehrani/gnome-speech2text");
+    });
+
+    repoLinkBox.connect("enter-event", () => {
+      repoLinkBox.set_style(`
+        background-color: ${COLORS.INFO};
+        border: 1px solid ${COLORS.INFO};
+        border-radius: 5px;
+        color: ${COLORS.WHITE};
+        font-size: 12px;
+        padding: 10px;
+        margin: 5px 0 10px 20px;
+        width: 400px;
+        text-decoration: underline;
+      `);
+    });
+
+    repoLinkBox.connect("leave-event", () => {
+      repoLinkBox.set_style(`
+        background-color: ${COLORS.DARK_GRAY};
+        border: 1px solid ${COLORS.INFO};
+        border-radius: 5px;
+        color: ${COLORS.INFO};
+        font-size: 12px;
+        padding: 10px;
+        margin: 5px 0 10px 20px;
+        width: 400px;
+        text-decoration: underline;
+      `);
     });
 
     // Action buttons
@@ -232,8 +350,13 @@ This service needs to be installed separately from the extension.`,
 
     // Assemble dialog
     this.dialogContainer.add_child(headerBox);
-    this.dialogContainer.add_child(errorLabel);
+    this.dialogContainer.add_child(statusLabel);
     this.dialogContainer.add_child(explanationText);
+    this.dialogContainer.add_child(autoInstallTitle);
+    this.dialogContainer.add_child(autoInstallDescription);
+    this.dialogContainer.add_child(autoInstallSection);
+    this.dialogContainer.add_child(separatorLine);
+    this.dialogContainer.add_child(orLabel);
     this.dialogContainer.add_child(instructionsTitle);
     this.dialogContainer.add_child(step1);
     this.dialogContainer.add_child(step2);
@@ -247,6 +370,9 @@ This service needs to be installed separately from the extension.`,
     this.dialogContainer.add_child(buttonBox);
 
     this.overlay.add_child(this.dialogContainer);
+
+    // Close button handler
+    this.closeButton.connect("clicked", () => this.close());
 
     // Keyboard handling
     this.keyPressHandler = this.overlay.connect(
@@ -282,6 +408,80 @@ This service needs to be installed separately from the extension.`,
     } catch (e) {
       console.error(`Error copying to clipboard: ${e}`);
       return false;
+    }
+  }
+
+  _openUrl(url) {
+    try {
+      GLib.spawn_command_line_async(`xdg-open ${url}`);
+      Main.notify("Speech2Text", "Opening GitHub repository in browser...");
+    } catch (e) {
+      console.error(`Error opening URL: ${e}`);
+      Main.notify(
+        "Speech2Text Error",
+        "Failed to open browser. URL copied to clipboard."
+      );
+      this._copyToClipboard(url);
+    }
+  }
+
+  _runAutomaticInstall() {
+    try {
+      // Get the path to the install.sh script
+      const extensionDir = `${GLib.get_home_dir()}/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page`;
+      const installScriptPath = `${extensionDir}/speech2text-service/install.sh`;
+
+      // Check if install.sh exists
+      const installScript = Gio.File.new_for_path(installScriptPath);
+      if (!installScript.query_exists(null)) {
+        Main.notify(
+          "Speech2Text Error",
+          "Install script not found. Please ensure the extension is properly installed."
+        );
+        return;
+      }
+
+      // Try different terminal emulators to run the install.sh directly
+      const terminalCommands = [
+        `gnome-terminal --working-directory="${extensionDir}/speech2text-service" -- bash -c "./install.sh; echo; echo 'Press Enter to close...'; read"`,
+        `xterm -e "cd '${extensionDir}/speech2text-service' && ./install.sh && echo && echo 'Press Enter to close...' && read"`,
+        `konsole --workdir "${extensionDir}/speech2text-service" -e bash -c "./install.sh; echo; echo 'Press Enter to close...'; read"`,
+        `terminator --working-directory="${extensionDir}/speech2text-service" -e "bash -c './install.sh; echo; echo Press Enter to close...; read'"`,
+        `x-terminal-emulator -e bash -c "cd '${extensionDir}/speech2text-service' && ./install.sh && echo && echo 'Press Enter to close...' && read"`,
+      ];
+
+      let terminalOpened = false;
+      for (const cmd of terminalCommands) {
+        try {
+          GLib.spawn_command_line_async(cmd);
+          terminalOpened = true;
+          break;
+        } catch (e) {
+          // Try next terminal emulator
+          continue;
+        }
+      }
+
+      if (terminalOpened) {
+        Main.notify(
+          "Speech2Text",
+          this.isFirstRun
+            ? "🚀 Setting up Speech2Text for you! Follow the terminal instructions."
+            : "Opening service installation in terminal..."
+        );
+        this.close();
+      } else {
+        Main.notify(
+          "Speech2Text Error",
+          "Could not open terminal. Please use manual installation."
+        );
+      }
+    } catch (e) {
+      console.error(`Error running automatic install: ${e}`);
+      Main.notify(
+        "Speech2Text Error",
+        "Automatic installation failed. Please use manual method."
+      );
     }
   }
 

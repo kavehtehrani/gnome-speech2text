@@ -115,28 +115,12 @@ export default class Speech2TextExtension extends Extension {
     this.recordingStateManager.handleRecordingError(recordingId, errorMessage);
   }
 
-  async enable() {
+  enable() {
     console.log("Enabling Speech2Text extension (D-Bus version)");
-
-    // Initialize D-Bus manager
-    const dbusInitialized = await this._initDBus();
-    if (!dbusInitialized) {
-      this._showServiceSetupDialog(
-        "Failed to connect to speech-to-text service"
-      );
-      return;
-    }
-
-    // Check service status
-    const serviceStatus = await this.dbusManager.checkServiceStatus();
-    if (!serviceStatus.available) {
-      this._showServiceSetupDialog(serviceStatus.error);
-      return;
-    }
 
     this.settings = this.getSettings();
 
-    // Create button with microphone icon
+    // Create button with microphone icon (always create UI, regardless of service status)
     button = new PanelMenu.Button(0.0, "Speech2Text");
     this.button = button;
 
@@ -148,24 +132,8 @@ export default class Speech2TextExtension extends Extension {
     });
     button.add_child(this.icon);
 
-    // Initialize recording state manager
-    this.recordingStateManager = new RecordingStateManager(
-      this.icon,
-      this.dbusManager
-    );
-
-    // Update signal handlers to use recording state manager
-    this.dbusManager.connectSignals({
-      onRecordingStopped: (recordingId, reason) => {
-        this._handleRecordingStopped(recordingId, reason);
-      },
-      onTranscriptionReady: (recordingId, text) => {
-        this._handleTranscriptionReady(recordingId, text);
-      },
-      onRecordingError: (recordingId, errorMessage) => {
-        this._handleRecordingError(recordingId, errorMessage);
-      },
-    });
+    // Don't initialize D-Bus or recording state manager here
+    // We'll do it lazily when the user first tries to use the extension
 
     // Create popup menu
     this.createPopupMenu();
@@ -200,6 +168,13 @@ export default class Speech2TextExtension extends Extension {
       this.showSettingsWindow();
     });
     this.button.menu.addMenuItem(settingsItem);
+
+    // Setup Guide menu item
+    let setupItem = new PopupMenu.PopupMenuItem("Setup Guide");
+    setupItem.connect("activate", () => {
+      this._showServiceSetupDialog("Manual setup guide requested");
+    });
+    this.button.menu.addMenuItem(setupItem);
   }
 
   captureNewShortcut(callback) {
@@ -250,55 +225,158 @@ export default class Speech2TextExtension extends Extension {
   }
 
   async toggleRecording() {
-    console.log("=== TOGGLE RECORDING (D-Bus) ===");
+    try {
+      console.log("=== TOGGLE RECORDING (D-Bus) ===");
 
-    if (!this.recordingStateManager) {
-      console.log("Recording state manager not initialized");
-      return;
-    }
+      // Check if this is the first time the user is trying to use the extension
+      const isFirstRun = this.settings.get_boolean("first-run");
 
-    if (this.recordingStateManager.isRecording()) {
-      // Stop current recording
-      await this.recordingStateManager.stopRecording();
-      return;
-    }
+      if (isFirstRun) {
+        console.log("First-time usage detected - checking service status");
 
-    // Start new recording
-    const success = await this.recordingStateManager.startRecording(
-      this.settings
-    );
-    if (!success) {
-      Main.notify(
-        "Speech2Text Error",
-        "Failed to start recording. Please try again."
+        // Initialize D-Bus manager if not already done
+        if (!this.dbusManager || !this.dbusManager.isInitialized) {
+          const dbusInitialized = await this._initDBus();
+          if (!dbusInitialized) {
+            // Don't set first-run to false yet - user should get another chance
+            this._showServiceSetupDialog("Let's get started!", true);
+            return;
+          }
+        }
+
+        // Check service status
+        const serviceStatus = await this.dbusManager.checkServiceStatus();
+        if (!serviceStatus.available) {
+          // Don't set first-run to false yet - user should get another chance
+          this._showServiceSetupDialog("Ready to set up speech-to-text!", true);
+          return;
+        }
+
+        // Service is working! Mark first run as complete and show welcome
+        this.settings.set_boolean("first-run", false);
+        Main.notify(
+          "Speech2Text",
+          "🎉 Welcome! Extension is ready to use. Right-click the microphone icon for settings."
+        );
+
+        // Initialize recording state manager if not already done
+        if (!this.recordingStateManager) {
+          this.recordingStateManager = new RecordingStateManager(
+            this.icon,
+            this.dbusManager
+          );
+
+          // Update signal handlers to use recording state manager
+          this.dbusManager.connectSignals({
+            onRecordingStopped: (recordingId, reason) => {
+              this._handleRecordingStopped(recordingId, reason);
+            },
+            onTranscriptionReady: (recordingId, text) => {
+              this._handleTranscriptionReady(recordingId, text);
+            },
+            onRecordingError: (recordingId, errorMessage) => {
+              this._handleRecordingError(recordingId, errorMessage);
+            },
+          });
+        }
+      }
+
+      // For non-first-run usage, check if service is available
+      if (
+        !this.recordingStateManager ||
+        !this.dbusManager ||
+        !this.dbusManager.isInitialized
+      ) {
+        // Try to initialize if not already done
+        const dbusInitialized = await this._initDBus();
+        if (!dbusInitialized) {
+          this._showServiceSetupDialog(
+            "Failed to connect to speech-to-text service"
+          );
+          return;
+        }
+
+        const serviceStatus = await this.dbusManager.checkServiceStatus();
+        if (!serviceStatus.available) {
+          this._showServiceSetupDialog(serviceStatus.error);
+          return;
+        }
+
+        // Initialize recording state manager if needed
+        if (!this.recordingStateManager) {
+          this.recordingStateManager = new RecordingStateManager(
+            this.icon,
+            this.dbusManager
+          );
+
+          this.dbusManager.connectSignals({
+            onRecordingStopped: (recordingId, reason) => {
+              this._handleRecordingStopped(recordingId, reason);
+            },
+            onTranscriptionReady: (recordingId, text) => {
+              this._handleTranscriptionReady(recordingId, text);
+            },
+            onRecordingError: (recordingId, errorMessage) => {
+              this._handleRecordingError(recordingId, errorMessage);
+            },
+          });
+        }
+      }
+
+      if (!this.recordingStateManager) {
+        console.log("Recording state manager not initialized");
+        return;
+      }
+
+      if (this.recordingStateManager.isRecording()) {
+        // Stop current recording
+        await this.recordingStateManager.stopRecording();
+        return;
+      }
+
+      // Start new recording
+      const success = await this.recordingStateManager.startRecording(
+        this.settings
       );
-      return;
+      if (!success) {
+        Main.notify(
+          "Speech2Text Error",
+          "Failed to start recording. Please try again."
+        );
+        return;
+      }
+
+      // Create and show recording dialog
+      const recordingDialog = new RecordingDialog(
+        () => {
+          // Cancel callback
+          this.recordingStateManager.cancelRecording();
+          this.recordingStateManager.setRecordingDialog(null);
+        },
+        (text) => {
+          // Insert callback
+          console.log(`Inserting text: ${text}`);
+          this._typeText(text);
+          this.recordingStateManager.setRecordingDialog(null);
+        },
+        () => {
+          // Stop callback
+          console.log("Stop recording button clicked");
+          this.recordingStateManager.stopRecording();
+        },
+        this.settings.get_int("recording-duration")
+      );
+
+      this.recordingStateManager.setRecordingDialog(recordingDialog);
+      console.log(`Extension: Created and set recording dialog, opening now`);
+      recordingDialog.open();
+    } catch (error) {
+      console.error("Error in toggleRecording:", error);
+      // Show setup dialog if there's any error - likely service related
+      this._showServiceSetupDialog(
+        "An error occurred. Service setup may be required."
+      );
     }
-
-    // Create and show recording dialog
-    const recordingDialog = new RecordingDialog(
-      () => {
-        // Cancel callback
-        this.recordingStateManager.cancelRecording();
-        this.recordingStateManager.setRecordingDialog(null);
-      },
-      (text) => {
-        // Insert callback
-        console.log(`Inserting text: ${text}`);
-        this._typeText(text);
-        this.recordingStateManager.setRecordingDialog(null);
-      },
-      () => {
-        // Stop callback
-        console.log("Stop recording button clicked");
-        this.recordingStateManager.stopRecording();
-      },
-      this.settings.get_int("recording-duration")
-    );
-
-    this.recordingStateManager.setRecordingDialog(recordingDialog);
-    console.log(`Extension: Created and set recording dialog, opening now`);
-    recordingDialog.open();
   }
 
   _showPreviewDialog(text) {
@@ -327,8 +405,8 @@ export default class Speech2TextExtension extends Extension {
     previewDialog.showPreview(text);
   }
 
-  _showServiceSetupDialog(errorMessage) {
-    const setupDialog = new ServiceSetupDialog(errorMessage);
+  _showServiceSetupDialog(errorMessage, isFirstRun = false) {
+    const setupDialog = new ServiceSetupDialog(errorMessage, isFirstRun);
     setupDialog.show();
   }
 

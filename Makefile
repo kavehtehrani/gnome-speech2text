@@ -6,7 +6,7 @@ EXTENSION_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas
 
-.PHONY: help install compile-schemas restart-shell clean package dev-install
+.PHONY: help install compile-schemas restart-shell clean clean-service package dev-install
 
 # Default target
 help:
@@ -18,7 +18,8 @@ help:
 	@echo "  compile-schemas  - Compile GSettings schemas"
 	@echo "  restart-shell    - Restart GNOME Shell (X11 only)"
 	@echo "  setup           - Install + compile schemas + restart"
-	@echo "  clean           - Remove installed extension"
+	@echo "  clean           - Remove installed extension AND D-Bus service"
+	@echo "  clean-service   - Remove only D-Bus service (for testing)"
 	@echo "  package         - Create distribution package"
 	@echo "  dev-install     - Development install (install + compile + restart)"
 	@echo ""
@@ -29,6 +30,7 @@ install:
 	@echo "📦 Installing extension to $(EXTENSION_DIR)..."
 	@mkdir -p $(EXTENSION_DIR)
 	@cp -r $(SOURCE_DIR)/* $(EXTENSION_DIR)/
+	@cp -r speech2text-service $(EXTENSION_DIR)/
 	@echo "✅ Extension installed successfully!"
 
 # Compile GSettings schemas
@@ -71,7 +73,7 @@ dev-install: install compile-schemas
 	@echo "🔧 Development install completed!"
 	@echo "   Remember to restart GNOME Shell if needed."
 
-# Clean installation
+# Clean installation (extension + D-Bus service)
 clean:
 	@echo "🧹 Removing installed extension..."
 	@if [ -d "$(EXTENSION_DIR)" ]; then \
@@ -80,6 +82,51 @@ clean:
 	else \
 		echo "ℹ️  Extension not found at $(EXTENSION_DIR)"; \
 	fi
+	@echo "🧹 Removing D-Bus service..."
+	@systemctl --user stop speech2text-service 2>/dev/null || true
+	@if [ -d "$(HOME)/.local/share/gnome-speech2text-service" ]; then \
+		rm -rf $(HOME)/.local/share/gnome-speech2text-service; \
+		echo "✅ Service directory removed"; \
+	else \
+		echo "ℹ️  Service directory not found"; \
+	fi
+	@if [ -f "$(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service" ]; then \
+		rm $(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service; \
+		echo "✅ D-Bus service file removed"; \
+	else \
+		echo "ℹ️  D-Bus service file not found"; \
+	fi
+	@if [ -f "$(HOME)/.local/share/applications/gnome-speech2text-service.desktop" ]; then \
+		rm $(HOME)/.local/share/applications/gnome-speech2text-service.desktop; \
+		echo "✅ Desktop entry removed"; \
+	else \
+		echo "ℹ️  Desktop entry not found"; \
+	fi
+	@echo "🎯 Complete cleanup finished!"
+
+# Clean only D-Bus service (for testing)
+clean-service:
+	@echo "🧹 Removing D-Bus service only..."
+	@systemctl --user stop speech2text-service 2>/dev/null || true
+	@if [ -d "$(HOME)/.local/share/gnome-speech2text-service" ]; then \
+		rm -rf $(HOME)/.local/share/gnome-speech2text-service; \
+		echo "✅ Service directory removed"; \
+	else \
+		echo "ℹ️  Service directory not found"; \
+	fi
+	@if [ -f "$(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service" ]; then \
+		rm $(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service; \
+		echo "✅ D-Bus service file removed"; \
+	else \
+		echo "ℹ️  D-Bus service file not found"; \
+	fi
+	@if [ -f "$(HOME)/.local/share/applications/gnome-speech2text-service.desktop" ]; then \
+		rm $(HOME)/.local/share/applications/gnome-speech2text-service.desktop; \
+		echo "✅ Desktop entry removed"; \
+	else \
+		echo "ℹ️  Desktop entry not found"; \
+	fi
+	@echo "🎯 D-Bus service cleanup finished!"
 
 # Create distribution package
 package:

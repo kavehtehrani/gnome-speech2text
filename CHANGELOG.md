@@ -74,6 +74,12 @@ This version represents a complete architectural overhaul in response to GNOME E
 #### **Improved User Experience**
 
 - **Service Setup Assistant**: Beautiful dialog with step-by-step installation guide when service is missing
+- **First-Run Experience**: Welcoming setup dialog appears only when user first tries to use the extension
+- **Non-Intrusive Setup**: No popups on login - setup only triggers on actual usage attempt
+- **Manual Setup Guide**: Added "Setup Guide" option to dropdown menu for easy access to installation instructions
+- **Automatic Installation**: One-click automatic installation that opens terminal and runs all commands
+- **Smart First-Run Detection**: Tracks first-run status and provides tailored setup experience
+- **Clickable GitHub Link**: Repository link in setup dialog opens in browser when clicked
 - **One-click copy commands**: Copy terminal commands directly from the setup dialog
 - **No more cryptic errors**: Replaced confusing D-Bus error messages with helpful guidance
 - **GNOME Store ready**: Seamless experience for users installing from Extensions website

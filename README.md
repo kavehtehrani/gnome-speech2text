@@ -68,18 +68,22 @@ sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip
 
 ### Seamless Installation from GNOME Extensions Store (Recommended)
 
-When the extension is available on the GNOME Extensions website, installation will be much simpler:
+When the extension is available on the GNOME Extensions website, installation will be incredibly simple:
 
 1. **Install extension** from GNOME Extensions website
-2. **Enable the extension** - if the service isn't installed, you'll see a helpful setup dialog
-3. **Follow the dialog** - copy-paste the provided commands to install the service
-4. **Restart GNOME Shell** and you're ready to go!
+2. **Enable the extension** - microphone icon appears in top panel
+3. **Click microphone or use keyboard shortcut** - first-run setup dialog appears automatically
+4. **Click "🚀 Automatic Installation"** - the extension handles everything for you!
+5. **Restart GNOME Shell** and you're ready to go!
+
+The extension only shows the setup dialog when you actually try to use it for the first time - no intrusive popups on login!
 
 The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with:
 
-- ✅ Clear step-by-step instructions
+- 🚀 **Automatic Installation**: One-click installation that opens terminal and runs all commands
+- ✅ Clear step-by-step instructions for manual installation
 - ✅ One-click copy buttons for terminal commands
-- ✅ Links to detailed documentation
+- 🔗 Clickable links to detailed documentation
 - ✅ No cryptic error messages
 
 ### Manual Installation
@@ -114,8 +118,10 @@ This will:
 
 ```bash
 # From the repository root
-make install
+make setup
 ```
+
+This will install the extension, compile the GSettings schemas, and restart GNOME Shell automatically.
 
 #### Step 3: Enable the Extension
 
@@ -141,12 +147,14 @@ make install
 
 ### Settings
 
-Right-click the microphone icon → Settings to configure:
+Right-click the microphone icon to access:
 
-- **Keyboard Shortcuts**: Customize the recording hotkey
-- **Recording Duration**: Set maximum recording time (10-300 seconds)
-- **Copy to Clipboard**: Automatically copy transcribed text
-- **Skip Preview (X11 only)**: Instantly insert text without preview
+- **Settings**: Configure extension preferences
+  - **Keyboard Shortcuts**: Customize the recording hotkey
+  - **Recording Duration**: Set maximum recording time (10-300 seconds)
+  - **Copy to Clipboard**: Automatically copy transcribed text
+  - **Skip Preview (X11 only)**: Instantly insert text without preview
+- **Setup Guide**: View service installation instructions anytime
 
 ### Keyboard Shortcuts
 
@@ -238,14 +246,20 @@ cd speech2text-service
 ### Building from Source
 
 ```bash
-# Install extension in development mode
-make install-dev
+# Complete development setup (install + compile schemas + restart)
+make setup
+
+# Development install only (no restart)
+make dev-install
 
 # Build distribution package
 make package
 
-# Run tests
-make test
+# Check installation status
+make status
+
+# Clean installation
+make clean
 ```
 
 ### D-Bus Service Development

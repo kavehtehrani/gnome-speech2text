@@ -67,9 +67,20 @@ export class DBusManager {
         "/org/gnome/Speech2Text"
       );
 
-      this.isInitialized = true;
-      console.log("D-Bus proxy initialized successfully");
-      return true;
+      // Test if the service is actually reachable
+      try {
+        await this.dbusProxy.GetServiceStatusAsync();
+        this.isInitialized = true;
+        console.log("D-Bus proxy initialized and service is reachable");
+        return true;
+      } catch (serviceError) {
+        console.log(
+          "D-Bus proxy created but service is not reachable:",
+          serviceError.message
+        );
+        // Don't set isInitialized = true if service isn't reachable
+        return false;
+      }
     } catch (e) {
       console.error(`Failed to initialize D-Bus proxy: ${e}`);
       return false;
@@ -148,8 +159,14 @@ export class DBusManager {
 
   disconnectSignals() {
     this.signalConnections.forEach((connection) => {
-      if (this.dbusProxy) {
-        this.dbusProxy.disconnectSignal(connection);
+      if (this.dbusProxy && connection) {
+        try {
+          this.dbusProxy.disconnectSignal(connection);
+        } catch (error) {
+          console.log(
+            `Signal connection ${connection} was already disconnected or invalid`
+          );
+        }
       }
     });
     this.signalConnections = [];
@@ -157,7 +174,10 @@ export class DBusManager {
 
   async checkServiceStatus() {
     if (!this.dbusProxy) {
-      return { available: false, error: "D-Bus proxy not initialized" };
+      return {
+        available: false,
+        error: "Service not installed. Please run the installation first.",
+      };
     }
 
     try {
@@ -184,7 +204,35 @@ export class DBusManager {
 
       return { available: false, error: "Unknown service status" };
     } catch (e) {
-      return { available: false, error: `Service not available: ${e.message}` };
+      console.error(`Error checking service status: ${e}`);
+
+      // Provide more helpful error messages
+      if (
+        e.message &&
+        e.message.includes("org.freedesktop.DBus.Error.ServiceUnknown")
+      ) {
+        return {
+          available: false,
+          error:
+            "Service installed but not running. Please restart GNOME Shell:\n• X11: Alt+F2, type 'r', press Enter\n• Wayland: Log out and log back in",
+        };
+      } else if (
+        e.message &&
+        e.message.includes("org.freedesktop.DBus.Error.NoReply")
+      ) {
+        return {
+          available: false,
+          error:
+            "Service not responding. Please restart GNOME Shell or check if dependencies are installed.",
+        };
+      } else {
+        return {
+          available: false,
+          error: `Service error: ${
+            e.message || "Unknown error"
+          }. Try restarting GNOME Shell.`,
+        };
+      }
     }
   }
 

@@ -28,24 +28,77 @@ version_ge() {
 
 print_status "Installing GNOME Speech2Text D-Bus Service"
 
+echo ""
+echo -e "${BLUE}This script will install all required dependencies for Ubuntu.${NC}"
+echo ""
+echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, xclip"
+echo ""
+read -p "Would you like to install all dependencies at once? [Y/n]: " install_all
+case $install_all in
+    [Nn]* ) 
+        echo "Checking dependencies individually..."
+        ;;
+    * ) 
+        print_status "Installing all dependencies..."
+        sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip
+        if [ $? -eq 0 ]; then
+            print_status "All dependencies installed successfully!"
+        else
+            echo -e "${YELLOW}Warning:${NC} Some packages may have failed to install. Checking individually..."
+        fi
+        ;;
+esac
+
+echo ""
+
 # Check for required system dependencies
 print_status "Checking system dependencies..."
 
 # Check for Python 3.8+
 if ! command_exists python3; then
-    error_exit "Python 3 is not installed. Please install Python 3.8 or higher."
+    echo -e "${RED}Error:${NC} Python 3 is not installed."
+    echo ""
+    echo "Please run the following command to install Python 3:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_python
+    case $install_python in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3 || error_exit "Failed to install Python 3"
+            ;;
+        * ) 
+            error_exit "Python 3 is required. Please install it and run this script again."
+            ;;
+    esac
 fi
 
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
 if ! version_ge "$PYTHON_VERSION" "3.8"; then
-    error_exit "Python 3.8 or higher is required. Found version $PYTHON_VERSION"
+    echo -e "${RED}Error:${NC} Python 3.8 or higher is required. Found version $PYTHON_VERSION"
+    echo ""
+    echo "Please run the following command to install a newer Python version:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3.8${NC}"
+    error_exit "Python version too old"
 fi
 
 print_status "Python version $PYTHON_VERSION detected ✓"
 
 # Check for pip
 if ! command_exists pip3; then
-    error_exit "pip3 is not installed. Please install pip3."
+    echo -e "${RED}Error:${NC} pip3 is not installed."
+    echo ""
+    echo "Please run the following command to install pip3:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-pip${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_pip
+    case $install_pip in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3-pip || error_exit "Failed to install pip3"
+            ;;
+        * ) 
+            error_exit "pip3 is required. Please install it and run this script again."
+            ;;
+    esac
 fi
 
 # Check for required system packages
@@ -53,18 +106,38 @@ print_status "Checking system packages..."
 
 # Check for ffmpeg
 if ! command_exists ffmpeg; then
-    error_exit "ffmpeg is not installed. Please install ffmpeg:
-  Ubuntu/Debian: sudo apt-get install ffmpeg
-  Fedora: sudo dnf install ffmpeg
-  Arch Linux: sudo pacman -S ffmpeg"
+    echo -e "${RED}Error:${NC} ffmpeg is not installed."
+    echo ""
+    echo "Please run the following command to install it:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y ffmpeg${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_ffmpeg
+    case $install_ffmpeg in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y ffmpeg || error_exit "Failed to install ffmpeg"
+            ;;
+        * ) 
+            error_exit "ffmpeg is required. Please install it and run this script again."
+            ;;
+    esac
 fi
 
 # Check for xdotool
 if ! command_exists xdotool; then
-    error_exit "xdotool is not installed. Please install xdotool:
-  Ubuntu/Debian: sudo apt-get install xdotool
-  Fedora: sudo dnf install xdotool
-  Arch Linux: sudo pacman -S xdotool"
+    echo -e "${RED}Error:${NC} xdotool is not installed."
+    echo ""
+    echo "Please run the following command to install it:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y xdotool${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_xdotool
+    case $install_xdotool in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y xdotool || error_exit "Failed to install xdotool"
+            ;;
+        * ) 
+            error_exit "xdotool is required. Please install it and run this script again."
+            ;;
+    esac
 fi
 
 # Check for clipboard tools
@@ -77,33 +150,58 @@ for tool in xclip xsel wl-copy; do
 done
 
 if [ "$CLIPBOARD_AVAILABLE" = false ]; then
-    echo -e "${YELLOW}Warning:${NC} No clipboard tools found. Install one of: xclip, xsel, or wl-copy"
-    echo "  Ubuntu/Debian: sudo apt-get install xclip"
-    echo "  Fedora: sudo dnf install xclip"
-    echo "  Arch Linux: sudo pacman -S xclip"
+    echo -e "${YELLOW}Warning:${NC} No clipboard tools found."
     echo ""
-    read -p "Continue without clipboard support? [y/N]: " continue_without_clipboard
-    case $continue_without_clipboard in
-        [Yy]* ) ;;
-        * ) error_exit "Installation cancelled";;
+    echo "Please run the following command to install xclip:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y xclip${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_xclip
+    case $install_xclip in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y xclip || echo -e "${YELLOW}Warning:${NC} Failed to install xclip, continuing without clipboard support"
+            ;;
+        * ) 
+            echo -e "${YELLOW}Warning:${NC} Continuing without clipboard support"
+            ;;
     esac
 fi
 
 # Check for D-Bus development files
 print_status "Checking D-Bus development packages..."
-python3 -c "import dbus" 2>/dev/null || {
-    error_exit "python3-dbus is not installed. Please install it:
-  Ubuntu/Debian: sudo apt-get install python3-dbus
-  Fedora: sudo dnf install python3-dbus
-  Arch Linux: sudo pacman -S python-dbus"
-}
 
-python3 -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null || {
-    error_exit "PyGObject is not installed. Please install it:
-  Ubuntu/Debian: sudo apt-get install python3-gi
-  Fedora: sudo dnf install python3-gobject
-  Arch Linux: sudo pacman -S python-gobject"
-}
+if ! python3 -c "import dbus" 2>/dev/null; then
+    echo -e "${RED}Error:${NC} python3-dbus is not installed."
+    echo ""
+    echo "Please run the following command to install it:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-dbus${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_dbus
+    case $install_dbus in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3-dbus || error_exit "Failed to install python3-dbus"
+            ;;
+        * ) 
+            error_exit "python3-dbus is required. Please install it and run this script again."
+            ;;
+    esac
+fi
+
+if ! python3 -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
+    echo -e "${RED}Error:${NC} PyGObject is not installed."
+    echo ""
+    echo "Please run the following command to install it:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-gi${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_gi
+    case $install_gi in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3-gi || error_exit "Failed to install python3-gi"
+            ;;
+        * ) 
+            error_exit "PyGObject is required. Please install it and run this script again."
+            ;;
+    esac
+fi
 
 print_status "All system dependencies found ✓"
 
@@ -115,7 +213,23 @@ print_status "Creating service directory: $SERVICE_DIR"
 mkdir -p "$SERVICE_DIR"
 
 print_status "Creating Python virtual environment..."
-python3 -m venv "$VENV_DIR" --system-site-packages
+if ! python3 -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
+    echo -e "${RED}Error:${NC} Failed to create virtual environment. python3-venv may not be installed."
+    echo ""
+    echo "Please run the following command to install python3-venv:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-venv${NC}"
+    echo ""
+    read -p "Would you like to run this command now? [y/N]: " install_venv
+    case $install_venv in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3-venv || error_exit "Failed to install python3-venv"
+            python3 -m venv "$VENV_DIR" --system-site-packages || error_exit "Failed to create virtual environment"
+            ;;
+        * ) 
+            error_exit "python3-venv is required. Please install it and run this script again."
+            ;;
+    esac
+fi
 
 print_status "Upgrading pip..."
 "$VENV_DIR/bin/pip" install --upgrade pip
@@ -171,4 +285,8 @@ echo ""
 echo -e "${YELLOW}To uninstall:${NC}"
 echo "  rm -rf $SERVICE_DIR"
 echo "  rm $DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
-echo "  rm $DESKTOP_DIR/gnome-speech2text-service.desktop" 
+echo "  rm $DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo ""
+echo -e "${GREEN}🎉 Installation completed successfully!${NC}"
+echo ""
+read -p "Press Enter to continue..." 
