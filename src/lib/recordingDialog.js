@@ -1,5 +1,6 @@
 import Clutter from "gi://Clutter";
 import GLib from "gi://GLib";
+import Meta from "gi://Meta";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
@@ -345,17 +346,26 @@ export class RecordingDialog {
 
     console.log(`Showing preview with text: "${text}"`);
 
+    // Check if we're on Wayland
+    const isWayland = Meta.is_wayland_compositor();
+
     // Update UI for preview mode - change icon and label
     if (this.recordingIcon) {
       this.recordingIcon.set_text("📝");
     }
     if (this.recordingLabel) {
-      this.recordingLabel.set_text("Review & Insert");
+      this.recordingLabel.set_text(
+        isWayland ? "Review & Copy" : "Review & Insert"
+      );
     }
 
     // Update instructions
     if (this.instructionLabel) {
-      this.instructionLabel.set_text("Review the transcribed text below.");
+      this.instructionLabel.set_text(
+        isWayland
+          ? "Review the transcribed text below. Text insertion is not available on Wayland."
+          : "Review the transcribed text below."
+      );
     }
 
     // Hide progress container
@@ -408,23 +418,32 @@ export class RecordingDialog {
     // Create new button box for preview
     const buttonBox = createHorizontalBox();
 
-    const insertButton = createHoverButton(
-      "Insert Text",
-      COLORS.SUCCESS,
-      "#34ce57"
+    // Only show insert button on X11
+    let insertButton = null;
+    if (!isWayland) {
+      insertButton = createHoverButton(
+        "Insert Text",
+        COLORS.SUCCESS,
+        "#34ce57"
+      );
+
+      insertButton.connect("clicked", () => {
+        const finalText = textEntry.get_text();
+        this.close();
+        this.onInsert?.(finalText);
+      });
+    }
+
+    const copyButton = createHoverButton(
+      isWayland ? "Copy" : "Copy Only",
+      COLORS.INFO,
+      "#0077ee"
     );
-    const copyButton = createHoverButton("Copy Only", COLORS.INFO, "#0077ee");
     const cancelButton = createHoverButton(
       "Cancel",
       COLORS.SECONDARY,
       COLORS.DARK_GRAY
     );
-
-    insertButton.connect("clicked", () => {
-      const finalText = textEntry.get_text();
-      this.close();
-      this.onInsert?.(finalText);
-    });
 
     copyButton.connect("clicked", () => {
       // Copy to clipboard and close
@@ -443,7 +462,10 @@ export class RecordingDialog {
       this.onCancel?.();
     });
 
-    buttonBox.add_child(insertButton);
+    // Add buttons based on platform
+    if (insertButton) {
+      buttonBox.add_child(insertButton);
+    }
     buttonBox.add_child(copyButton);
     buttonBox.add_child(cancelButton);
 
@@ -451,7 +473,9 @@ export class RecordingDialog {
 
     // Add keyboard hint
     const keyboardHint = new St.Label({
-      text: "Press Enter to insert • Escape to cancel",
+      text: isWayland
+        ? "Press Escape to cancel"
+        : "Press Enter to insert • Escape to cancel",
       style: `font-size: 12px; color: ${COLORS.DARK_GRAY}; text-align: center; margin-top: 10px;`,
     });
     this.container.add_child(keyboardHint);
@@ -467,8 +491,8 @@ export class RecordingDialog {
           this.onCancel?.();
           return Clutter.EVENT_STOP;
         } else if (
-          keyval === Clutter.KEY_Return ||
-          keyval === Clutter.KEY_KP_Enter
+          !isWayland &&
+          (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter)
         ) {
           const finalText = textEntry.get_text();
           this.close();

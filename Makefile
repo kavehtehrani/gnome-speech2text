@@ -15,27 +15,36 @@ help:
 	@echo "=================================================="
 	@echo ""
 	@echo "Available targets:"
-	@echo "  install          - Install extension to user directory"
+	@echo "  install          - Install extension + compile schemas"
 	@echo "  clean-install    - Clean old files + install (recommended)"
-	@echo "  compile-schemas  - Compile GSettings schemas"
+	@echo "  compile-schemas  - Compile GSettings schemas only"
 	@echo "  restart-shell    - Restart GNOME Shell (X11 only)"
-	@echo "  setup           - Clean install + compile schemas + restart"
+	@echo "  setup           - Clean install + restart shell"
 	@echo "  clean           - Remove installed extension AND D-Bus service"
 	@echo "  clean-service   - Remove only D-Bus service (for testing)"
 	@echo "  package         - Create distribution package"
-	@echo "  dev-install     - Development install (install + compile + restart)"
+	@echo "  dev-install     - Development install (same as install)"
 	@echo "  status          - Check extension installation status"
 	@echo "  verify-schema   - Verify schema is properly installed"
 	@echo ""
 	@echo "Usage: make <target>"
 
-# Install extension files
+# Install extension files and compile schemas
 install:
 	@echo "📦 Installing extension to $(EXTENSION_DIR)..."
 	@mkdir -p $(EXTENSION_DIR)
 	@cp -r $(SOURCE_DIR)/* $(EXTENSION_DIR)/
 	@cp -r speech2text-service $(EXTENSION_DIR)/
-	@echo "✅ Extension installed successfully!"
+	@echo "✅ Extension files installed successfully!"
+	@echo "🔧 Compiling GSettings schemas..."
+	@glib-compile-schemas $(SCHEMAS_DIR)
+	@if [ -f "$(SCHEMAS_DIR)/gschemas.compiled" ]; then \
+		echo "✅ Schemas compiled successfully!"; \
+	else \
+		echo "❌ Schema compilation failed"; \
+		exit 1; \
+	fi
+	@echo "✅ Extension installation completed!"
 
 # Compile GSettings schemas
 compile-schemas:
@@ -85,7 +94,7 @@ clean-install:
 	@echo "✅ Extension installed successfully!"
 
 # Development install (quick iteration)
-dev-install: install compile-schemas
+dev-install: install
 	@echo ""
 	@echo "🔧 Development install completed!"
 	@echo "   Remember to restart GNOME Shell if needed."
