@@ -17,8 +17,8 @@ This separation ensures the extension follows GNOME's best practices and securit
 
 ## Features
 
-- 🎤 **Real-time Speech Recognition** using OpenAI Whisper
-- ⌨️ **Automatic Text Insertion** at cursor location
+- 🎤 **Speech Recognition** using OpenAI Whisper
+- ⌨️ **Automatic Text Insertion** at cursor location (only on X11)
 - 🖱️ **Click to Record** from top panel microphone icon
 - ⌨️ **Keyboard Shortcut** support (default: Ctrl+Shift+Alt+C)
 - 🌍 **Multi-language Support** (depending on Whisper model)
@@ -33,13 +33,13 @@ This separation ensures the extension follows GNOME's best practices and securit
 - ✅ Text insertion works perfectly
 - ✅ Preview dialog with Insert/Copy options
 - ✅ Skip preview option for instant text insertion
+- ✅ Auto-skip preview option available for X11 sessions
 
 ### Wayland (Limited Support)
 
 - ✅ Speech recognition works perfectly
 - ⚠️ Text insertion has limitations due to Wayland security restrictions
 - ✅ Copy to clipboard always works
-- ✅ Auto-skip preview option available for X11 sessions
 
 ## Requirements
 
@@ -66,25 +66,34 @@ sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip
 
 ## Installation
 
-### Seamless Installation from GNOME Extensions Store (Recommended)
+### Seamless Installation from GNOME Extensions Store (Work in Progress)
 
-When the extension is available on the GNOME Extensions website, installation will be incredibly simple:
+🚧 This extension is currently under review for the GNOME Extensions website. Once approved, it will be available for easy installation directly from the website.
 
-1. **Install extension** from GNOME Extensions website
-2. **Enable the extension** - microphone icon appears in top panel
-3. **Click microphone or use keyboard shortcut** - first-run setup dialog appears automatically
-4. **Click "🚀 Automatic Installation"** - the extension handles everything for you!
-5. **Restart GNOME Shell** and you're ready to go!
+### Quick Installation (Recommended)
 
-The extension only shows the setup dialog when you actually try to use it for the first time - no intrusive popups on login!
+For the easiest installation experience, use our unified installer:
 
-The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with:
+```bash
+# Clone the repository
+git clone https://github.com/kavehtehrani/gnome-speech2text.git
+cd gnome-speech2text
 
-- 🚀 **Automatic Installation**: One-click installation that opens terminal and runs all commands
-- ✅ Clear step-by-step instructions for manual installation
-- ✅ One-click copy buttons for terminal commands
-- 🔗 Clickable links to detailed documentation
-- ✅ No cryptic error messages
+# Run the installation script
+./install.sh
+```
+
+This script will:
+
+- Check system dependencies and guide you through installing any missing ones
+- Install the D-Bus service automatically
+- Install the GNOME extension and compile schemas
+- Restart GNOME Shell (on X11) or provide instructions for Wayland
+- Give you clear next steps to start using the extension
+
+### First Time Setup
+
+The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with automatic or manual installation options.
 
 ### Manual Installation
 

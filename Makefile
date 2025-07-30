@@ -14,6 +14,8 @@ help:
 	@echo "GNOME Speech2Text Extension - Development Automation"
 	@echo "=================================================="
 	@echo ""
+	@echo "🚀 For easy installation, run: ./install.sh"
+	@echo ""
 	@echo "Available targets:"
 	@echo "  install          - Install extension + compile schemas"
 	@echo "  clean-install    - Clean old files + install (recommended)"
