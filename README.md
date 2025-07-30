@@ -205,8 +205,12 @@ systemctl --user enable speech2text-service
 Reinstall the service environment:
 
 ```bash
+# Remove existing service first
+make clean-service
+
+# Then reinstall
 cd speech2text-service
-./install.sh --force
+./install.sh
 ```
 
 ### Viewing Logs
@@ -233,8 +237,11 @@ rm -rf ~/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page
 ### Remove D-Bus Service
 
 ```bash
-cd speech2text-service
-./install.sh --uninstall
+# Remove D-Bus service using Makefile
+make clean-service
+
+# Or remove everything (extension + service)
+make clean
 ```
 
 ## Privacy & Security
@@ -267,10 +274,11 @@ make clean
 ```bash
 cd speech2text-service
 
-# Install in development mode
-./install.sh --dev
+# Install the service
+./install.sh
 
 # Test D-Bus interface
+cd ..
 python test-dbus.py
 ```
 
@@ -291,7 +299,3 @@ Please include:
 - Extension logs (`journalctl /usr/bin/gnome-shell`)
 - Service logs (`journalctl --user -u speech2text-service`)
 - Steps to reproduce the issue
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history and changes.

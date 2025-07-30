@@ -36,7 +36,7 @@ echo "We need to run the following command to install all dependencies:"
 echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip"
 echo ""
 read -p "Would you like to install all dependencies at once? [Y/n]: " install_all
-case $install_all in
+case "$install_all" in
     [Nn]* ) 
         echo "Checking dependencies individually..."
         ;;
@@ -64,7 +64,7 @@ if ! command_exists python3; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_python
-    case $install_python in
+    case "$install_python" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3 || error_exit "Failed to install Python 3"
             ;;
@@ -93,7 +93,7 @@ if ! command_exists pip3; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-pip${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_pip
-    case $install_pip in
+    case "$install_pip" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-pip || error_exit "Failed to install pip3"
             ;;
@@ -114,7 +114,7 @@ if ! command_exists ffmpeg; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y ffmpeg${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_ffmpeg
-    case $install_ffmpeg in
+    case "$install_ffmpeg" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y ffmpeg || error_exit "Failed to install ffmpeg"
             ;;
@@ -132,7 +132,7 @@ if ! command_exists xdotool; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y xdotool${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_xdotool
-    case $install_xdotool in
+    case "$install_xdotool" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y xdotool || error_exit "Failed to install xdotool"
             ;;
@@ -158,7 +158,7 @@ if [ "$CLIPBOARD_AVAILABLE" = false ]; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y xclip${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_xclip
-    case $install_xclip in
+    case "$install_xclip" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y xclip || echo -e "${YELLOW}Warning:${NC} Failed to install xclip, continuing without clipboard support"
             ;;
@@ -178,7 +178,7 @@ if ! python3 -c "import dbus" 2>/dev/null; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-dbus${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_dbus
-    case $install_dbus in
+    case "$install_dbus" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-dbus || error_exit "Failed to install python3-dbus"
             ;;
@@ -195,7 +195,7 @@ if ! python3 -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-gi${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_gi
-    case $install_gi in
+    case "$install_gi" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-gi || error_exit "Failed to install python3-gi"
             ;;
@@ -222,7 +222,7 @@ if ! python3 -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
     echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-venv${NC}"
     echo ""
     read -p "Would you like to run this command now? [y/N]: " install_venv
-    case $install_venv in
+    case "$install_venv" in
         [Yy]* ) 
             sudo apt update && sudo apt install -y python3-venv || error_exit "Failed to install python3-venv"
             python3 -m venv "$VENV_DIR" --system-site-packages || error_exit "Failed to create virtual environment"
@@ -286,7 +286,7 @@ echo "  rm -rf $SERVICE_DIR"
 echo "  rm $DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
 echo "  rm $DESKTOP_DIR/gnome-speech2text-service.desktop"
 echo ""
-echo -e "${GREEN}🎉 Installation completed successfully!${NCA}"
+echo -e "${GREEN}🎉 Installation completed successfully!${NC}"
 echo -e "${GREEN} You need to restart GNOME"
 echo -e "${GREEN} On X11: Alt+F2, type 'r', press Enter."
 echo -e "${GREEN} On Wayland: Log out and log back in."

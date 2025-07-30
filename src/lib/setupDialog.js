@@ -226,93 +226,12 @@ This service needs to be installed separately from the extension.`,
     });
 
     const step2 = new St.Label({
-      text: "2. Install system dependencies:",
-      style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
-    });
-
-    const dependenciesBox = new St.Label({
-      text: "sudo apt install python3 python3-pip python3-venv ffmpeg xclip",
-      style: `
-        background-color: ${COLORS.DARK_GRAY};
-        border: 1px solid ${COLORS.SECONDARY};
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-family: monospace;
-        font-size: 12px;
-        padding: 10px;
-        margin: 5px 0 10px 20px;
-        width: 500px;
-      `,
-    });
-
-    // Copy button for dependencies command
-    const copyDepsInlineButton = new St.Button({
-      label: "📋 Copy",
-      style: `
-        background-color: ${COLORS.INFO};
-        border: 1px solid ${COLORS.INFO};
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-size: 11px;
-        padding: 8px 12px;
-        margin: 5px 0 10px 10px;
-        min-width: 70px;
-        transition-duration: 150ms;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-
-    // Add hover effects with inline styles preserved
-    copyDepsInlineButton.connect("enter-event", () => {
-      copyDepsInlineButton.set_style(`
-        background-color: #0077ee;
-        border: 1px solid #0077ee;
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-size: 11px;
-        padding: 8px 12px;
-        margin: 5px 0 10px 10px;
-        min-width: 70px;
-        transition-duration: 150ms;
-        transform: scale(1.05);
-      `);
-    });
-
-    copyDepsInlineButton.connect("leave-event", () => {
-      copyDepsInlineButton.set_style(`
-        background-color: ${COLORS.INFO};
-        border: 1px solid ${COLORS.INFO};
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-size: 11px;
-        padding: 8px 12px;
-        margin: 5px 0 10px 10px;
-        min-width: 70px;
-        transition-duration: 150ms;
-      `);
-    });
-
-    copyDepsInlineButton.connect("clicked", () => {
-      this._copyToClipboard(
-        "sudo apt install python3 python3-pip python3-venv ffmpeg xclip"
-      );
-      Main.notify("Speech2Text", "Dependencies command copied to clipboard!");
-    });
-
-    // Container for dependencies command + copy button
-    const dependenciesContainer = createHorizontalBox();
-    dependenciesContainer.add_child(dependenciesBox);
-    dependenciesContainer.add_child(copyDepsInlineButton);
-
-    const step3 = new St.Label({
-      text: "3. Download and install the service:",
+      text: "2. Download and install the service (includes all dependencies):",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
     const installCommandBox = new St.Label({
-      text: "wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash",
+      text: "wget -O- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash",
       style: `
         background-color: ${COLORS.DARK_GRAY};
         border: 1px solid ${COLORS.SECONDARY};
@@ -377,7 +296,7 @@ This service needs to be installed separately from the extension.`,
 
     copyInstallInlineButton.connect("clicked", () => {
       this._copyToClipboard(
-        "wget -qO- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash"
+        "wget -O- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash"
       );
       Main.notify("Speech2Text", "Install command copied to clipboard!");
     });
@@ -387,8 +306,8 @@ This service needs to be installed separately from the extension.`,
     installContainer.add_child(installCommandBox);
     installContainer.add_child(copyInstallInlineButton);
 
-    const step4 = new St.Label({
-      text: "4. Restart GNOME Shell:\n   • X11: Press Alt+F2, type 'r', press Enter\n   • Wayland: Log out and log back in",
+    const step3 = new St.Label({
+      text: "3. Restart GNOME Shell:\n   • X11: Press Alt+F2, type 'r', press Enter\n   • Wayland: Log out and log back in",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
@@ -474,10 +393,8 @@ This service needs to be installed separately from the extension.`,
     this.dialogContainer.add_child(instructionsTitle);
     this.dialogContainer.add_child(step1);
     this.dialogContainer.add_child(step2);
-    this.dialogContainer.add_child(dependenciesContainer);
-    this.dialogContainer.add_child(step3);
     this.dialogContainer.add_child(installContainer);
-    this.dialogContainer.add_child(step4);
+    this.dialogContainer.add_child(step3);
     this.dialogContainer.add_child(manualTitle);
     this.dialogContainer.add_child(manualText);
     this.dialogContainer.add_child(repoLinkBox);
