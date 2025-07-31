@@ -79,7 +79,7 @@ class Speech2TextService(dbus.service.Object):
             # On X11 or unknown, check for xclip/xsel
             for tool in ['xclip', 'xsel']:
                 try:
-                    subprocess.run([tool, '--version'], capture_output=True, check=True)
+                    subprocess.run(['which', tool], capture_output=True, check=True)
                     clipboard_available = True
                     break
                 except (FileNotFoundError, subprocess.CalledProcessError):
