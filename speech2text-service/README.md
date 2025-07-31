@@ -1,6 +1,6 @@
 # GNOME Speech2Text D-Bus Service
 
-This is the D-Bus service component for the GNOME Speech2Text extension. It provides speech-to-text functionality using OpenAI's Whisper model through a D-Bus interface.
+This is the D-Bus service component for the GNOME Speech2Text extension. It provides speech-to-text functionality using OpenAI's Whisper model through a D-Bus interface. You can read more here [D-Bus Guide](https://gjs.guide/guides/#d-bus)
 
 ## Overview
 
@@ -74,7 +74,7 @@ To modify the service:
 
 Run the installation script again or install missing packages manually.
 
-## Uninstall
+## Manual Uninstall
 
 ```bash
 # Remove service files
