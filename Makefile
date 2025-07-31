@@ -7,7 +7,7 @@ SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas
 SCHEMA_ID = org.shell.extensions.speech2text
 
-.PHONY: help install compile-schemas restart-shell clean clean-service package dev-package dev-install clean-install status verify-schema clean-dist test-install
+.PHONY: help install compile-schemas clean clean-service package clean-install status verify-schema clean-dist test-install
 
 # Default target
 help:
@@ -20,15 +20,12 @@ help:
 	@echo "  install          - Install extension + compile schemas"
 	@echo "  clean-install    - Clean old files + install (recommended)"
 	@echo "  compile-schemas  - Compile GSettings schemas only"
-	@echo "  restart-shell    - Restart GNOME Shell (X11 only)"
 	@echo "  setup           - Clean install + restart shell"
 	@echo "  clean           - Remove installed extension AND D-Bus service"
 	@echo "  clean-service   - Remove only D-Bus service (for testing)"
 	@echo "  package         - Create distribution package for GNOME Extensions store"
-	@echo "  dev-package     - Create development package (includes service files)"
 	@echo "  clean-dist      - Clean distribution packages"
 	@echo "  test-install    - Create package and test installation locally"
-	@echo "  dev-install     - Development install (same as install)"
 	@echo "  status          - Check extension installation status"
 	@echo "  verify-schema   - Verify schema is properly installed"
 	@echo ""
@@ -67,23 +64,22 @@ compile-schemas:
 		exit 1; \
 	fi
 
-# Restart GNOME Shell (X11 only)
-restart-shell:
-	@echo "🔄 Restarting GNOME Shell..."
-	@if [ "$(XDG_SESSION_TYPE)" = "x11" ]; then \
-		busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart("Restarting GNOME Shell")' > /dev/null 2>&1; \
-		echo "✅ GNOME Shell restarted (X11)"; \
-	elif [ "$(XDG_SESSION_TYPE)" = "wayland" ]; then \
-		echo "⚠️  Wayland detected - please log out and log back in"; \
-	else \
-		echo "⚠️  Unknown session type - manual restart required"; \
-	fi
+
 
 # Complete setup process
-setup: clean-install compile-schemas restart-shell
+setup: clean-install compile-schemas
 	@echo ""
 	@echo "🎉 Extension setup completed!"
 	@echo "   The extension should now be available in GNOME Extensions."
+	@echo ""
+	@echo "🔄 Restart GNOME Shell to activate the extension:"
+	@if [ "$(XDG_SESSION_TYPE)" = "x11" ]; then \
+		echo "   Alt+F2 → r → Enter (or run: busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart()')"; \
+	elif [ "$(XDG_SESSION_TYPE)" = "wayland" ]; then \
+		echo "   ⚠️  Wayland detected - please log out and log back in"; \
+	else \
+		echo "   ⚠️  Unknown session type - manual restart required"; \
+	fi
 
 # Clean install (ensures old schema files are removed)
 clean-install:
@@ -98,11 +94,7 @@ clean-install:
 	@cp -r speech2text-service $(EXTENSION_DIR)/
 	@echo "✅ Extension installed successfully!"
 
-# Development install (quick iteration)
-dev-install: install
-	@echo ""
-	@echo "🔧 Development install completed!"
-	@echo "   Remember to restart GNOME Shell if needed."
+
 
 # Clean installation (extension + D-Bus service)
 clean:
@@ -173,29 +165,7 @@ package:
 	echo "" && \
 	echo "🎯 Package ready for submission to GNOME Extensions store!"
 
-# Create development package (includes service files for local testing)
-dev-package:
-	@echo "📦 Creating development package (includes service files)..."
-	@mkdir -p dist && \
-	PACKAGE_DIR="$(EXTENSION_UUID)-dev" && \
-	PACKAGE_FILE="dist/$(EXTENSION_UUID)-dev.zip" && \
-	echo "   Creating package directory: $$PACKAGE_DIR" && \
-	rm -rf "$$PACKAGE_DIR" "$$PACKAGE_FILE" && \
-	mkdir -p "$$PACKAGE_DIR" && \
-	echo "   Copying extension files..." && \
-	cp -r $(SOURCE_DIR)/* "$$PACKAGE_DIR/" && \
-	echo "   Recompiling schemas for package..." && \
-	glib-compile-schemas "$$PACKAGE_DIR/schemas/" && \
-	echo "   Copying service files..." && \
-	cp -r speech2text-service "$$PACKAGE_DIR/" && \
-	echo "   Creating ZIP package..." && \
-	cd "$$PACKAGE_DIR" && \
-	zip -r "../$$PACKAGE_FILE" . && \
-	cd .. && \
-	rm -rf "$$PACKAGE_DIR" && \
-	echo "✅ Development package created: $$PACKAGE_FILE" && \
-	echo "   Size: $$(du -h "$$PACKAGE_FILE" | cut -f1)" && \
-	echo "   Note: This package includes service files for local development"
+
 
 # Clean only D-Bus service (for testing)
 clean-service:
@@ -230,32 +200,13 @@ clean-service:
 	@echo "🎯 D-Bus service cleanup finished!"
 
 # Test installation using created package (simulates GNOME Extensions store)
-test-install:
-	@echo "🧪 Testing GNOME Extensions store installation process..."
-	@echo "   Creating package first..."
-	@mkdir -p dist && \
-	PACKAGE_DIR="$(EXTENSION_UUID)-test" && \
-	PACKAGE_FILE="dist/$(EXTENSION_UUID).zip" && \
-	rm -rf "$$PACKAGE_DIR" "$$PACKAGE_FILE" && \
-	mkdir -p "$$PACKAGE_DIR" && \
-	echo "   Copying extension files..." && \
-	cp -r $(SOURCE_DIR)/* "$$PACKAGE_DIR/" && \
-	echo "   Recompiling schemas for package..." && \
-	glib-compile-schemas "$$PACKAGE_DIR/schemas/" && \
-	echo "   Copying service files..." && \
-	cp -r speech2text-service "$$PACKAGE_DIR/" && \
-	echo "   Creating ZIP package..." && \
-	cd "$$PACKAGE_DIR" && \
-	zip -r "../$$PACKAGE_FILE" . && \
-	cd .. && \
-	rm -rf "$$PACKAGE_DIR" && \
-	echo "✅ Package created: $$PACKAGE_FILE" && \
-	echo "" && \
-	echo "🔧 Simulating GNOME Extensions store installation..." && \
-	echo "   This replicates what happens when a user downloads from extensions.gnome.org" && \
+test-install: package
+	@echo "🔧 Simulating GNOME Extensions store installation..."
+	@echo "   This replicates what happens when a user downloads from extensions.gnome.org" && \
 	echo "" && \
 	echo "   Step 1: Extract ZIP to extension directory..." && \
 	GNOME_EXTENSION_DIR="$(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)" && \
+	PACKAGE_FILE="dist/$(EXTENSION_UUID).zip" && \
 	echo "   Target directory: $$GNOME_EXTENSION_DIR" && \
 	rm -rf "$$GNOME_EXTENSION_DIR" && \
 	mkdir -p "$$GNOME_EXTENSION_DIR" && \
