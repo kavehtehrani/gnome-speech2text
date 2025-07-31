@@ -193,19 +193,30 @@ check_system_deps() {
         missing_deps+=("xdotool")
     fi
     
-    # Check clipboard tools
+    # Check clipboard tools (session-type specific)
     local clipboard_found=false
-    for cmd in xclip xsel wl-copy; do
-        if command_exists "$cmd"; then
-            print_status "$cmd found (clipboard support)"
+    if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+        if command_exists wl-copy; then
+            print_status "wl-copy found (clipboard support for Wayland)"
             clipboard_found=true
-            break
+        else
+            print_warning "wl-copy not found (required for Wayland clipboard)"
+            missing_deps+=("wl-clipboard")
         fi
-    done
-    
-    if [ "$clipboard_found" = false ]; then
-        print_warning "No clipboard tool found (xclip, xsel, or wl-copy recommended)"
-        missing_deps+=("xclip")
+    else
+        # X11 or unknown - check for xclip/xsel
+        for cmd in xclip xsel; do
+            if command_exists "$cmd"; then
+                print_status "$cmd found (clipboard support for X11)"
+                clipboard_found=true
+                break
+            fi
+        done
+        
+        if [ "$clipboard_found" = false ]; then
+            print_warning "No clipboard tool found (xclip recommended for X11)"
+            missing_deps+=("xclip")
+        fi
     fi
     
     # Check make

@@ -54,9 +54,15 @@ print_status "Installing GNOME Speech2Text D-Bus Service"
 echo ""
 echo -e "${BLUE}This script will install all required dependencies for Ubuntu.${NC}"
 echo ""
-echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, xclip"
-echo "We need to run the following command to install all dependencies:"
-echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip"
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, wl-clipboard"
+    echo "We need to run the following command to install all dependencies:"
+    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool wl-clipboard"
+else
+    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, xclip"
+    echo "We need to run the following command to install all dependencies:"
+    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip"
+fi
 echo ""
 install_all=$(ask_user "Would you like to install all dependencies at once? [Y/n]: " "Y")
 case "$install_all" in
@@ -65,7 +71,11 @@ case "$install_all" in
         ;;
     * ) 
         print_status "Installing all dependencies..."
-        sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip
+        if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool wl-clipboard
+        else
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip
+        fi
         if [ $? -eq 0 ]; then
             print_status "All dependencies installed successfully!"
         else
@@ -165,30 +175,53 @@ if ! command_exists xdotool; then
     esac
 fi
 
-# Check for clipboard tools
+# Check for clipboard tools (session-type specific)
 CLIPBOARD_AVAILABLE=false
-for tool in xclip xsel wl-copy; do
-    if command_exists "$tool"; then
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+    if command_exists wl-copy; then
         CLIPBOARD_AVAILABLE=true
-        break
     fi
-done
+else
+    # X11 or unknown - check for xclip/xsel
+    for tool in xclip xsel; do
+        if command_exists "$tool"; then
+            CLIPBOARD_AVAILABLE=true
+            break
+        fi
+    done
+fi
 
 if [ "$CLIPBOARD_AVAILABLE" = false ]; then
     echo -e "${YELLOW}Warning:${NC} No clipboard tools found."
     echo ""
-    echo "Please run the following command to install xclip:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y xclip${NC}"
-    echo ""
-    install_xclip=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_xclip" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y xclip || echo -e "${YELLOW}Warning:${NC} Failed to install xclip, continuing without clipboard support"
-            ;;
-        * ) 
-            echo -e "${YELLOW}Warning:${NC} Continuing without clipboard support"
-            ;;
-    esac
+    
+    if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+        echo "Please run the following command to install wl-clipboard (for Wayland):"
+        echo -e "${YELLOW}sudo apt update && sudo apt install -y wl-clipboard${NC}"
+        echo ""
+        install_clipboard=$(ask_user "Would you like to run this command now? [y/N]: " "y")
+        case "$install_clipboard" in
+            [Yy]* ) 
+                sudo apt update && sudo apt install -y wl-clipboard || echo -e "${YELLOW}Warning:${NC} Failed to install wl-clipboard, continuing without clipboard support"
+                ;;
+            * ) 
+                echo -e "${YELLOW}Warning:${NC} Continuing without clipboard support on Wayland"
+                ;;
+        esac
+    else
+        echo "Please run the following command to install xclip (for X11):"
+        echo -e "${YELLOW}sudo apt update && sudo apt install -y xclip${NC}"
+        echo ""
+        install_clipboard=$(ask_user "Would you like to run this command now? [y/N]: " "y")
+        case "$install_clipboard" in
+            [Yy]* ) 
+                sudo apt update && sudo apt install -y xclip || echo -e "${YELLOW}Warning:${NC} Failed to install xclip, continuing without clipboard support"
+                ;;
+            * ) 
+                echo -e "${YELLOW}Warning:${NC} Continuing without clipboard support on X11"
+                ;;
+        esac
+    fi
 fi
 
 # Check for D-Bus development files

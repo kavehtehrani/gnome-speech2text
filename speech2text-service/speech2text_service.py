@@ -64,18 +64,32 @@ class Speech2TextService(dbus.service.Object):
         except (FileNotFoundError, subprocess.CalledProcessError):
             missing.append("xdotool")
         
-        # Check for clipboard tools
+        # Check for clipboard tools (session-type specific)
         clipboard_available = False
-        for tool in ['xclip', 'xsel', 'wl-copy']:
+        session_type = os.environ.get('XDG_SESSION_TYPE', '')
+        
+        if session_type == 'wayland':
+            # On Wayland, only wl-copy works
             try:
-                subprocess.run([tool, '--version'], capture_output=True, check=True)
+                subprocess.run(['which', 'wl-copy'], capture_output=True, check=True)
                 clipboard_available = True
-                break
             except (FileNotFoundError, subprocess.CalledProcessError):
-                continue
+                pass
+        else:
+            # On X11 or unknown, check for xclip/xsel
+            for tool in ['xclip', 'xsel']:
+                try:
+                    subprocess.run([tool, '--version'], capture_output=True, check=True)
+                    clipboard_available = True
+                    break
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    continue
         
         if not clipboard_available:
-            missing.append("clipboard-tools (xclip, xsel, or wl-copy)")
+            if session_type == 'wayland':
+                missing.append("wl-clipboard (required for Wayland)")
+            else:
+                missing.append("clipboard-tools (xclip or xsel for X11)")
         
         # Check for Whisper
         try:
