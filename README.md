@@ -217,9 +217,6 @@ make clean
 # Complete development setup (install + compile schemas + restart)
 make setup
 
-# Development install only (no restart)
-make dev-install
-
 # Check installation status
 make status
 
