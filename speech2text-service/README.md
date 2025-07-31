@@ -11,85 +11,6 @@ The GNOME Speech2Text system is split into two components:
 
 This separation follows GNOME's architectural guidelines and makes the extension suitable for submission to the GNOME Extensions store.
 
-## Features
-
-- Audio recording with configurable duration
-- Speech-to-text transcription using OpenAI Whisper
-- Text insertion via keyboard simulation
-- Clipboard integration
-- X11 and Wayland support
-- Proper D-Bus integration for service communication
-
-## Requirements
-
-### System Dependencies
-
-- Python 3.8 or higher
-- ffmpeg (for audio recording)
-- xdotool (for text insertion)
-- One of: xclip, xsel, or wl-copy (for clipboard support)
-- python3-dbus (D-Bus Python bindings)
-- python3-gi (PyGObject for GLib integration)
-
-### Python Dependencies
-
-- openai-whisper
-- dbus-python
-- PyGObject
-- torch
-- torchaudio
-
-## Installation
-
-### Ubuntu/Debian
-
-```bash
-# Install system dependencies
-sudo apt-get update
-sudo apt-get install python3 python3-pip python3-venv ffmpeg xdotool xclip python3-dbus python3-gi
-
-# Install the service
-cd speech2text-service
-chmod +x install.sh
-./install.sh
-```
-
-### Fedora
-
-```bash
-# Install system dependencies
-sudo dnf install python3 python3-pip ffmpeg xdotool xclip python3-dbus python3-gobject
-
-# Install the service
-cd speech2text-service
-chmod +x install.sh
-./install.sh
-```
-
-### Arch Linux
-
-```bash
-# Install system dependencies
-sudo pacman -S python python-pip ffmpeg xdotool xclip python-dbus python-gobject
-
-# Install the service
-cd speech2text-service
-chmod +x install.sh
-./install.sh
-```
-
-## Usage
-
-The service starts automatically when the GNOME extension needs it. You can also start it manually:
-
-```bash
-# Start the service manually
-~/.local/share/gnome-speech2text-service/speech2text-service
-
-# Check if service is running
-dbus-send --session --print-reply --dest=org.gnome.Speech2Text /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus
-```
-
 ## D-Bus Interface
 
 The service exposes the following D-Bus interface on `org.gnome.Speech2Text`:
@@ -106,13 +27,28 @@ The service exposes the following D-Bus interface on `org.gnome.Speech2Text`:
 
 - `RecordingStarted(recording_id: str)`
 - `RecordingStopped(recording_id: str, reason: str)`
-- `TranscriptionReady(recording_id: str, text: str)`
+- `TranscriptionReady(recording_id: str, text: text)`
 - `RecordingError(recording_id: str, error_message: str)`
 - `TextTyped(text: str, success: bool)`
 
-## Configuration
+## Manual Service Management
 
-The service uses the same settings as the GNOME extension via GSettings. The extension manages all configuration through its settings dialog.
+The service starts automatically when the GNOME extension needs it. You can also start it manually:
+
+```bash
+# Start the service manually
+~/.local/share/gnome-speech2text-service/speech2text-service
+
+# Check if service is running
+dbus-send --session --print-reply --dest=org.gnome.Speech2Text /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus
+```
+
+## Development
+
+To modify the service:
+
+1. Edit `speech2text_service.py`
+2. Update the D-Bus interface in `org.gnome.Speech2Text.xml` if needed
 
 ## Troubleshooting
 
@@ -137,14 +73,6 @@ The service uses the same settings as the GNOME extension via GSettings. The ext
 ### Dependencies missing
 
 Run the installation script again or install missing packages manually.
-
-## Development
-
-To modify the service:
-
-1. Edit `speech2text_service.py`
-2. Update the D-Bus interface in `org.gnome.Speech2Text.xml` if needed
-3. Test with: `python3 speech2text_service.py`
 
 ## Uninstall
 
