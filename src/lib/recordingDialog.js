@@ -305,11 +305,8 @@ export class RecordingDialog {
       if (this.startTime) {
         this.updateTimeDisplay();
 
-        if (this.elapsedTime >= this.maxDuration) {
-          // Timer reached maximum - will be handled by service
-          return false;
-        }
-        return true; // Continue the timer
+        // Continue the timer
+        return this.elapsedTime < this.maxDuration;
       }
       return false; // Stop the timer
     });
@@ -410,7 +407,6 @@ export class RecordingDialog {
 
     // Focus the text entry after a short delay and select all text
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-      textEntry.grab_key_focus();
       clutterText.set_selection(0, text.length);
       return false;
     });
@@ -457,6 +453,12 @@ export class RecordingDialog {
       this.onCancel?.();
     });
 
+    // Set focus on copy button so Enter key works
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+      copyButton.grab_key_focus();
+      return false;
+    });
+
     cancelButton.connect("clicked", () => {
       this.close();
       this.onCancel?.();
@@ -473,9 +475,7 @@ export class RecordingDialog {
 
     // Add keyboard hint
     const keyboardHint = new St.Label({
-      text: isWayland
-        ? "Press Escape to cancel"
-        : "Press Enter to insert • Escape to cancel",
+      text: "Press Enter to copy • Escape to cancel",
       style: `font-size: 12px; color: ${COLORS.DARK_GRAY}; text-align: center; margin-top: 10px;`,
     });
     this.container.add_child(keyboardHint);
@@ -491,12 +491,15 @@ export class RecordingDialog {
           this.onCancel?.();
           return Clutter.EVENT_STOP;
         } else if (
-          !isWayland &&
-          (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter)
+          keyval === Clutter.KEY_Return ||
+          keyval === Clutter.KEY_KP_Enter
         ) {
+          // Enter copies to clipboard and closes modal (default action)
           const finalText = textEntry.get_text();
+          console.log(`Copying text to clipboard (Enter key): "${finalText}"`);
+          this._copyToClipboard(finalText);
           this.close();
-          this.onInsert?.(finalText);
+          this.onCancel?.();
           return Clutter.EVENT_STOP;
         }
         return Clutter.EVENT_PROPAGATE;
