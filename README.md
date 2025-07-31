@@ -72,7 +72,7 @@ sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip
 
 ### Quick Installation (Recommended)
 
-For the easiest installation experience, use our unified installer:
+For the easiest installation experience, use the installation script:
 
 ```bash
 # Clone the repository
@@ -133,15 +133,17 @@ make verify-schema
 If the D-Bus service isn't working:
 
 ```bash
-# Check service status
-systemctl --user status speech2text-service
+# Check if service is running
+dbus-send --session --print-reply --dest=org.gnome.Speech2Text /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus
 
-# Restart the service
-systemctl --user restart speech2text-service
+# Start the service manually
+~/.local/share/gnome-speech2text-service/speech2text-service
 
-# View service logs
-journalctl --user -u speech2text-service -f
+# Check D-Bus service file
+ls ~/.local/share/dbus-1/services/org.gnome.Speech2Text.service
 ```
+
+You can read more about the D-Bus service here: [D-Bus Service Documentation](./speech2text-service/README.md).
 
 ## Usage
 
@@ -164,15 +166,7 @@ Right-click the microphone icon to access:
   - **Skip Preview (X11 only)**: Instantly insert text without preview
 - **Setup Guide**: View service installation instructions anytime
 
-### Keyboard Shortcuts
-
-- **Escape**: Cancel recording or close dialogs
-- **Enter**: Stop recording and process audio
-- **Default Hotkey**: Ctrl+Shift+Alt+C (customizable)
-
 ## Troubleshooting
-
-### Extension Shows "Service Unavailable"
 
 ### Text Insertion Not Working
 
@@ -195,8 +189,11 @@ systemctl --user status speech2text-service
 
 ## Uninstallation
 
-### Remove Extension
+### Gnome Extensions
 
+You should be able to uninstall the extension directly using the GNOME Extensions tool.
+
+### Manual Uninstallation
 
 ```bash
 # Remove everything (extension + service)
@@ -218,13 +215,10 @@ make setup
 # Development install only (no restart)
 make dev-install
 
-# Build distribution package
-make package
-
 # Check installation status
 make status
 
-# Clean installation
+# Clean installation (extension + d-bus service)
 make clean
 ```
 

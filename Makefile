@@ -174,13 +174,6 @@ clean-service:
 	fi
 	@echo "🎯 D-Bus service cleanup finished!"
 
-# Create distribution package
-package:
-	@echo "📦 Creating distribution package..."
-	@mkdir -p dist
-	@cd $(SOURCE_DIR) && zip -r ../dist/$(EXTENSION_UUID).zip *
-	@echo "✅ Package created: dist/$(EXTENSION_UUID).zip"
-
 # Check if extension is enabled
 status:
 	@echo "📊 Extension Status:"
