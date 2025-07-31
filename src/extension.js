@@ -1,6 +1,5 @@
 import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import Meta from "gi://Meta";
 import Shell from "gi://Shell";
 import St from "gi://St";
@@ -10,29 +9,12 @@ import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
-// Import modularized utilities (keeping some for UI)
-import { COLORS, STYLES, createAccentDisplayStyle } from "./lib/constants.js";
-import {
-  createHoverButton,
-  createTextButton,
-  createStyledLabel,
-  createVerticalBox,
-  createHorizontalBox,
-  createSeparator,
-} from "./lib/uiUtils.js";
-import {
-  createCloseButton,
-  createIncrementButton,
-  createCenteredBox,
-  createHeaderLayout,
-} from "./lib/buttonUtils.js";
 import { SettingsDialog } from "./lib/settingsDialog.js";
 import { RecordingDialog } from "./lib/recordingDialog.js";
 import { ServiceSetupDialog } from "./lib/setupDialog.js";
 import { DBusManager } from "./lib/dbusManager.js";
 import { ShortcutCapture } from "./lib/shortcutCapture.js";
 import { RecordingStateManager } from "./lib/recordingStateManager.js";
-import { safeDisconnect, cleanupModal } from "./lib/resourceUtils.js";
 
 let button;
 

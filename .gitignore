@@ -5,3 +5,4 @@
 /test/
 /src/schemas/gschemas.compiled
 /test-dbus.py
+/dist/
