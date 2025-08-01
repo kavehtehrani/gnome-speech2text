@@ -185,12 +185,16 @@ check_system_deps() {
         missing_deps+=("ffmpeg")
     fi
     
-    # Check xdotool (for text insertion on X11)
-    if command_exists xdotool; then
-        print_status "xdotool found (text insertion support)"
+    # Check xdotool (for text insertion on X11 only)
+    if [ "${XDG_SESSION_TYPE:-}" != "wayland" ]; then
+        if command_exists xdotool; then
+            print_status "xdotool found (text insertion support)"
+        else
+            print_warning "xdotool not found (text insertion on X11 will not work)"
+            missing_deps+=("xdotool")
+        fi
     else
-        print_warning "xdotool not found (text insertion on X11 will not work)"
-        missing_deps+=("xdotool")
+        print_status "Skipping xdotool check (not needed for Wayland sessions)"
     fi
     
     # Check clipboard tools (session-type specific)
