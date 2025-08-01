@@ -21,11 +21,21 @@ export function createButtonStyle(baseColor, hoverColor) {
 // Helper function to add hand cursor on button hover
 export function addHandCursorToButton(button) {
   button.connect("enter-event", () => {
-    global.display.set_cursor(Meta.Cursor.POINTING_HAND);
+    try {
+      global.display.set_cursor(Meta.Cursor.POINTING_HAND);
+    } catch (error) {
+      console.log("Failed to set pointing hand cursor:", error.message);
+      // Continue without cursor change if it fails
+    }
   });
 
   button.connect("leave-event", () => {
-    global.display.set_cursor(Meta.Cursor.DEFAULT);
+    try {
+      global.display.set_cursor(Meta.Cursor.DEFAULT);
+    } catch (error) {
+      console.log("Failed to set default cursor:", error.message);
+      // Continue without cursor change if it fails
+    }
   });
 }
 
