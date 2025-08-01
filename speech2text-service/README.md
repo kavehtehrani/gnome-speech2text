@@ -66,9 +66,11 @@ To modify the service:
 
 ### Text insertion fails
 
-1. Ensure xdotool is installed: `xdotool version`
-2. Test manually: `xdotool type "test"`
-3. Check if running on X11 or Wayland
+1. Check if running on X11 or Wayland: `echo $XDG_SESSION_TYPE`
+2. For X11 sessions:
+   - Ensure xdotool is installed: `xdotool version`
+   - Test manually: `xdotool type "test"`
+3. For Wayland sessions: Text insertion may have limitations (xdotool not required)
 
 ### Dependencies missing
 

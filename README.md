@@ -48,7 +48,7 @@ This separation ensures the extension follows GNOME's best practices and securit
 - GNOME Shell 46 or later
 - Python 3.8 or later
 - FFmpeg (for audio recording)
-- xdotool (for text insertion)
+- xdotool (for text insertion on X11 only)
 - Clipboard tool: xclip/xsel (X11) or wl-clipboard (Wayland)
 
 ### Installation of System Dependencies
@@ -64,7 +64,7 @@ sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip
 
 # For Wayland sessions
 sudo apt update
-sudo apt install python3 python3-pip python3-venv ffmpeg xdotool wl-clipboard
+sudo apt install python3 python3-pip python3-venv ffmpeg wl-clipboard
 ```
 
 **Note:** This extension has been tested extensively on Ubuntu 24.04 / GNOME 46 / X11+Wayland. It should work on other GNOME Shell 46+ distributions with the above packages installed, but hasn't been tested on other platforms yet.

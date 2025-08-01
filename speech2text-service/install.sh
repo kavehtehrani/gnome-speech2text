@@ -55,9 +55,9 @@ echo ""
 echo -e "${BLUE}This script will install all required dependencies for Ubuntu.${NC}"
 echo ""
 if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, wl-clipboard"
+    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, wl-clipboard"
     echo "We need to run the following command to install all dependencies:"
-    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool wl-clipboard"
+    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard"
 else
     echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, xclip"
     echo "We need to run the following command to install all dependencies:"
@@ -72,7 +72,7 @@ case "$install_all" in
     * ) 
         print_status "Installing all dependencies..."
         if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool wl-clipboard
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard
         else
             sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip
         fi
@@ -157,22 +157,26 @@ if ! command_exists ffmpeg; then
     esac
 fi
 
-# Check for xdotool
-if ! command_exists xdotool; then
-    echo -e "${RED}Error:${NC} xdotool is not installed."
-    echo ""
-    echo "Please run the following command to install it:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y xdotool${NC}"
-    echo ""
-    install_xdotool=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_xdotool" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y xdotool || error_exit "Failed to install xdotool"
-            ;;
-        * ) 
-            error_exit "xdotool is required. Please install it and run this script again."
-            ;;
-    esac
+# Check for xdotool (only required for X11 sessions)
+if [ "${XDG_SESSION_TYPE:-}" != "wayland" ]; then
+    if ! command_exists xdotool; then
+        echo -e "${RED}Error:${NC} xdotool is not installed."
+        echo ""
+        echo "Please run the following command to install it:"
+        echo -e "${YELLOW}sudo apt update && sudo apt install -y xdotool${NC}"
+        echo ""
+        install_xdotool=$(ask_user "Would you like to run this command now? [y/N]: " "y")
+        case "$install_xdotool" in
+            [Yy]* ) 
+                sudo apt update && sudo apt install -y xdotool || error_exit "Failed to install xdotool"
+                ;;
+            * ) 
+                error_exit "xdotool is required for X11 sessions. Please install it and run this script again."
+                ;;
+        esac
+    fi
+else
+    print_status "Skipping xdotool check (not needed for Wayland sessions)"
 fi
 
 # Check for clipboard tools (session-type specific)
