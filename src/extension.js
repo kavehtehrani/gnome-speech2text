@@ -24,13 +24,36 @@ export default class Speech2TextExtension extends Extension {
     this.settings = null;
     this.settingsDialog = null;
     this.currentKeybinding = null;
+
+    console.log("Creating new DBusManager instance");
     this.dbusManager = new DBusManager();
+
     this.recordingStateManager = null; // Will be initialized after icon creation
   }
 
+  async _ensureDBusManager() {
+    // Check if D-Bus manager exists and is initialized
+    if (!this.dbusManager) {
+      console.log("D-Bus manager is null, creating new instance");
+      this.dbusManager = new DBusManager();
+    }
+
+    if (!this.dbusManager.isInitialized) {
+      console.log("D-Bus manager not initialized, initializing...");
+      const initialized = await this.dbusManager.initialize();
+      if (!initialized) {
+        console.log("Failed to initialize D-Bus manager");
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   async _initDBus() {
-    const initialized = await this.dbusManager.initialize();
-    if (!initialized) {
+    // Ensure D-Bus manager is available and initialized
+    const dbusReady = await this._ensureDBusManager();
+    if (!dbusReady) {
       return false;
     }
 
@@ -283,9 +306,11 @@ export default class Speech2TextExtension extends Extension {
         !this.dbusManager ||
         !this.dbusManager.isInitialized
       ) {
+        console.log("Non-first-run: Checking D-Bus manager and service status");
         // Try to initialize if not already done
         const dbusInitialized = await this._initDBus();
         if (!dbusInitialized) {
+          console.log("D-Bus initialization failed for non-first-run usage");
           this._showServiceSetupDialog(
             "Failed to connect to speech-to-text service"
           );
@@ -294,12 +319,19 @@ export default class Speech2TextExtension extends Extension {
 
         const serviceStatus = await this.dbusManager.checkServiceStatus();
         if (!serviceStatus.available) {
+          console.log(
+            "Service not available for non-first-run usage:",
+            serviceStatus.error
+          );
           this._showServiceSetupDialog(serviceStatus.error);
           return;
         }
 
         // Initialize recording state manager if needed
         if (!this.recordingStateManager) {
+          console.log(
+            "Initializing recording state manager for non-first-run usage"
+          );
           this.recordingStateManager = new RecordingStateManager(
             this.icon,
             this.dbusManager
@@ -368,6 +400,26 @@ export default class Speech2TextExtension extends Extension {
       recordingDialog.open();
     } catch (error) {
       console.error("Error in toggleRecording:", error);
+
+      // Provide more specific error handling
+      if (error.message && error.message.includes("this.dbusManager is null")) {
+        console.log("D-Bus manager is null, attempting to reinitialize...");
+        try {
+          // Try to reinitialize the D-Bus manager using the helper
+          const dbusReady = await this._ensureDBusManager();
+          if (dbusReady) {
+            console.log(
+              "D-Bus manager reinitialized successfully, retrying..."
+            );
+            // Retry the operation
+            this.toggleRecording();
+            return;
+          }
+        } catch (reinitError) {
+          console.error("Failed to reinitialize D-Bus manager:", reinitError);
+        }
+      }
+
       // Show setup dialog if there's any error - likely service related
       this._showServiceSetupDialog(
         "An error occurred. Service setup may be required."
@@ -413,6 +465,16 @@ export default class Speech2TextExtension extends Extension {
     }
 
     try {
+      // Ensure D-Bus manager is available
+      const dbusReady = await this._ensureDBusManager();
+      if (!dbusReady) {
+        console.error(
+          "Failed to ensure D-Bus manager is ready for text typing"
+        );
+        Main.notify("Speech2Text Error", "Failed to connect to service.");
+        return;
+      }
+
       const copyToClipboard = this.settings.get_boolean("copy-to-clipboard");
       console.log(`Typing text via D-Bus: "${text}"`);
 
@@ -428,20 +490,25 @@ export default class Speech2TextExtension extends Extension {
 
     // Clean up recording state manager
     if (this.recordingStateManager) {
+      console.log("Cleaning up recording state manager");
       this.recordingStateManager.cleanup();
       this.recordingStateManager = null;
     }
 
     // Close settings dialog
     if (this.settingsDialog) {
+      console.log("Closing settings dialog");
       this.settingsDialog.close();
       this.settingsDialog = null;
     }
 
     // Destroy D-Bus manager
     if (this.dbusManager) {
+      console.log("Destroying D-Bus manager");
       this.dbusManager.destroy();
       this.dbusManager = null;
+    } else {
+      console.log("D-Bus manager was already null during disable");
     }
 
     // Clear settings reference
