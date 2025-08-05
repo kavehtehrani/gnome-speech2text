@@ -58,16 +58,16 @@ class Speech2TextService(dbus.service.Object):
         except (FileNotFoundError, subprocess.CalledProcessError):
             missing.append("ffmpeg")
         
+        # Check for clipboard tools (session-type specific)
+        clipboard_available = False
+        session_type = os.environ.get('XDG_SESSION_TYPE', '')
+        
         # Check for xdotool (for X11 typing only)
         if session_type != 'wayland':
             try:
                 subprocess.run(['xdotool', '--version'], capture_output=True, check=True)
             except (FileNotFoundError, subprocess.CalledProcessError):
                 missing.append("xdotool")
-        
-        # Check for clipboard tools (session-type specific)
-        clipboard_available = False
-        session_type = os.environ.get('XDG_SESSION_TYPE', '')
         
         if session_type == 'wayland':
             # On Wayland, only wl-copy works

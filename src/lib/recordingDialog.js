@@ -26,34 +26,39 @@ export class RecordingDialog {
   }
 
   _buildDialog() {
-    // Create modal barrier
-    this.modalBarrier = new St.Widget({
-      style: `background-color: ${COLORS.TRANSPARENT_BLACK_30};`,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
+    try {
+      // Create modal barrier
+      this.modalBarrier = new St.Widget({
+        style: `background-color: ${COLORS.TRANSPARENT_BLACK_30};`,
+        reactive: true,
+        can_focus: true,
+        track_hover: true,
+      });
 
-    // Main dialog container (matches original design)
-    this.container = new St.Widget({
-      style_class: "recording-dialog",
-      style: `
-        background-color: ${COLORS.TRANSPARENT_BLACK_85};
-        border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
-        padding: ${STYLES.DIALOG_PADDING};
-        border: ${STYLES.DIALOG_BORDER};
-        min-width: 450px;
-        max-width: 600px;
-      `,
-      layout_manager: new Clutter.BoxLayout({
-        orientation: Clutter.Orientation.VERTICAL,
-        spacing: 20,
-      }),
-      reactive: true,
-      can_focus: true,
-    });
+      // Main dialog container (matches original design)
+      this.container = new St.Widget({
+        style_class: "recording-dialog",
+        style: `
+          background-color: ${COLORS.TRANSPARENT_BLACK_85};
+          border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
+          padding: ${STYLES.DIALOG_PADDING};
+          border: ${STYLES.DIALOG_BORDER};
+          min-width: 450px;
+          max-width: 600px;
+        `,
+        layout_manager: new Clutter.BoxLayout({
+          orientation: Clutter.Orientation.VERTICAL,
+          spacing: 20,
+        }),
+        reactive: true,
+        can_focus: true,
+      });
 
-    this._buildRecordingUI();
+      this._buildRecordingUI();
+    } catch (error) {
+      console.error("Error building dialog:", error);
+      throw error;
+    }
   }
 
   _buildRecordingUI() {
@@ -552,52 +557,83 @@ export class RecordingDialog {
   open() {
     console.log("Opening DBus recording dialog");
 
-    // Add to UI
-    Main.layoutManager.addTopChrome(this.modalBarrier);
+    try {
+      // Add to UI
+      Main.layoutManager.addTopChrome(this.modalBarrier);
 
-    // Set barrier to cover entire screen
-    const monitor = Main.layoutManager.primaryMonitor;
-    this.modalBarrier.set_position(monitor.x, monitor.y);
-    this.modalBarrier.set_size(monitor.width, monitor.height);
+      // Set barrier to cover entire screen
+      const monitor = Main.layoutManager.primaryMonitor;
+      this.modalBarrier.set_position(monitor.x, monitor.y);
+      this.modalBarrier.set_size(monitor.width, monitor.height);
 
-    // Center the dialog container within the barrier (matches original)
-    this.container.set_position(
-      (monitor.width - 450) / 2,
-      (monitor.height - 300) / 2
-    );
+      // Center the dialog container within the barrier (matches original)
+      this.container.set_position(
+        (monitor.width - 450) / 2,
+        (monitor.height - 300) / 2
+      );
 
-    this.modalBarrier.show();
+      this.modalBarrier.show();
 
-    // Start the timer
-    this.startTimer();
+      // Start the timer
+      this.startTimer();
 
-    // Focus solution similar to original
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-      if (this.modalBarrier?.get_parent()) {
-        this.modalBarrier.grab_key_focus();
-        global.stage.set_key_focus(this.modalBarrier);
+      // Focus solution similar to original - with error handling
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+        try {
+          if (this.modalBarrier?.get_parent()) {
+            this.modalBarrier.grab_key_focus();
+            global.stage.set_key_focus(this.modalBarrier);
+          }
+        } catch (error) {
+          console.log("Failed to set focus:", error.message);
+          // Continue without focus if it fails
+        }
+        return false;
+      });
+    } catch (error) {
+      console.error("Error opening recording dialog:", error);
+      // Try to clean up if opening fails
+      try {
+        if (this.modalBarrier) {
+          Main.layoutManager.removeChrome(this.modalBarrier);
+        }
+      } catch (cleanupError) {
+        console.error("Error during cleanup:", cleanupError);
       }
-      return false;
-    });
+      throw error; // Re-throw to let the extension handle it
+    }
   }
 
   close() {
     console.log("Closing DBus recording dialog");
 
-    // Stop timer
-    this.stopTimer();
+    try {
+      // Stop timer
+      this.stopTimer();
 
-    // Disconnect keyboard handler
-    if (this.keyboardHandlerId && this.modalBarrier) {
-      this.modalBarrier.disconnect(this.keyboardHandlerId);
-      this.keyboardHandlerId = null;
-    }
+      // Disconnect keyboard handler
+      if (this.keyboardHandlerId && this.modalBarrier) {
+        try {
+          this.modalBarrier.disconnect(this.keyboardHandlerId);
+        } catch (error) {
+          console.log("Error disconnecting keyboard handler:", error.message);
+        }
+        this.keyboardHandlerId = null;
+      }
 
-    // Clean up modal
-    if (this.modalBarrier) {
-      Main.layoutManager.removeChrome(this.modalBarrier);
-      this.modalBarrier.destroy();
-      this.modalBarrier = null;
+      // Clean up modal
+      if (this.modalBarrier) {
+        try {
+          Main.layoutManager.removeChrome(this.modalBarrier);
+          this.modalBarrier.destroy();
+        } catch (error) {
+          console.log("Error destroying modal barrier:", error.message);
+        }
+        this.modalBarrier = null;
+      }
+    } catch (error) {
+      console.error("Error closing recording dialog:", error);
+      // Continue cleanup even if there are errors
     }
   }
 }
