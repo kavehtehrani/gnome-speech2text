@@ -9,6 +9,7 @@ export class RecordingStateManager {
     this.currentRecordingId = null;
     this.recordingDialog = null;
     this.lastRecordingSettings = null; // Store settings for transcription handling
+    this.isCancelled = false; // Flag to track if recording was cancelled
   }
 
   async startRecording(settings) {
@@ -18,6 +19,9 @@ export class RecordingStateManager {
     }
 
     try {
+      // Reset cancellation flag for new recording
+      this.isCancelled = false;
+
       const recordingDuration = settings.get_int("recording-duration");
       const copyToClipboard = settings.get_boolean("copy-to-clipboard");
       const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
@@ -76,6 +80,7 @@ export class RecordingStateManager {
 
       // Don't set currentRecordingId to null or close dialog yet
       // Wait for transcription to complete
+      // Also don't reset isCancelled flag here - we want to process the audio
 
       return true;
     } catch (e) {
@@ -89,6 +94,13 @@ export class RecordingStateManager {
     console.log(`Recording ID: ${recordingId}`);
     console.log(`Current Recording ID: ${this.currentRecordingId}`);
     console.log(`Dialog exists: ${!!this.recordingDialog}`);
+    console.log(`Is cancelled: ${this.isCancelled}`);
+
+    // If the recording was cancelled, ignore the completion
+    if (this.isCancelled) {
+      console.log("Recording was cancelled - ignoring completion");
+      return;
+    }
 
     // If we don't have a dialog, the recording was already stopped manually
     if (!this.recordingDialog) {
@@ -98,25 +110,12 @@ export class RecordingStateManager {
       return;
     }
 
-    if (recordingId !== this.currentRecordingId) {
-      console.log(
-        `Received completion for different recording: ${recordingId}`
-      );
-      return;
-    }
-
-    console.log(
-      `Recording completed automatically: ${recordingId} - showing processing state`
-    );
-    // Don't set currentRecordingId to null yet - we need it for transcription
-    this.updateIcon(false);
-
-    // Show processing state in the dialog
+    // Show processing state
     if (
       this.recordingDialog &&
       typeof this.recordingDialog.showProcessing === "function"
     ) {
-      console.log(`Calling showProcessing on dialog`);
+      console.log("Showing processing state after automatic completion");
       this.recordingDialog.showProcessing();
     } else {
       console.log(`ERROR: Dialog does not have showProcessing method`);
@@ -131,13 +130,13 @@ export class RecordingStateManager {
       return false;
     }
 
-    console.log("Recording cancelled by user");
-    try {
-      await this.dbusManager.stopRecording(this.currentRecordingId);
-    } catch (e) {
-      console.error(`Error cancelling recording: ${e}`);
-    }
+    console.log(
+      "Recording cancelled by user - discarding audio without processing"
+    );
+    this.isCancelled = true; // Set the cancellation flag
 
+    // Don't call stopRecording on the D-Bus service as it would process the audio
+    // Just clean up our local state
     this.currentRecordingId = null;
     this.updateIcon(false);
 
@@ -181,6 +180,13 @@ export class RecordingStateManager {
     console.log(`Current Recording ID: ${this.currentRecordingId}`);
     console.log(`Text: "${text}"`);
     console.log(`Dialog exists: ${!!this.recordingDialog}`);
+    console.log(`Is cancelled: ${this.isCancelled}`);
+
+    // If the recording was cancelled, ignore the transcription
+    if (this.isCancelled) {
+      console.log("Recording was cancelled - ignoring transcription");
+      return { action: "ignored", text: null };
+    }
 
     // Check if we should skip preview and auto-insert
     const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
@@ -224,33 +230,48 @@ export class RecordingStateManager {
   }
 
   handleRecordingError(recordingId, errorMessage) {
-    if (recordingId !== this.currentRecordingId) {
-      console.log(`Received error for different recording: ${recordingId}`);
+    console.log(`=== RECORDING ERROR ===`);
+    console.log(`Recording ID: ${recordingId}`);
+    console.log(`Current Recording ID: ${this.currentRecordingId}`);
+    console.log(`Error: ${errorMessage}`);
+    console.log(`Is cancelled: ${this.isCancelled}`);
+
+    // If the recording was cancelled, ignore the error
+    if (this.isCancelled) {
+      console.log("Recording was cancelled - ignoring error");
       return;
     }
 
-    if (this.recordingDialog) {
+    // Show error in dialog if available
+    if (
+      this.recordingDialog &&
+      typeof this.recordingDialog.showError === "function"
+    ) {
       this.recordingDialog.showError(errorMessage);
     } else {
-      Main.notify("Speech2Text Error", errorMessage);
+      console.log("No dialog available for error display");
     }
+
+    // Clean up state
+    this.currentRecordingId = null;
+    this.updateIcon(false);
   }
 
   cleanup() {
-    // Stop any active recording
-    if (this.currentRecordingId && this.dbusManager) {
-      this.dbusManager
-        .stopRecording(this.currentRecordingId)
-        .catch(console.error);
-      this.currentRecordingId = null;
-    }
+    console.log("Cleaning up recording state manager");
 
-    // Close recording dialog
+    // Reset all state
+    this.currentRecordingId = null;
+    this.isCancelled = false;
+    this.lastRecordingSettings = null;
+
+    // Clean up dialog
     if (this.recordingDialog) {
       this.recordingDialog.close();
       this.recordingDialog = null;
     }
 
+    // Reset icon
     this.updateIcon(false);
   }
 }

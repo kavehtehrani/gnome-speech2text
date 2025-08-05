@@ -108,6 +108,9 @@ export default class Speech2TextExtension extends Extension {
     } else if (result && result.action === "createPreview") {
       console.log("Creating new preview dialog for transcribed text");
       this._showPreviewDialog(result.text);
+    } else if (result && result.action === "ignored") {
+      console.log("Transcription ignored - recording was cancelled");
+      // Nothing to do - recording was cancelled
     }
   }
 
