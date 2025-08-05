@@ -615,24 +615,41 @@ export class RecordingDialog {
       if (this.keyboardHandlerId && this.modalBarrier) {
         try {
           this.modalBarrier.disconnect(this.keyboardHandlerId);
+          console.log("Keyboard handler disconnected successfully");
         } catch (error) {
           console.log("Error disconnecting keyboard handler:", error.message);
         }
         this.keyboardHandlerId = null;
       }
 
-      // Clean up modal
+      // Clean up modal with better error handling
       if (this.modalBarrier) {
         try {
-          Main.layoutManager.removeChrome(this.modalBarrier);
-          this.modalBarrier.destroy();
+          if (this.modalBarrier.get_parent()) {
+            Main.layoutManager.removeChrome(this.modalBarrier);
+            console.log("Recording dialog modal removed from chrome");
+          }
+
+          if (this.modalBarrier.destroy) {
+            this.modalBarrier.destroy();
+            console.log("Recording dialog modal destroyed");
+          }
         } catch (error) {
           console.log("Error destroying modal barrier:", error.message);
+          // Try alternative cleanup
+          try {
+            if (this.modalBarrier.get_parent()) {
+              this.modalBarrier.get_parent().remove_child(this.modalBarrier);
+              console.log("Recording dialog modal removed as fallback");
+            }
+          } catch (fallbackError) {
+            console.log("Fallback cleanup also failed:", fallbackError.message);
+          }
         }
         this.modalBarrier = null;
       }
     } catch (error) {
-      console.error("Error closing recording dialog:", error);
+      console.error("Error closing recording dialog:", error.message);
       // Continue cleanup even if there are errors
     }
   }

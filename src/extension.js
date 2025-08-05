@@ -172,11 +172,14 @@ export default class Speech2TextExtension extends Extension {
   }
 
   setupKeybinding() {
-    // Remove existing keybinding
+    // Check if keybinding exists before trying to remove it
     try {
+      // Get current keybindings to check if ours exists
+      const currentBindings = Main.wm.getKeybindingMode();
+      // Try to remove existing keybinding only if it might exist
       Main.wm.removeKeybinding("toggle-recording");
     } catch (e) {
-      // Ignore errors
+      // Ignore errors - keybinding might not exist
     }
 
     // Get shortcut from settings
@@ -218,8 +221,10 @@ export default class Speech2TextExtension extends Extension {
 
         // Initialize D-Bus manager if not already done
         if (!this.dbusManager || !this.dbusManager.isInitialized) {
+          console.log("Initializing D-Bus manager for first-time usage");
           const dbusInitialized = await this._initDBus();
           if (!dbusInitialized) {
+            console.log("D-Bus initialization failed for first-time usage");
             // Don't set first-run to false yet - user should get another chance
             this._showServiceSetupDialog("Let's get started!", true);
             return;
@@ -227,13 +232,19 @@ export default class Speech2TextExtension extends Extension {
         }
 
         // Check service status
+        console.log("Checking service status for first-time usage");
         const serviceStatus = await this.dbusManager.checkServiceStatus();
         if (!serviceStatus.available) {
+          console.log(
+            "Service not available for first-time usage:",
+            serviceStatus.error
+          );
           // Don't set first-run to false yet - user should get another chance
           this._showServiceSetupDialog("Ready to set up speech-to-text!", true);
           return;
         }
 
+        console.log("Service is available - completing first-time setup");
         // Service is working! Mark first run as complete and show welcome
         this.settings.set_boolean("first-run", false);
         Main.notify(
@@ -243,6 +254,9 @@ export default class Speech2TextExtension extends Extension {
 
         // Initialize recording state manager if not already done
         if (!this.recordingStateManager) {
+          console.log(
+            "Initializing recording state manager for first-time usage"
+          );
           this.recordingStateManager = new RecordingStateManager(
             this.icon,
             this.dbusManager
@@ -436,9 +450,11 @@ export default class Speech2TextExtension extends Extension {
 
     // Remove keybinding
     try {
+      // Check if keybinding exists before trying to remove it
+      const currentBindings = Main.wm.getKeybindingMode();
       Main.wm.removeKeybinding("toggle-recording");
     } catch (e) {
-      console.error(`Error removing keybinding: ${e}`);
+      // Ignore errors - keybinding might not exist
     }
 
     // Clean up button references

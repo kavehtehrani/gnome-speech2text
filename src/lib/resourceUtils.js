@@ -25,15 +25,32 @@ export function cleanupModal(overlay, handlers = {}) {
       safeDisconnect(overlay, handlers.keyPressHandlerId, "key press handler");
     }
 
-    // Remove from layout manager
+    // Remove from layout manager with better error handling
     if (overlay && overlay.get_parent()) {
-      Main.layoutManager.removeChrome(overlay);
-      console.log("Modal overlay removed from chrome");
+      try {
+        Main.layoutManager.removeChrome(overlay);
+        console.log("Modal overlay removed from chrome successfully");
+      } catch (removeError) {
+        console.log(`Error removing modal from chrome: ${removeError.message}`);
+        // Try alternative cleanup if removeChrome fails
+        try {
+          if (overlay.destroy) {
+            overlay.destroy();
+            console.log("Modal overlay destroyed as fallback");
+          }
+        } catch (destroyError) {
+          console.log(
+            `Error destroying modal overlay: ${destroyError.message}`
+          );
+        }
+      }
+    } else if (overlay) {
+      console.log("Modal overlay has no parent, skipping chrome removal");
     }
 
     return true;
   } catch (e) {
-    console.log(`Error cleaning up modal: ${e}`);
+    console.log(`Error cleaning up modal: ${e.message}`);
     return false;
   }
 }
