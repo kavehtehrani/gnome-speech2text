@@ -17,10 +17,21 @@ import { ShortcutCapture } from "./lib/shortcutCapture.js";
 import { RecordingStateManager } from "./lib/recordingStateManager.js";
 
 let button;
+let extensionInstance = null; // Track singleton instance
 
 export default class Speech2TextExtension extends Extension {
   constructor(metadata) {
     super(metadata);
+
+    // Prevent multiple instances
+    if (extensionInstance) {
+      console.log(
+        "Extension instance already exists, cleaning up previous instance"
+      );
+      extensionInstance.disable();
+    }
+    extensionInstance = this;
+
     this.settings = null;
     this.settingsDialog = null;
     this.currentKeybinding = null;
@@ -126,47 +137,65 @@ export default class Speech2TextExtension extends Extension {
   enable() {
     console.log("Enabling Speech2Text extension (D-Bus version)");
 
-    this.settings = this.getSettings();
+    try {
+      // Initialize settings
+      this.settings = this.getSettings("org.shell.extensions.speech2text");
 
-    // Create button with microphone icon (always create UI, regardless of service status)
-    button = new PanelMenu.Button(0.0, "Speech2Text");
-    this.button = button;
+      // Create the panel button
+      this.icon = new PanelMenu.Button(0.0, "Speech2Text Indicator");
 
-    this.icon = new St.Icon({
-      gicon: Gio.icon_new_for_string(
-        `${this.path}/icons/microphone-symbolic.svg`
-      ),
-      style_class: "system-status-icon",
-    });
-    button.add_child(this.icon);
+      // Set up the icon
+      let icon = new St.Icon({
+        icon_name: "microphone-symbolic",
+        style_class: "system-status-icon",
+      });
+      this.icon.add_child(icon);
 
-    // Don't initialize D-Bus or recording state manager here
-    // We'll do it lazily when the user first tries to use the extension
+      // Create popup menu
+      this.createPopupMenu();
 
-    // Create popup menu
-    this.createPopupMenu();
+      // Add click handler for left-click recording toggle
+      this.icon.connect("button-press-event", (actor, event) => {
+        const buttonPressed = event.get_button();
 
-    // Handle button clicks
-    button.connect("button-press-event", (actor, event) => {
-      const buttonPressed = event.get_button();
+        if (buttonPressed === 1) {
+          // Left click - toggle recording
+          this.icon.menu.close(true);
+          this.toggleRecording();
+          return Clutter.EVENT_STOP;
+        } else if (buttonPressed === 3) {
+          // Right click - show menu
+          return Clutter.EVENT_PROPAGATE;
+        }
 
-      if (buttonPressed === 1) {
-        // Left click - toggle recording
-        button.menu.close(true);
-        this.toggleRecording();
         return Clutter.EVENT_STOP;
-      } else if (buttonPressed === 3) {
-        // Right click - show menu
-        return Clutter.EVENT_PROPAGATE;
-      }
+      });
 
-      return Clutter.EVENT_STOP;
-    });
+      // Add to panel
+      Main.panel.addToStatusArea("speech2text-indicator", this.icon);
 
-    // Set up keyboard shortcut
-    this.setupKeybinding();
+      // Initialize recording state manager
+      this.recordingStateManager = new RecordingStateManager(
+        this.icon,
+        this.dbusManager
+      );
 
-    Main.panel.addToStatusArea("Speech2Text", button);
+      // Set up keybinding
+      this.setupKeybinding();
+
+      // Initialize D-Bus connection
+      this._initDBus().catch((error) => {
+        console.error("Failed to initialize D-Bus:", error);
+        // Don't crash the extension if D-Bus fails
+      });
+
+      console.log("Extension: Created and set recording dialog, opening now");
+    } catch (error) {
+      console.error("Error enabling extension:", error);
+      // Clean up any partially initialized resources
+      this.disable();
+      throw error; // Re-throw to let GNOME Shell handle it
+    }
   }
 
   createPopupMenu() {
@@ -175,14 +204,14 @@ export default class Speech2TextExtension extends Extension {
     settingsItem.connect("activate", () => {
       this.showSettingsWindow();
     });
-    this.button.menu.addMenuItem(settingsItem);
+    this.icon.menu.addMenuItem(settingsItem);
 
     // Setup Guide menu item
     let setupItem = new PopupMenu.PopupMenuItem("Setup");
     setupItem.connect("activate", () => {
       this._showServiceSetupDialog("Manual setup guide requested");
     });
-    this.button.menu.addMenuItem(setupItem);
+    this.icon.menu.addMenuItem(setupItem);
   }
 
   captureNewShortcut(callback) {
@@ -213,11 +242,13 @@ export default class Speech2TextExtension extends Extension {
     if (shortcuts.length > 0) {
       this.currentKeybinding = shortcuts[0];
     } else {
-      this.currentKeybinding = "<Control><Shift><Alt>c";
+      // Use a much safer shortcut that doesn't conflict with system shortcuts
+      // Avoid Ctrl+C (SIGINT), Ctrl+Z (SIGTSTP), and workspace navigation shortcuts
+      this.currentKeybinding = "<Super><Alt>r";
       this.settings.set_strv("toggle-recording", [this.currentKeybinding]);
     }
 
-    // Register keybinding
+    // Register keybinding with better error handling
     try {
       Main.wm.addKeybinding(
         "toggle-recording",
@@ -232,12 +263,43 @@ export default class Speech2TextExtension extends Extension {
       console.log(`Keybinding registered: ${this.currentKeybinding}`);
     } catch (e) {
       console.error(`Error registering keybinding: ${e}`);
+      // Try with a fallback shortcut if the original fails
+      try {
+        this.currentKeybinding = "<Super><Alt>s";
+        this.settings.set_strv("toggle-recording", [this.currentKeybinding]);
+        Main.wm.addKeybinding(
+          "toggle-recording",
+          this.settings,
+          Meta.KeyBindingFlags.NONE,
+          Shell.ActionMode.NORMAL,
+          () => {
+            console.log("Keyboard shortcut triggered (fallback)");
+            this.toggleRecording();
+          }
+        );
+        console.log(
+          `Fallback keybinding registered: ${this.currentKeybinding}`
+        );
+      } catch (fallbackError) {
+        console.error(`Fallback keybinding also failed: ${fallbackError}`);
+      }
     }
   }
 
   async toggleRecording() {
     try {
       console.log("=== TOGGLE RECORDING (D-Bus) ===");
+
+      // Safety check for required components
+      if (!this.settings) {
+        console.error("Settings not initialized");
+        return;
+      }
+
+      if (!this.recordingStateManager) {
+        console.error("Recording state manager not initialized");
+        return;
+      }
 
       // Check if this is the first time the user is trying to use the extension
       const isFirstRun = this.settings.get_boolean("first-run");
@@ -326,106 +388,63 @@ export default class Speech2TextExtension extends Extension {
             "Service not available for non-first-run usage:",
             serviceStatus.error
           );
-          this._showServiceSetupDialog(serviceStatus.error);
+          this._showServiceSetupDialog(
+            "Speech-to-text service is not available"
+          );
           return;
         }
+      }
 
-        // Initialize recording state manager if needed
-        if (!this.recordingStateManager) {
+      // Now handle the actual recording toggle
+      if (this.recordingStateManager.isRecording()) {
+        console.log("Stopping recording");
+        this.recordingStateManager.stopRecording();
+      } else {
+        console.log("Starting recording");
+        const success = await this.recordingStateManager.startRecording(
+          this.settings
+        );
+
+        if (success) {
+          // Create and show recording dialog
+          const recordingDialog = new RecordingDialog(
+            () => {
+              // Cancel callback
+              this.recordingStateManager.cancelRecording();
+              this.recordingStateManager.setRecordingDialog(null);
+            },
+            (text) => {
+              // Insert callback
+              console.log(`Inserting text: ${text}`);
+              this._typeText(text);
+              this.recordingStateManager.setRecordingDialog(null);
+            },
+            () => {
+              // Stop callback
+              console.log("Stop recording button clicked");
+              this.recordingStateManager.stopRecording();
+            },
+            this.settings.get_int("recording-duration")
+          );
+
+          this.recordingStateManager.setRecordingDialog(recordingDialog);
           console.log(
-            "Initializing recording state manager for non-first-run usage"
+            "Extension: Created and set recording dialog, opening now"
           );
-          this.recordingStateManager = new RecordingStateManager(
-            this.icon,
-            this.dbusManager
+          recordingDialog.open();
+        } else {
+          Main.notify(
+            "Speech2Text Error",
+            "Failed to start recording. Please try again."
           );
-
-          this.dbusManager.connectSignals({
-            onRecordingStopped: (recordingId, reason) => {
-              this._handleRecordingStopped(recordingId, reason);
-            },
-            onTranscriptionReady: (recordingId, text) => {
-              this._handleTranscriptionReady(recordingId, text);
-            },
-            onRecordingError: (recordingId, errorMessage) => {
-              this._handleRecordingError(recordingId, errorMessage);
-            },
-          });
         }
       }
-
-      if (!this.recordingStateManager) {
-        console.log("Recording state manager not initialized");
-        return;
-      }
-
-      if (this.recordingStateManager.isRecording()) {
-        // Stop current recording
-        await this.recordingStateManager.stopRecording();
-        return;
-      }
-
-      // Start new recording
-      const success = await this.recordingStateManager.startRecording(
-        this.settings
-      );
-      if (!success) {
-        Main.notify(
-          "Speech2Text Error",
-          "Failed to start recording. Please try again."
-        );
-        return;
-      }
-
-      // Create and show recording dialog
-      const recordingDialog = new RecordingDialog(
-        () => {
-          // Cancel callback
-          this.recordingStateManager.cancelRecording();
-          this.recordingStateManager.setRecordingDialog(null);
-        },
-        (text) => {
-          // Insert callback
-          console.log(`Inserting text: ${text}`);
-          this._typeText(text);
-          this.recordingStateManager.setRecordingDialog(null);
-        },
-        () => {
-          // Stop callback
-          console.log("Stop recording button clicked");
-          this.recordingStateManager.stopRecording();
-        },
-        this.settings.get_int("recording-duration")
-      );
-
-      this.recordingStateManager.setRecordingDialog(recordingDialog);
-      console.log(`Extension: Created and set recording dialog, opening now`);
-      recordingDialog.open();
     } catch (error) {
       console.error("Error in toggleRecording:", error);
-
-      // Provide more specific error handling
-      if (error.message && error.message.includes("this.dbusManager is null")) {
-        console.log("D-Bus manager is null, attempting to reinitialize...");
-        try {
-          // Try to reinitialize the D-Bus manager using the helper
-          const dbusReady = await this._ensureDBusManager();
-          if (dbusReady) {
-            console.log(
-              "D-Bus manager reinitialized successfully, retrying..."
-            );
-            // Retry the operation
-            this.toggleRecording();
-            return;
-          }
-        } catch (reinitError) {
-          console.error("Failed to reinitialize D-Bus manager:", reinitError);
-        }
-      }
-
-      // Show setup dialog if there's any error - likely service related
-      this._showServiceSetupDialog(
-        "An error occurred. Service setup may be required."
+      // Show user-friendly error message
+      Main.notify(
+        "Speech2Text Error",
+        "An error occurred while toggling recording. Please check the logs."
       );
     }
   }
@@ -490,6 +509,11 @@ export default class Speech2TextExtension extends Extension {
 
   disable() {
     console.log("Disabling Speech2Text extension (D-Bus version)");
+
+    // Clear singleton instance reference
+    if (extensionInstance === this) {
+      extensionInstance = null;
+    }
 
     // Clean up recording state manager
     if (this.recordingStateManager) {

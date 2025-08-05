@@ -22,7 +22,10 @@ export function createButtonStyle(baseColor, hoverColor) {
 export function addHandCursorToButton(button) {
   button.connect("enter-event", () => {
     try {
-      global.display.set_cursor(Meta.Cursor.POINTING_HAND);
+      // Add safety checks to prevent crashes
+      if (global.display && global.display.set_cursor) {
+        global.display.set_cursor(Meta.Cursor.POINTING_HAND);
+      }
     } catch (error) {
       console.log("Failed to set pointing hand cursor:", error.message);
       // Continue without cursor change if it fails
@@ -31,7 +34,10 @@ export function addHandCursorToButton(button) {
 
   button.connect("leave-event", () => {
     try {
-      global.display.set_cursor(Meta.Cursor.DEFAULT);
+      // Add safety checks to prevent crashes
+      if (global.display && global.display.set_cursor) {
+        global.display.set_cursor(Meta.Cursor.DEFAULT);
+      }
     } catch (error) {
       console.log("Failed to set default cursor:", error.message);
       // Continue without cursor change if it fails
