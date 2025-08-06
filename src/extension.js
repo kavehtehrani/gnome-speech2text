@@ -46,39 +46,68 @@ export default class Speech2TextExtension extends Extension {
     // Check if D-Bus manager exists and is initialized
     if (!this.dbusManager) {
       console.log("D-Bus manager is null, creating new instance");
-      this.dbusManager = new DBusManager();
-    }
-
-    if (!this.dbusManager.isInitialized) {
-      console.log("D-Bus manager not initialized, initializing...");
-      const initialized = await this.dbusManager.initialize();
-      if (!initialized) {
-        console.log("Failed to initialize D-Bus manager");
+      try {
+        this.dbusManager = new DBusManager();
+      } catch (error) {
+        console.error("Failed to create D-Bus manager:", error);
         return false;
       }
     }
 
-    return true;
+    // Double-check that dbusManager wasn't nullified during creation
+    if (!this.dbusManager) {
+      console.log("D-Bus manager became null after creation attempt");
+      return false;
+    }
+
+    if (!this.dbusManager.isInitialized) {
+      console.log("D-Bus manager not initialized, initializing...");
+      try {
+        const initialized = await this.dbusManager.initialize();
+        if (!initialized) {
+          console.log("Failed to initialize D-Bus manager");
+          return false;
+        }
+      } catch (error) {
+        console.error("Error during D-Bus manager initialization:", error);
+        return false;
+      }
+    }
+
+    // Final check to ensure it's still valid
+    return this.dbusManager !== null;
   }
 
   async _initDBus() {
     // Ensure D-Bus manager is available and initialized
     const dbusReady = await this._ensureDBusManager();
-    if (!dbusReady) {
+    if (!dbusReady || !this.dbusManager) {
+      console.log("D-Bus manager initialization failed or was nullified");
       return false;
     }
 
-    // Connect signals with handlers - will be updated after recording state manager is initialized
-    this.dbusManager.connectSignals({
-      onTranscriptionReady: (recordingId, text) => {
-        this._handleTranscriptionReady(recordingId, text);
-      },
-      onRecordingError: (recordingId, errorMessage) => {
-        this._handleRecordingError(recordingId, errorMessage);
-      },
-    });
+    // Double-check that dbusManager is still valid (race condition protection)
+    if (!this.dbusManager) {
+      console.log("D-Bus manager became null during initialization");
+      return false;
+    }
 
-    return true;
+    try {
+      // Connect signals with handlers - will be updated after recording state manager is initialized
+      this.dbusManager.connectSignals({
+        onTranscriptionReady: (recordingId, text) => {
+          this._handleTranscriptionReady(recordingId, text);
+        },
+        onRecordingError: (recordingId, errorMessage) => {
+          this._handleRecordingError(recordingId, errorMessage);
+        },
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error connecting D-Bus signals:", error);
+      return false;
+    }
   }
 
   _handleRecordingStopped(recordingId, reason) {
@@ -489,7 +518,7 @@ export default class Speech2TextExtension extends Extension {
     try {
       // Ensure D-Bus manager is available
       const dbusReady = await this._ensureDBusManager();
-      if (!dbusReady) {
+      if (!dbusReady || !this.dbusManager) {
         console.error(
           "Failed to ensure D-Bus manager is ready for text typing"
         );
@@ -529,11 +558,16 @@ export default class Speech2TextExtension extends Extension {
       this.settingsDialog = null;
     }
 
-    // Destroy D-Bus manager
+    // Destroy D-Bus manager with better error handling
     if (this.dbusManager) {
       console.log("Destroying D-Bus manager");
-      this.dbusManager.destroy();
-      this.dbusManager = null;
+      try {
+        this.dbusManager.destroy();
+      } catch (error) {
+        console.log("Error destroying D-Bus manager:", error.message);
+      } finally {
+        this.dbusManager = null;
+      }
     } else {
       console.log("D-Bus manager was already null during disable");
     }

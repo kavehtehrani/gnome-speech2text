@@ -674,10 +674,24 @@ export class RecordingDialog {
         const modal = this.modalBarrier;
         this.modalBarrier = null; // Clear reference immediately to prevent re-entry
 
-        // Schedule cleanup on next iteration to allow any pending operations to complete
+        // Detect GNOME version for compatibility adjustments
+        const isGNOME48Plus = (() => {
+          try {
+            const version = imports.misc.config.PACKAGE_VERSION;
+            const major = parseInt(version.split(".")[0], 10);
+            return major >= 48;
+          } catch {
+            return true; // Assume newer version if detection fails
+          }
+        })();
+
+        // Use longer delay for GNOME 48+ on Wayland for better stability
+        const cleanupDelay = isGNOME48Plus ? 200 : 100;
+
+        // Schedule cleanup with appropriate delay for the GNOME version
         import("gi://GLib")
           .then(({ default: GLib }) => {
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, cleanupDelay, () => {
               try {
                 // Remove from chrome if it has a parent
                 if (modal.get_parent) {
@@ -692,15 +706,54 @@ export class RecordingDialog {
                         "Chrome removal failed, trying direct parent removal:",
                         chromeError.message
                       );
-                      // Fallback to direct parent removal
-                      try {
-                        parent.remove_child(modal);
-                        console.log("Modal removed from parent directly");
-                      } catch (parentError) {
-                        console.log(
-                          "Direct parent removal also failed:",
-                          parentError.message
-                        );
+                      // For GNOME 48+, try a gentler approach first
+                      if (isGNOME48Plus) {
+                        try {
+                          // Try to hide first, then remove with delay
+                          if (modal.hide) modal.hide();
+                          GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                            try {
+                              parent.remove_child(modal);
+                              console.log(
+                                "Modal removed from parent with delay (GNOME 48+)"
+                              );
+                            } catch (delayedError) {
+                              console.log(
+                                "Delayed parent removal also failed:",
+                                delayedError.message
+                              );
+                            }
+                            return false;
+                          });
+                        } catch (gnome48Error) {
+                          console.log(
+                            "GNOME 48+ specific removal failed:",
+                            gnome48Error.message
+                          );
+                          // Fallback to direct removal
+                          try {
+                            parent.remove_child(modal);
+                            console.log(
+                              "Modal removed from parent directly (fallback)"
+                            );
+                          } catch (parentError) {
+                            console.log(
+                              "Direct parent removal also failed:",
+                              parentError.message
+                            );
+                          }
+                        }
+                      } else {
+                        // Standard fallback for older GNOME versions
+                        try {
+                          parent.remove_child(modal);
+                          console.log("Modal removed from parent directly");
+                        } catch (parentError) {
+                          console.log(
+                            "Direct parent removal also failed:",
+                            parentError.message
+                          );
+                        }
                       }
                     }
                   }
