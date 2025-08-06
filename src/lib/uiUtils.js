@@ -20,10 +20,35 @@ export function createButtonStyle(baseColor, hoverColor) {
 
 // Helper function to add hand cursor on button hover
 export function addHandCursorToButton(button) {
+  // Check if we're on a problematic GNOME version/platform
+  const isGNOME48Plus = (() => {
+    try {
+      const version = imports.misc.config.PACKAGE_VERSION;
+      const major = parseInt(version.split(".")[0], 10);
+      return major >= 48;
+    } catch {
+      return true; // Assume newer version if detection fails
+    }
+  })();
+
+  const isWayland = Meta.is_wayland_compositor();
+
+  // Disable cursor changes on GNOME 48+ Wayland due to crashes
+  if (isGNOME48Plus && isWayland) {
+    console.log("Skipping cursor changes on GNOME 48+ Wayland for stability");
+    return;
+  }
+
   button.connect("enter-event", () => {
     try {
-      // Add safety checks to prevent crashes
-      if (global.display && global.display.set_cursor) {
+      // Multiple safety checks to prevent crashes
+      if (
+        global.display &&
+        global.display.set_cursor &&
+        typeof global.display.set_cursor === "function" &&
+        Meta.Cursor &&
+        Meta.Cursor.POINTING_HAND !== undefined
+      ) {
         global.display.set_cursor(Meta.Cursor.POINTING_HAND);
       }
     } catch (error) {
@@ -34,8 +59,14 @@ export function addHandCursorToButton(button) {
 
   button.connect("leave-event", () => {
     try {
-      // Add safety checks to prevent crashes
-      if (global.display && global.display.set_cursor) {
+      // Multiple safety checks to prevent crashes
+      if (
+        global.display &&
+        global.display.set_cursor &&
+        typeof global.display.set_cursor === "function" &&
+        Meta.Cursor &&
+        Meta.Cursor.DEFAULT !== undefined
+      ) {
         global.display.set_cursor(Meta.Cursor.DEFAULT);
       }
     } catch (error) {
@@ -64,7 +95,7 @@ export function createHoverButton(label, baseColor, hoverColor) {
     button.set_style(styles.normal);
   });
 
-  // Add hand cursor effect
+  // Add hand cursor effect (safe for GNOME 48+ Wayland)
   addHandCursorToButton(button);
 
   return button;
