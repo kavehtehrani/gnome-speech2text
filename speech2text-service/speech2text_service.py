@@ -169,6 +169,49 @@ class Speech2TextService(dbus.service.Object):
             print(f"Error typing text: {e}")
             return False
     
+    def _cleanup_recording(self, recording_id):
+        """Clean up recording resources and remove from active recordings"""
+        try:
+            recording_info = self.active_recordings.get(recording_id)
+            if recording_info:
+                # Stop any running process
+                process = recording_info.get('process')
+                if process and process.poll() is None:
+                    try:
+                        print(f"Cleaning up running process for recording {recording_id}")
+                        process.send_signal(signal.SIGINT)
+                        time.sleep(0.2)
+                        if process.poll() is None:
+                            process.terminate()
+                            time.sleep(0.2)
+                        if process.poll() is None:
+                            process.kill()
+                            time.sleep(0.1)
+                        
+                        # Final check with system kill
+                        if process.poll() is None:
+                            try:
+                                subprocess.run(['kill', '-9', str(process.pid)], check=False)
+                            except:
+                                pass
+                    except Exception as e:
+                        print(f"Error cleaning up process: {e}")
+                
+                # Clean up audio file if it exists
+                audio_file = recording_info.get('audio_file')
+                if audio_file and os.path.exists(audio_file):
+                    try:
+                        os.unlink(audio_file)
+                        print(f"Cleaned up audio file: {audio_file}")
+                    except Exception as e:
+                        print(f"Error cleaning up audio file: {e}")
+                
+                # Remove from active recordings
+                del self.active_recordings[recording_id]
+                print(f"Removed recording {recording_id} from active recordings")
+        except Exception as e:
+            print(f"Error in cleanup_recording: {e}")
+    
     def _record_audio(self, recording_id, max_duration=60):
         """Record audio in a separate thread"""
         recording_info = self.active_recordings.get(recording_id)
@@ -209,15 +252,30 @@ class Speech2TextService(dbus.service.Object):
             # Stop recording if requested
             if recording_info.get('stop_requested', False):
                 try:
+                    # First try SIGINT (graceful)
                     process.send_signal(signal.SIGINT)
                     time.sleep(0.5)
+                    
+                    # If still running, try SIGTERM
                     if process.poll() is None:
                         process.terminate()
-                        time.sleep(0.3)
+                        time.sleep(0.5)
+                    
+                    # If still running, force kill
                     if process.poll() is None:
                         process.kill()
-                except:
-                    pass
+                        time.sleep(0.2)
+                    
+                    # Final check and force cleanup if needed
+                    if process.poll() is None:
+                        print(f"Warning: ffmpeg process {process.pid} may still be running")
+                        try:
+                            # Try system kill as last resort
+                            subprocess.run(['kill', '-9', str(process.pid)], check=False)
+                        except:
+                            pass
+                except Exception as e:
+                    print(f"Error stopping recording process: {e}")
             
             process.wait()
             
@@ -252,6 +310,10 @@ class Speech2TextService(dbus.service.Object):
         except Exception as e:
             recording_info['status'] = 'failed'
             self.RecordingError(recording_id, str(e))
+        finally:
+            # Always clean up the recording from active recordings
+            # regardless of success or failure
+            self._cleanup_recording(recording_id)
     
     def _transcribe_audio(self, recording_id):
         """Transcribe recorded audio"""
@@ -297,12 +359,15 @@ class Speech2TextService(dbus.service.Object):
             recording_info['status'] = 'failed'
             self.RecordingError(recording_id, f"Transcription failed: {str(e)}")
         finally:
-            # Clean up audio file
+            # Clean up audio file and recording state
             try:
                 if audio_file and os.path.exists(audio_file):
                     os.unlink(audio_file)
             except:
                 pass
+            
+            # Clean up the recording from active recordings
+            self._cleanup_recording(recording_id)
 
     # D-Bus Methods
     @dbus.service.method("org.gnome.Speech2Text", in_signature='ibb', out_signature='s')
@@ -369,6 +434,32 @@ class Speech2TextService(dbus.service.Object):
             
         except Exception as e:
             print(f"StopRecording error: {e}")
+            return False
+    
+    @dbus.service.method("org.gnome.Speech2Text", in_signature='s', out_signature='b')
+    def CancelRecording(self, recording_id):
+        """Cancel an active recording without processing"""
+        try:
+            recording_info = self.active_recordings.get(recording_id)
+            if not recording_info:
+                return False
+            
+            print(f"Cancelling recording {recording_id}")
+            
+            # Mark as cancelled
+            recording_info['status'] = 'cancelled'
+            recording_info['stop_requested'] = True
+            
+            # Immediately clean up the recording
+            self._cleanup_recording(recording_id)
+            
+            # Emit cancelled signal
+            self.RecordingStopped(recording_id, "cancelled")
+            
+            return True
+            
+        except Exception as e:
+            print(f"CancelRecording error: {e}")
             return False
     
     @dbus.service.method("org.gnome.Speech2Text", in_signature='sb', out_signature='b')
@@ -450,13 +541,25 @@ def main():
         def signal_handler(signum, frame):
             print(f"Received signal {signum}, shutting down...")
             # Clean up active recordings
-            for recording_info in service.active_recordings.values():
+            for recording_id, recording_info in list(service.active_recordings.items()):
                 process = recording_info.get('process')
                 if process and process.poll() is None:
                     try:
-                        process.terminate()
-                    except:
-                        pass
+                        print(f"Terminating recording process {process.pid}")
+                        process.send_signal(signal.SIGINT)
+                        time.sleep(0.2)
+                        if process.poll() is None:
+                            process.terminate()
+                            time.sleep(0.2)
+                        if process.poll() is None:
+                            process.kill()
+                    except Exception as e:
+                        print(f"Error terminating process: {e}")
+                
+                # Clean up resources
+                service._cleanup_recording(recording_id)
+            
+            print("All recordings cleaned up, exiting...")
             sys.exit(0)
         
         signal.signal(signal.SIGTERM, signal_handler)

@@ -135,15 +135,29 @@ export class RecordingStateManager {
     );
     this.isCancelled = true; // Set the cancellation flag
 
-    // Don't call stopRecording on the D-Bus service as it would process the audio
-    // Just clean up our local state
+    // Use the D-Bus service CancelRecording method to properly clean up
+    try {
+      await this.dbusManager.cancelRecording(this.currentRecordingId);
+      console.log("D-Bus cancel recording completed successfully");
+    } catch (error) {
+      console.log("Error calling D-Bus cancel recording:", error.message);
+      // Continue with local cleanup even if D-Bus call fails
+    }
+
+    // Clean up our local state
     this.currentRecordingId = null;
     this.updateIcon(false);
 
-    // Close dialog on cancel
+    // Close dialog on cancel with error handling
     if (this.recordingDialog) {
-      this.recordingDialog.close();
-      this.recordingDialog = null;
+      try {
+        console.log("Closing dialog after cancellation");
+        this.recordingDialog.close();
+      } catch (error) {
+        console.log("Error closing dialog after cancellation:", error.message);
+      } finally {
+        this.recordingDialog = null;
+      }
     }
 
     return true;
@@ -265,13 +279,26 @@ export class RecordingStateManager {
     this.isCancelled = false;
     this.lastRecordingSettings = null;
 
-    // Clean up dialog
+    // Clean up dialog with error handling
     if (this.recordingDialog) {
-      this.recordingDialog.close();
-      this.recordingDialog = null;
+      try {
+        console.log("Closing recording dialog during cleanup");
+        this.recordingDialog.close();
+      } catch (error) {
+        console.log(
+          "Error closing recording dialog during cleanup:",
+          error.message
+        );
+      } finally {
+        this.recordingDialog = null;
+      }
     }
 
-    // Reset icon
-    this.updateIcon(false);
+    // Reset icon safely
+    try {
+      this.updateIcon(false);
+    } catch (error) {
+      console.log("Error resetting icon during cleanup:", error.message);
+    }
   }
 }

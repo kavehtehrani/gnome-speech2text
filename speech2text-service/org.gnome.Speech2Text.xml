@@ -15,6 +15,11 @@
       <arg direction="out" type="b" name="success" />
     </method>
     
+    <method name="CancelRecording">
+      <arg direction="in" type="s" name="recording_id" />
+      <arg direction="out" type="b" name="success" />
+    </method>
+    
     <method name="TypeText">
       <arg direction="in" type="s" name="text" />
       <arg direction="in" type="b" name="copy_to_clipboard" />

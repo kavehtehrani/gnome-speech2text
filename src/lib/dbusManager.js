@@ -15,6 +15,10 @@ const Speech2TextInterface = `
       <arg direction="in" type="s" name="recording_id" />
       <arg direction="out" type="b" name="success" />
     </method>
+    <method name="CancelRecording">
+      <arg direction="in" type="s" name="recording_id" />
+      <arg direction="out" type="b" name="success" />
+    </method>
     <method name="TypeText">
       <arg direction="in" type="s" name="text" />
       <arg direction="in" type="b" name="copy_to_clipboard" />
@@ -263,6 +267,19 @@ export class DBusManager {
       return success;
     } catch (e) {
       throw new Error(`Failed to stop recording: ${e.message}`);
+    }
+  }
+
+  async cancelRecording(recordingId) {
+    if (!this.dbusProxy) {
+      throw new Error("D-Bus proxy not initialized");
+    }
+
+    try {
+      const [success] = await this.dbusProxy.CancelRecordingAsync(recordingId);
+      return success;
+    } catch (e) {
+      throw new Error(`Failed to cancel recording: ${e.message}`);
     }
   }
 

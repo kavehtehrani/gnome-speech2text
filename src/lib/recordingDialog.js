@@ -319,8 +319,18 @@ export class RecordingDialog {
 
   stopTimer() {
     if (this.timerInterval) {
-      GLib.source_remove(this.timerInterval);
-      this.timerInterval = null;
+      try {
+        // Check if the timer source is still valid before removing
+        if (GLib.source_remove(this.timerInterval)) {
+          console.log("Timer stopped successfully");
+        } else {
+          console.log("Timer was already stopped or invalid");
+        }
+      } catch (error) {
+        console.log("Error stopping timer:", error.message);
+      } finally {
+        this.timerInterval = null;
+      }
     }
     this.startTime = null;
   }
@@ -577,16 +587,31 @@ export class RecordingDialog {
       // Start the timer
       this.startTimer();
 
-      // Focus solution similar to original - with error handling
+      // Focus solution with improved Wayland compatibility
       GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
         try {
-          if (this.modalBarrier?.get_parent()) {
-            this.modalBarrier.grab_key_focus();
-            global.stage.set_key_focus(this.modalBarrier);
+          // Only attempt focus grab if the modal is still valid and has a parent
+          if (this.modalBarrier?.get_parent && this.modalBarrier.get_parent()) {
+            // On Wayland, focus management is more restricted
+            // Try the safer approach first
+            if (this.modalBarrier.grab_key_focus) {
+              this.modalBarrier.grab_key_focus();
+              console.log("Focus grabbed using grab_key_focus");
+            }
+
+            // Only try global.stage.set_key_focus on X11 or as fallback
+            const isWayland = Meta.is_wayland_compositor();
+            if (!isWayland && global.stage?.set_key_focus) {
+              global.stage.set_key_focus(this.modalBarrier);
+              console.log("Focus set using global.stage.set_key_focus");
+            }
           }
         } catch (error) {
-          console.log("Failed to set focus:", error.message);
-          // Continue without focus if it fails
+          console.log(
+            "Failed to set focus (this is non-critical):",
+            error.message
+          );
+          // Continue without focus if it fails - this is not critical for functionality
         }
         return false;
       });
@@ -607,50 +632,119 @@ export class RecordingDialog {
   close() {
     console.log("Closing DBus recording dialog");
 
+    // Prevent multiple cleanup attempts
+    if (!this.modalBarrier) {
+      console.log("Modal already cleaned up");
+      return;
+    }
+
     try {
-      // Stop timer
+      // Stop timer first
       this.stopTimer();
 
-      // Disconnect keyboard handler
-      if (this.keyboardHandlerId && this.modalBarrier) {
+      // Safely disconnect signal handlers using a more defensive approach
+      if (this.keyboardHandlerId) {
         try {
-          this.modalBarrier.disconnect(this.keyboardHandlerId);
-          console.log("Keyboard handler disconnected successfully");
+          // Check if the connection is still valid before disconnecting
+          if (this.modalBarrier && this.modalBarrier.disconnect) {
+            this.modalBarrier.disconnect(this.keyboardHandlerId);
+            console.log("Keyboard handler disconnected successfully");
+          }
         } catch (error) {
-          console.log("Error disconnecting keyboard handler:", error.message);
+          console.log(
+            "Signal handler already disconnected or invalid:",
+            error.message
+          );
+        } finally {
+          this.keyboardHandlerId = null;
         }
-        this.keyboardHandlerId = null;
       }
 
-      // Clean up modal with better error handling
+      // Clean up modal with improved Wayland compatibility
       if (this.modalBarrier) {
+        // First, hide the modal to prevent any visual glitches
         try {
-          if (this.modalBarrier.get_parent()) {
-            Main.layoutManager.removeChrome(this.modalBarrier);
-            console.log("Recording dialog modal removed from chrome");
-          }
-
-          if (this.modalBarrier.destroy) {
-            this.modalBarrier.destroy();
-            console.log("Recording dialog modal destroyed");
-          }
-        } catch (error) {
-          console.log("Error destroying modal barrier:", error.message);
-          // Try alternative cleanup
-          try {
-            if (this.modalBarrier.get_parent()) {
-              this.modalBarrier.get_parent().remove_child(this.modalBarrier);
-              console.log("Recording dialog modal removed as fallback");
-            }
-          } catch (fallbackError) {
-            console.log("Fallback cleanup also failed:", fallbackError.message);
-          }
+          this.modalBarrier.hide();
+        } catch (hideError) {
+          console.log("Could not hide modal:", hideError.message);
         }
-        this.modalBarrier = null;
+
+        // Use timeout to ensure the hide operation completes before destruction
+        // This is especially important on Wayland where operations might be asynchronous
+        const modal = this.modalBarrier;
+        this.modalBarrier = null; // Clear reference immediately to prevent re-entry
+
+        // Schedule cleanup on next iteration to allow any pending operations to complete
+        import("gi://GLib")
+          .then(({ default: GLib }) => {
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+              try {
+                // Remove from chrome if it has a parent
+                if (modal.get_parent) {
+                  const parent = modal.get_parent();
+                  if (parent) {
+                    // Try the official method first
+                    try {
+                      Main.layoutManager.removeChrome(modal);
+                      console.log("Modal removed from chrome successfully");
+                    } catch (chromeError) {
+                      console.log(
+                        "Chrome removal failed, trying direct parent removal:",
+                        chromeError.message
+                      );
+                      // Fallback to direct parent removal
+                      try {
+                        parent.remove_child(modal);
+                        console.log("Modal removed from parent directly");
+                      } catch (parentError) {
+                        console.log(
+                          "Direct parent removal also failed:",
+                          parentError.message
+                        );
+                      }
+                    }
+                  }
+                }
+
+                // Finally, destroy the modal
+                if (modal.destroy) {
+                  try {
+                    modal.destroy();
+                    console.log("Modal destroyed successfully");
+                  } catch (destroyError) {
+                    console.log(
+                      "Modal destruction failed:",
+                      destroyError.message
+                    );
+                  }
+                }
+              } catch (cleanupError) {
+                console.log("Delayed cleanup failed:", cleanupError.message);
+              }
+              return false; // Don't repeat
+            });
+          })
+          .catch(() => {
+            // Fallback if GLib import fails - try immediate cleanup
+            try {
+              if (modal.get_parent && modal.get_parent()) {
+                Main.layoutManager.removeChrome(modal);
+              }
+              if (modal.destroy) {
+                modal.destroy();
+              }
+            } catch (immediateError) {
+              console.log(
+                "Immediate fallback cleanup failed:",
+                immediateError.message
+              );
+            }
+          });
       }
     } catch (error) {
       console.error("Error closing recording dialog:", error.message);
-      // Continue cleanup even if there are errors
+      // Always clear the modal reference even if cleanup fails
+      this.modalBarrier = null;
     }
   }
 }
