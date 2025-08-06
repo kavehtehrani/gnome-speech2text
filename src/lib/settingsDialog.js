@@ -331,19 +331,17 @@ export class SettingsDialog {
           this.settings.set_strv("toggle-recording", [newShortcut]);
           this.currentShortcutDisplay.set_text(newShortcut);
           this.extension.setupKeybinding();
-          this.extension.updateShortcutLabel();
           Main.notify("Speech2Text", `Shortcut changed to: ${newShortcut}`);
         }
       });
     });
 
     this.resetToDefaultButton.connect("clicked", () => {
-      const defaultShortcut = "<Control><Shift><Alt>c";
+      const defaultShortcut = "<Super><Alt>r";
       this.extension.currentKeybinding = defaultShortcut;
       this.settings.set_strv("toggle-recording", [defaultShortcut]);
       this.currentShortcutDisplay.set_text(defaultShortcut);
       this.extension.setupKeybinding();
-      this.extension.updateShortcutLabel();
       Main.notify(
         "Speech2Text",
         `Shortcut reset to default: ${defaultShortcut}`
@@ -359,7 +357,6 @@ export class SettingsDialog {
       this.extension.currentKeybinding = null;
       this.settings.set_strv("toggle-recording", []);
       this.currentShortcutDisplay.set_text("No shortcut set");
-      this.extension.updateShortcutLabel();
       Main.notify("Speech2Text", "Keyboard shortcut removed");
     });
 

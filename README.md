@@ -20,7 +20,7 @@ This separation ensures the extension follows GNOME's best practices and securit
 - 🎤 **Speech Recognition** using OpenAI Whisper
 - ⌨️ **Automatic Text Insertion** at cursor location (only on X11)
 - 🖱️ **Click to Record** from top panel microphone icon
-- ⌨️ **Keyboard Shortcut** support (default: Ctrl+Shift+Alt+C)
+- ⌨️ **Keyboard Shortcut** support (default: Alt++Super+R)
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - ⚙️ **Easy Configuration** through settings panel
 - 🔒 **Privacy-First** - All processing happens locally
@@ -155,7 +155,7 @@ You can read more about the D-Bus service here: [D-Bus Service Documentation](./
 ### Quick Start
 
 1. **Click** the microphone icon in the top panel, or
-2. **Press** the keyboard shortcut (default: Ctrl+Shift+Alt+C)
+2. **Press** the keyboard shortcut (default: Alt+Super+R)
 3. **Speak** when the recording dialog appears
 4. **Review** the transcribed text in the preview dialog
 5. **Click Insert** to type the text, or **Copy** to clipboard

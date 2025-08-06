@@ -2,7 +2,7 @@
 <schemalist>
     <schema id="org.shell.extensions.speech2text" path="/org/shell/extensions/speech2text/">
         <key name="toggle-recording" type="as">
-            <default>['&lt;Control&gt;&lt;Shift&gt;&lt;Alt&gt;c']</default>
+            <default>['&lt;Super&gt;&lt;Alt&gt;r']</default>
             <summary>Toggle recording</summary>
             <description>Keyboard shortcut to toggle recording</description>
         </key>

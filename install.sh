@@ -357,7 +357,7 @@ show_post_install() {
     
     echo -e "${CYAN}4.${NC} Start using speech-to-text:"
     echo -e "   - Click the microphone icon, or"
-    echo -e "   - Press Ctrl+Shift+Alt+C (default shortcut)"
+    echo -e "   - Press Alt+Super+R (default shortcut)"
     echo
     
     echo -e "${CYAN}5.${NC} Configure settings:"
