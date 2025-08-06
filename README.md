@@ -45,7 +45,7 @@ This separation ensures the extension follows GNOME's best practices and securit
 
 ### System Dependencies
 
-- GNOME Shell 46 or later
+- GNOME Shell 46 or later (tested up to GNOME 48)
 - Python 3.8 or later
 - FFmpeg (for audio recording)
 - xdotool (for text insertion on X11 only)
@@ -67,7 +67,11 @@ sudo apt update
 sudo apt install python3 python3-pip python3-venv ffmpeg wl-clipboard
 ```
 
-**Note:** This extension has been tested extensively on Ubuntu 24.04 / GNOME 46 / X11+Wayland. It should work on other GNOME Shell 46+ distributions with the above packages installed, but hasn't been tested on other platforms yet.
+**Note:** This extension has been tested extensively on Ubuntu 24.04 / GNOME 46 / X11+Wayland and Ubuntu 25.04 / GNOME 48 / X11+Wayland. It should work on other GNOME Shell 46+ distributions with the above packages installed, but hasn't been tested on other platforms yet.
+
+### GNOME 48 Compatibility Notes
+
+On GNOME 48 with Wayland, the extension automatically disables cursor hover effects to prevent shell crashes. This is a known compatibility issue with cursor handling in this specific environment. All functionality remains intact - buttons simply won't show hand cursors on hover.
 
 ## Installation
 
@@ -93,6 +97,7 @@ This script will:
 - Check system dependencies and guide you through installing any missing ones
 - Install the D-Bus service automatically
 - Install the GNOME extension and compile schemas
+- Apply compatibility fixes for GNOME 48/Wayland automatically
 - Provide instructions for restarting GNOME Shell
 - Give you clear next steps to start using the extension
 
@@ -173,6 +178,17 @@ Right-click the microphone icon to access:
 
 ## Troubleshooting
 
+### GNOME Shell Crashes (GNOME 48/Wayland)
+
+If you experience GNOME Shell crashes when using the extension (particularly on Ubuntu 25 / GNOME 48 / Wayland), use the crash analysis script:
+
+```bash
+# After a crash, run the debug script
+./debug-crash.sh
+```
+
+This script will analyze system logs and generate a detailed crash report. Choose option 1 (last 30 minutes) after experiencing a crash. The script will create a timestamped file with all relevant crash information.
+
 ### Text Insertion Not Working
 
 1. **On X11**: Ensure xdotool is installed
@@ -190,7 +206,10 @@ journalctl --user -u speech2text-service -f
 
 # Or check service output directly
 systemctl --user status speech2text-service
-```
+
+# Generate comprehensive crash report
+./debug-crash.sh
+````
 
 ## Uninstallation
 
@@ -237,7 +256,11 @@ Contributions are welcome! Please feel free to submit a Pull Request or open iss
 Please include:
 
 - GNOME Shell version (`gnome-shell --version`)
-- Operating system and version
-- Extension logs (`journalctl /usr/bin/gnome-shell`)
+- Operating system and version (`lsb_release -a`)
+- Session type (`echo $XDG_SESSION_TYPE`)
+- Extension logs (`journalctl /usr/bin/gnome-shell | grep speech2text`)
 - Service logs (`journalctl --user -u speech2text-service`)
+- **For crashes**: Run `./debug-crash.sh` and include the generated report
 - Steps to reproduce the issue
+
+**Crash Reports**: If you experience GNOME Shell crashes, the `debug-crash.sh` script will generate a comprehensive report with all relevant system information, crash logs, and timeline analysis.
