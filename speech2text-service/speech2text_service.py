@@ -34,12 +34,15 @@ class Speech2TextService(dbus.service.Object):
         print("Speech2Text D-Bus service started")
         
     def _load_whisper_model(self):
-        """Lazy load Whisper model"""
+        """Lazy load Whisper model with CPU fallback"""
         if self.whisper_model is None:
             try:
                 print("Loading Whisper model...")
-                self.whisper_model = whisper.load_model("base")
-                print("Whisper model loaded successfully")
+                # Force CPU-only mode to avoid CUDA compatibility issues
+                device = "cpu"
+                print(f"Using device: {device}")
+                self.whisper_model = whisper.load_model("base", device=device)
+                print("Whisper model loaded successfully on CPU")
             except Exception as e:
                 print(f"Failed to load Whisper model: {e}")
                 raise e

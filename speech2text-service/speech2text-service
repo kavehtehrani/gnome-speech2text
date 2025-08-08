@@ -4,5 +4,19 @@
 SERVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SERVICE_DIR/venv"
 
-# Use the virtual environment's Python
-exec "$VENV_DIR/bin/python3" "$SERVICE_DIR/speech2text_service.py" 
+# Create log directory
+LOG_DIR="$HOME/.local/share/gnome-speech2text-service/logs"
+mkdir -p "$LOG_DIR"
+
+# Log file with timestamp
+LOG_FILE="$LOG_DIR/speech2text-service.log"
+
+# Function to log with timestamp
+log_with_timestamp() {
+    while IFS= read -r line; do
+        echo "$(date '+%Y-%m-%d %H:%M:%S') [speech2text-service] $line" | tee -a "$LOG_FILE"
+    done
+}
+
+# Use the virtual environment's Python and redirect output to both log file and journalctl
+exec "$VENV_DIR/bin/python3" "$SERVICE_DIR/speech2text_service.py" 2>&1 | log_with_timestamp | systemd-cat -t "org.gnome.Speech2Text" 
