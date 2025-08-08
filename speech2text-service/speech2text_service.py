@@ -39,9 +39,7 @@ class Speech2TextService(dbus.service.Object):
             try:
                 print("Loading Whisper model...")
                 # Force CPU-only mode to avoid CUDA compatibility issues
-                device = "cpu"
-                print(f"Using device: {device}")
-                self.whisper_model = whisper.load_model("base", device=device)
+                self.whisper_model = whisper.load_model("base", device="cpu")
                 print("Whisper model loaded successfully on CPU")
             except Exception as e:
                 print(f"Failed to load Whisper model: {e}")
