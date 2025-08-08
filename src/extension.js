@@ -28,13 +28,21 @@ export default class Speech2TextExtension extends Extension {
       console.log(
         "Extension instance already exists, cleaning up previous instance"
       );
-      extensionInstance.disable();
+      try {
+        extensionInstance.disable();
+      } catch (error) {
+        console.log("Error disabling previous instance:", error.message);
+      }
+      // Give a small delay to ensure cleanup completes
+      extensionInstance = null;
     }
     extensionInstance = this;
 
     this.settings = null;
     this.settingsDialog = null;
     this.currentKeybinding = null;
+    this.icon = null;
+    this.isEnabled = false;
 
     console.log("Creating new DBusManager instance");
     this.dbusManager = new DBusManager();
@@ -166,12 +174,35 @@ export default class Speech2TextExtension extends Extension {
   enable() {
     console.log("Enabling Speech2Text extension (D-Bus version)");
 
+    // Prevent multiple enables
+    if (this.isEnabled) {
+      console.log("Extension already enabled, skipping");
+      return;
+    }
+
+    // CRITICAL: Clean up any existing panel indicators to prevent conflicts
+    try {
+      if (Main.panel.statusArea["speech2text-indicator"]) {
+        console.log("Cleaning up existing indicator before enable");
+        Main.panel.statusArea["speech2text-indicator"].destroy();
+        delete Main.panel.statusArea["speech2text-indicator"];
+      }
+    } catch (e) {
+      console.log("No existing indicator to clean up:", e.message);
+    }
+
     try {
       // Initialize settings
       this.settings = this.getSettings("org.shell.extensions.speech2text");
+      if (!this.settings) {
+        throw new Error("Failed to initialize settings");
+      }
 
       // Create the panel button
       this.icon = new PanelMenu.Button(0.0, "Speech2Text Indicator");
+      if (!this.icon) {
+        throw new Error("Failed to create panel button");
+      }
 
       // Set up the icon
       let icon = new St.Icon({
@@ -184,13 +215,21 @@ export default class Speech2TextExtension extends Extension {
       this.createPopupMenu();
 
       // Add click handler for left-click recording toggle
+      // Store reference to 'this' to avoid context issues in callback
+      const self = this;
       this.icon.connect("button-press-event", (actor, event) => {
         const buttonPressed = event.get_button();
 
         if (buttonPressed === 1) {
           // Left click - toggle recording
-          this.icon.menu.close(true);
-          this.toggleRecording();
+          self.icon.menu.close(true);
+          console.log(
+            "Click handler triggered, extension enabled:",
+            self.isEnabled
+          );
+
+          // Use direct reference to this extension instance
+          self.toggleRecording();
           return Clutter.EVENT_STOP;
         } else if (buttonPressed === 3) {
           // Right click - show menu
@@ -200,7 +239,15 @@ export default class Speech2TextExtension extends Extension {
         return Clutter.EVENT_STOP;
       });
 
-      // Add to panel
+      // Add to panel (remove existing first to avoid conflicts)
+      try {
+        // Remove any existing indicator first
+        Main.panel.statusArea["speech2text-indicator"]?.destroy();
+        delete Main.panel.statusArea["speech2text-indicator"];
+      } catch (e) {
+        console.log("No existing indicator to remove:", e.message);
+      }
+
       Main.panel.addToStatusArea("speech2text-indicator", this.icon);
 
       // Initialize recording state manager
@@ -218,10 +265,14 @@ export default class Speech2TextExtension extends Extension {
         // Don't crash the extension if D-Bus fails
       });
 
-      console.log("Extension: Created and set recording dialog, opening now");
+      // Mark as enabled and ensure global reference is correct
+      this.isEnabled = true;
+      extensionInstance = this; // Ensure global reference points to this instance
+      console.log("Extension enabled successfully");
     } catch (error) {
       console.error("Error enabling extension:", error);
       // Clean up any partially initialized resources
+      this.isEnabled = false;
       this.disable();
       throw error; // Re-throw to let GNOME Shell handle it
     }
@@ -249,10 +300,65 @@ export default class Speech2TextExtension extends Extension {
   }
 
   showSettingsWindow() {
+    if (!this.isEnabled || !this.settings) {
+      console.error("Extension not properly enabled, cannot show settings");
+      return;
+    }
+
     if (!this.settingsDialog) {
       this.settingsDialog = new SettingsDialog(this);
     }
     this.settingsDialog.show();
+  }
+
+  refreshEventHandlers() {
+    if (!this.isEnabled || !this.icon || !this.settings) {
+      console.error(
+        "Extension not properly enabled, cannot refresh event handlers"
+      );
+      return;
+    }
+
+    console.log("Refreshing event handlers after session change");
+
+    // Re-setup keybinding
+    this.setupKeybinding();
+
+    // Recreate click handlers to ensure they work correctly
+    if (this.icon) {
+      try {
+        // Disconnect any existing click handlers
+        this.icon.disconnect_all();
+
+        // Recreate the click handler
+        this.icon.connect("button-press-event", (actor, event) => {
+          const buttonPressed = event.get_button();
+
+          if (buttonPressed === 1) {
+            // Left click - toggle recording
+            this.icon.menu.close(true);
+            // Use robust reference to avoid 'this' context issues
+            if (extensionInstance) {
+              extensionInstance.toggleRecording();
+            } else {
+              console.error(
+                "Extension instance not available for refreshed click handler"
+              );
+            }
+            return Clutter.EVENT_STOP;
+          } else if (buttonPressed === 3) {
+            // Right click - show menu
+            return Clutter.EVENT_PROPAGATE;
+          }
+
+          return Clutter.EVENT_STOP;
+        });
+
+        console.log("Click handlers refreshed");
+      } catch (error) {
+        console.error("Error refreshing click handlers:", error);
+      }
+    }
   }
 
   setupKeybinding() {
@@ -278,6 +384,8 @@ export default class Speech2TextExtension extends Extension {
     }
 
     // Register keybinding with better error handling
+    // Store reference to 'this' to avoid context issues in callback
+    const self = this;
     try {
       Main.wm.addKeybinding(
         "toggle-recording",
@@ -285,8 +393,12 @@ export default class Speech2TextExtension extends Extension {
         Meta.KeyBindingFlags.NONE,
         Shell.ActionMode.NORMAL,
         () => {
-          console.log("Keyboard shortcut triggered");
-          this.toggleRecording();
+          console.log(
+            "Keyboard shortcut triggered, extension enabled:",
+            self.isEnabled
+          );
+          // Use direct reference to this extension instance
+          self.toggleRecording();
         }
       );
       console.log(`Keybinding registered: ${this.currentKeybinding}`);
@@ -302,8 +414,12 @@ export default class Speech2TextExtension extends Extension {
           Meta.KeyBindingFlags.NONE,
           Shell.ActionMode.NORMAL,
           () => {
-            console.log("Keyboard shortcut triggered (fallback)");
-            this.toggleRecording();
+            console.log(
+              "Keyboard shortcut triggered (fallback), extension enabled:",
+              self.isEnabled
+            );
+            // Use direct reference to this extension instance
+            self.toggleRecording();
           }
         );
         console.log(
@@ -319,15 +435,233 @@ export default class Speech2TextExtension extends Extension {
     try {
       console.log("=== TOGGLE RECORDING (D-Bus) ===");
 
-      // Safety check for required components
-      if (!this.settings) {
-        console.error("Settings not initialized");
+      // Auto-recovery: if extension state is inconsistent, try to fix it
+      if (!this.isEnabled || !this.settings || !this.icon) {
+        console.log(
+          "Extension state inconsistent, attempting comprehensive auto-recovery"
+        );
+
+        try {
+          console.log("Attempting full extension state recovery");
+
+          // Step 1: Reinitialize settings if missing
+          if (!this.settings) {
+            console.log("Recovering settings");
+            this.settings = this.getSettings(
+              "org.shell.extensions.speech2text"
+            );
+          }
+
+          // Step 2: Recreate icon if missing
+          if (!this.icon) {
+            console.log("Recovering panel icon");
+            this.icon = new PanelMenu.Button(0.0, "Speech2Text Indicator");
+
+            let icon = new St.Icon({
+              icon_name: "microphone-symbolic",
+              style_class: "system-status-icon",
+            });
+            this.icon.add_child(icon);
+
+            // Recreate popup menu
+            this.createPopupMenu();
+
+            // Add click handler
+            this.icon.connect("button-press-event", (actor, event) => {
+              const buttonPressed = event.get_button();
+              if (buttonPressed === 1) {
+                this.icon.menu.close(true);
+                if (extensionInstance) {
+                  extensionInstance.toggleRecording();
+                } else {
+                  console.error(
+                    "Extension instance not available for recovered click handler"
+                  );
+                }
+                return Clutter.EVENT_STOP;
+              } else if (buttonPressed === 3) {
+                return Clutter.EVENT_PROPAGATE;
+              }
+              return Clutter.EVENT_STOP;
+            });
+
+            // Add to panel (remove existing first to avoid conflicts)
+            try {
+              // Remove any existing indicator first
+              Main.panel.statusArea["speech2text-indicator"]?.destroy();
+              delete Main.panel.statusArea["speech2text-indicator"];
+            } catch (e) {
+              console.log(
+                "No existing indicator to remove during recovery:",
+                e.message
+              );
+            }
+
+            Main.panel.addToStatusArea("speech2text-indicator", this.icon);
+            console.log("Panel icon recovered and added");
+          }
+
+          // Step 3: Reinitialize D-Bus manager if needed
+          if (!this.dbusManager) {
+            console.log("Recovering D-Bus manager");
+            this.dbusManager = new DBusManager();
+
+            // Initialize the D-Bus connection immediately
+            try {
+              console.log("Initializing recovered D-Bus manager");
+              await this.dbusManager.initialize();
+              console.log("D-Bus manager recovered and initialized");
+            } catch (dbusError) {
+              console.error(
+                "Failed to initialize recovered D-Bus manager:",
+                dbusError
+              );
+              // Continue without D-Bus for now, will be retried later
+            }
+          }
+
+          // Step 4: Reinitialize recording state manager (always recreate if dbusManager was recreated)
+          if (this.icon && this.dbusManager) {
+            if (this.recordingStateManager) {
+              console.log(
+                "Cleaning up old recording state manager before recreating"
+              );
+              this.recordingStateManager.cleanup();
+            }
+            console.log(
+              "Recovering recording state manager with current D-Bus reference"
+            );
+            this.recordingStateManager = new RecordingStateManager(
+              this.icon,
+              this.dbusManager
+            );
+          }
+
+          // Step 5: Re-establish keybindings if needed
+          if (this.settings && !this.currentKeybinding) {
+            console.log("Recovering keybindings");
+            this.setupKeybinding();
+          }
+
+          // Step 6: Mark as enabled if we have all core components
+          if (this.settings && this.icon) {
+            this.isEnabled = true;
+            extensionInstance = this; // Ensure global reference points to this instance
+            console.log("Full extension state recovered successfully");
+
+            // Initialize D-Bus connection
+            this._initDBus().catch((error) => {
+              console.error(
+                "Failed to initialize D-Bus after recovery:",
+                error
+              );
+            });
+          }
+        } catch (recoveryError) {
+          console.error("Comprehensive auto-recovery failed:", recoveryError);
+          Main.notify(
+            "Speech2Text Error",
+            "Extension recovery failed. Please restart GNOME Shell: Alt+F2 → 'r' → Enter"
+          );
+          return;
+        }
+      }
+
+      // Final safety check after auto-recovery attempt
+      if (!this.settings || !this.icon) {
+        console.error("Required components still missing after auto-recovery");
         return;
       }
 
+      // Ensure D-Bus manager is available and initialized
+      let needsNewRecordingStateManager = false;
+
+      if (!this.dbusManager) {
+        console.error(
+          "D-Bus manager missing after auto-recovery, creating new one"
+        );
+        this.dbusManager = new DBusManager();
+        needsNewRecordingStateManager = true;
+      }
+
+      // Ensure D-Bus connection is established
+      if (!this.dbusManager.isInitialized) {
+        console.log("D-Bus manager not initialized, initializing now");
+        try {
+          const initialized = await this.dbusManager.initialize();
+          if (!initialized) {
+            console.error("Failed to initialize D-Bus manager");
+            this._showServiceSetupDialog(
+              "Failed to connect to speech-to-text service"
+            );
+            return;
+          }
+        } catch (error) {
+          console.error("Error initializing D-Bus manager:", error);
+          this._showServiceSetupDialog(
+            "Error connecting to speech-to-text service"
+          );
+          return;
+        }
+      }
+
+      // If we created a new D-Bus manager, we need to update the RecordingStateManager reference
+      if (needsNewRecordingStateManager && this.icon) {
+        console.log(
+          "Updating RecordingStateManager with new D-Bus manager reference"
+        );
+        if (this.recordingStateManager) {
+          this.recordingStateManager.updateDbusManager(this.dbusManager);
+        } else {
+          this.recordingStateManager = new RecordingStateManager(
+            this.icon,
+            this.dbusManager
+          );
+        }
+      }
+
+      // Validate and potentially reinitialize D-Bus connection after session changes
+      if (this.dbusManager && !(await this.dbusManager.ensureConnection())) {
+        console.log("D-Bus connection lost, attempting to reinitialize");
+        // Try to completely reinitialize the D-Bus connection
+        this.dbusManager.destroy();
+        this.dbusManager = new DBusManager();
+        const dbusInitialized = await this._initDBus();
+        if (!dbusInitialized) {
+          console.error(
+            "Failed to reinitialize D-Bus connection after session change"
+          );
+          this._showServiceSetupDialog(
+            "Lost connection to speech-to-text service. Please restart GNOME Shell."
+          );
+          return;
+        }
+
+        // CRITICAL: Update RecordingStateManager with new dbusManager reference
+        console.log("Updating RecordingStateManager with new D-Bus connection");
+        if (this.recordingStateManager) {
+          this.recordingStateManager.updateDbusManager(this.dbusManager);
+        } else {
+          this.recordingStateManager = new RecordingStateManager(
+            this.icon,
+            this.dbusManager
+          );
+        }
+
+        // After successful D-Bus reinit, refresh event handlers too
+        console.log("D-Bus connection restored, refreshing event handlers");
+        this.refreshEventHandlers();
+      }
+
       if (!this.recordingStateManager) {
-        console.error("Recording state manager not initialized");
-        return;
+        console.error(
+          "Recording state manager not initialized, reinitializing"
+        );
+        // Reinitialize recording state manager if it's missing
+        this.recordingStateManager = new RecordingStateManager(
+          this.icon,
+          this.dbusManager
+        );
       }
 
       // Check if this is the first time the user is trying to use the extension
@@ -430,6 +764,41 @@ export default class Speech2TextExtension extends Extension {
         this.recordingStateManager.stopRecording();
       } else {
         console.log("Starting recording");
+        // DEBUG: Check extension state before calling startRecording
+        console.log("Extension DEBUG before startRecording:");
+        console.log("- this.dbusManager exists:", !!this.dbusManager);
+        console.log("- this.dbusManager is null:", this.dbusManager === null);
+        console.log(
+          "- this.recordingStateManager exists:",
+          !!this.recordingStateManager
+        );
+        console.log(
+          "- this.recordingStateManager is null:",
+          this.recordingStateManager === null
+        );
+        if (this.recordingStateManager) {
+          console.log(
+            "- this.recordingStateManager.dbusManager exists:",
+            !!this.recordingStateManager.dbusManager
+          );
+          console.log(
+            "- this.recordingStateManager.dbusManager is null:",
+            this.recordingStateManager.dbusManager === null
+          );
+        }
+
+        // CRITICAL FIX: Always ensure RecordingStateManager has current dbusManager reference
+        if (
+          this.recordingStateManager &&
+          this.dbusManager &&
+          this.recordingStateManager.dbusManager !== this.dbusManager
+        ) {
+          console.log(
+            "FIXING: RecordingStateManager has stale dbusManager reference, updating now"
+          );
+          this.recordingStateManager.updateDbusManager(this.dbusManager);
+        }
+
         const success = await this.recordingStateManager.startRecording(
           this.settings
         );
@@ -539,6 +908,9 @@ export default class Speech2TextExtension extends Extension {
   disable() {
     console.log("Disabling Speech2Text extension (D-Bus version)");
 
+    // Mark as disabled immediately to prevent race conditions
+    this.isEnabled = false;
+
     // Clear singleton instance reference
     if (extensionInstance === this) {
       extensionInstance = null;
@@ -585,18 +957,43 @@ export default class Speech2TextExtension extends Extension {
       // Ignore errors - keybinding might not exist
     }
 
-    // Clean up button references
+    // Clean up panel icon first (CRITICAL for avoiding conflicts)
+    try {
+      if (this.icon) {
+        console.log("Removing panel icon from status area");
+        this.icon.destroy();
+        this.icon = null;
+      }
+
+      // Remove from status area to prevent conflicts
+      if (Main.panel.statusArea["speech2text-indicator"]) {
+        console.log("Cleaning up status area indicator");
+        Main.panel.statusArea["speech2text-indicator"].destroy();
+        delete Main.panel.statusArea["speech2text-indicator"];
+      }
+    } catch (error) {
+      console.log("Error cleaning up panel icon:", error.message);
+      // Force cleanup even if there are errors
+      this.icon = null;
+      try {
+        delete Main.panel.statusArea["speech2text-indicator"];
+      } catch (e) {
+        // Ignore secondary cleanup errors
+      }
+    }
+
+    // Clean up legacy button references
     if (button) {
-      button.destroy();
+      try {
+        button.destroy();
+      } catch (e) {
+        console.log("Error destroying legacy button:", e.message);
+      }
       button = null;
     }
 
     if (this.button) {
       this.button = null;
-    }
-
-    if (this.icon) {
-      this.icon = null;
     }
   }
 }

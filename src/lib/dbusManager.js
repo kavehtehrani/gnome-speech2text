@@ -58,6 +58,8 @@ export class DBusManager {
     this.dbusProxy = null;
     this.signalConnections = [];
     this.isInitialized = false;
+    this.lastConnectionCheck = 0;
+    this.connectionCheckInterval = 10000; // Check every 10 seconds
   }
 
   async initialize() {
@@ -241,8 +243,9 @@ export class DBusManager {
   }
 
   async startRecording(duration, copyToClipboard, previewMode) {
-    if (!this.dbusProxy) {
-      throw new Error("D-Bus proxy not initialized");
+    const connectionReady = await this.ensureConnection();
+    if (!connectionReady || !this.dbusProxy) {
+      throw new Error("D-Bus connection not available");
     }
 
     try {
@@ -258,8 +261,9 @@ export class DBusManager {
   }
 
   async stopRecording(recordingId) {
-    if (!this.dbusProxy) {
-      throw new Error("D-Bus proxy not initialized");
+    const connectionReady = await this.ensureConnection();
+    if (!connectionReady || !this.dbusProxy) {
+      throw new Error("D-Bus connection not available");
     }
 
     try {
@@ -271,8 +275,9 @@ export class DBusManager {
   }
 
   async cancelRecording(recordingId) {
-    if (!this.dbusProxy) {
-      throw new Error("D-Bus proxy not initialized");
+    const connectionReady = await this.ensureConnection();
+    if (!connectionReady || !this.dbusProxy) {
+      throw new Error("D-Bus connection not available");
     }
 
     try {
@@ -284,8 +289,9 @@ export class DBusManager {
   }
 
   async typeText(text, copyToClipboard) {
-    if (!this.dbusProxy) {
-      throw new Error("D-Bus proxy not initialized");
+    const connectionReady = await this.ensureConnection();
+    if (!connectionReady || !this.dbusProxy) {
+      throw new Error("D-Bus connection not available");
     }
 
     try {
@@ -299,9 +305,46 @@ export class DBusManager {
     }
   }
 
+  async validateConnection() {
+    // Check if we should validate the connection
+    const now = Date.now();
+    if (now - this.lastConnectionCheck < this.connectionCheckInterval) {
+      return this.isInitialized && this.dbusProxy !== null;
+    }
+
+    this.lastConnectionCheck = now;
+
+    if (!this.dbusProxy || !this.isInitialized) {
+      console.log("D-Bus connection invalid, need to reinitialize");
+      return false;
+    }
+
+    try {
+      // Quick test to see if the connection is still valid
+      await this.dbusProxy.GetServiceStatusAsync();
+      return true;
+    } catch (e) {
+      console.log("D-Bus connection validation failed:", e.message);
+      // Connection is stale, need to reinitialize
+      this.isInitialized = false;
+      this.dbusProxy = null;
+      return false;
+    }
+  }
+
+  async ensureConnection() {
+    const isValid = await this.validateConnection();
+    if (!isValid) {
+      console.log("Reinitializing D-Bus connection after validation failure");
+      return await this.initialize();
+    }
+    return true;
+  }
+
   destroy() {
     this.disconnectSignals();
     this.dbusProxy = null;
     this.isInitialized = false;
+    this.lastConnectionCheck = 0;
   }
 }
