@@ -573,51 +573,11 @@ export default class Speech2TextExtension extends Extension {
         return;
       }
 
-      // Ensure D-Bus manager is available and initialized
-      let needsNewRecordingStateManager = false;
-
+      // Basic D-Bus validation (simple fix handles reference issues)
       if (!this.dbusManager) {
-        console.error(
-          "D-Bus manager missing after auto-recovery, creating new one"
-        );
+        console.error("D-Bus manager missing, creating new one");
         this.dbusManager = new DBusManager();
-        needsNewRecordingStateManager = true;
-      }
-
-      // Ensure D-Bus connection is established
-      if (!this.dbusManager.isInitialized) {
-        console.log("D-Bus manager not initialized, initializing now");
-        try {
-          const initialized = await this.dbusManager.initialize();
-          if (!initialized) {
-            console.error("Failed to initialize D-Bus manager");
-            this._showServiceSetupDialog(
-              "Failed to connect to speech-to-text service"
-            );
-            return;
-          }
-        } catch (error) {
-          console.error("Error initializing D-Bus manager:", error);
-          this._showServiceSetupDialog(
-            "Error connecting to speech-to-text service"
-          );
-          return;
-        }
-      }
-
-      // If we created a new D-Bus manager, we need to update the RecordingStateManager reference
-      if (needsNewRecordingStateManager && this.icon) {
-        console.log(
-          "Updating RecordingStateManager with new D-Bus manager reference"
-        );
-        if (this.recordingStateManager) {
-          this.recordingStateManager.updateDbusManager(this.dbusManager);
-        } else {
-          this.recordingStateManager = new RecordingStateManager(
-            this.icon,
-            this.dbusManager
-          );
-        }
+        await this._initDBus();
       }
 
       // Validate and potentially reinitialize D-Bus connection after session changes
@@ -637,16 +597,7 @@ export default class Speech2TextExtension extends Extension {
           return;
         }
 
-        // CRITICAL: Update RecordingStateManager with new dbusManager reference
-        console.log("Updating RecordingStateManager with new D-Bus connection");
-        if (this.recordingStateManager) {
-          this.recordingStateManager.updateDbusManager(this.dbusManager);
-        } else {
-          this.recordingStateManager = new RecordingStateManager(
-            this.icon,
-            this.dbusManager
-          );
-        }
+        // RecordingStateManager reference will be updated by the simple fix before use
 
         // After successful D-Bus reinit, refresh event handlers too
         console.log("D-Bus connection restored, refreshing event handlers");
@@ -764,38 +715,13 @@ export default class Speech2TextExtension extends Extension {
         this.recordingStateManager.stopRecording();
       } else {
         console.log("Starting recording");
-        // DEBUG: Check extension state before calling startRecording
-        console.log("Extension DEBUG before startRecording:");
-        console.log("- this.dbusManager exists:", !!this.dbusManager);
-        console.log("- this.dbusManager is null:", this.dbusManager === null);
-        console.log(
-          "- this.recordingStateManager exists:",
-          !!this.recordingStateManager
-        );
-        console.log(
-          "- this.recordingStateManager is null:",
-          this.recordingStateManager === null
-        );
-        if (this.recordingStateManager) {
-          console.log(
-            "- this.recordingStateManager.dbusManager exists:",
-            !!this.recordingStateManager.dbusManager
-          );
-          console.log(
-            "- this.recordingStateManager.dbusManager is null:",
-            this.recordingStateManager.dbusManager === null
-          );
-        }
 
-        // CRITICAL FIX: Always ensure RecordingStateManager has current dbusManager reference
+        // Ensure RecordingStateManager has current dbusManager reference
         if (
           this.recordingStateManager &&
           this.dbusManager &&
           this.recordingStateManager.dbusManager !== this.dbusManager
         ) {
-          console.log(
-            "FIXING: RecordingStateManager has stale dbusManager reference, updating now"
-          );
           this.recordingStateManager.updateDbusManager(this.dbusManager);
         }
 

@@ -14,9 +14,6 @@ export class RecordingStateManager {
 
   // Method to update dbusManager reference when extension recreates it
   updateDbusManager(dbusManager) {
-    console.log("RecordingStateManager: Updating dbusManager reference");
-    console.log("- Old dbusManager was null:", this.dbusManager === null);
-    console.log("- New dbusManager exists:", !!dbusManager);
     this.dbusManager = dbusManager;
   }
 
@@ -49,26 +46,8 @@ export class RecordingStateManager {
         `Starting recording: duration=${recordingDuration}, clipboard=${copyToClipboard}, skipPreview=${skipPreviewX11}`
       );
 
-      // DEBUG: Check dbusManager state right before use
-      console.log("RecordingStateManager DEBUG:");
-      console.log("- this.dbusManager exists:", !!this.dbusManager);
-      console.log("- this.dbusManager is null:", this.dbusManager === null);
-      console.log("- this.dbusManager type:", typeof this.dbusManager);
-      if (this.dbusManager) {
-        console.log(
-          "- this.dbusManager.isInitialized:",
-          this.dbusManager.isInitialized
-        );
-        console.log(
-          "- this.dbusManager.startRecording exists:",
-          !!this.dbusManager.startRecording
-        );
-      }
-
       if (!this.dbusManager) {
-        throw new Error(
-          "RecordingStateManager: dbusManager is null - extension failed to provide valid dbusManager reference"
-        );
+        throw new Error("RecordingStateManager: dbusManager is null");
       }
 
       const recordingId = await this.dbusManager.startRecording(
