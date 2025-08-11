@@ -57,7 +57,7 @@ export class SettingsDialog {
       style: `
         background-color: rgba(20, 20, 20, 0.95);
         border-radius: 12px;
-        padding: 25px;
+        padding: 24px;
         min-width: 550px;
         max-width: 600px;
         border: ${STYLES.DIALOG_BORDER};
@@ -446,10 +446,10 @@ export class SettingsDialog {
       if (windowHeight === 0)
         windowHeight = Math.min(monitor.height * 0.8, 600);
 
-      this.settingsWindow.set_position(
-        (monitor.width - windowWidth) / 2,
-        (monitor.height - windowHeight) / 2
-      );
+      // Use integer coordinates in overlay parent space to avoid subpixel blur
+      const centerX = Math.round((monitor.width - windowWidth) / 2);
+      const centerY = Math.round((monitor.height - windowHeight) / 2);
+      this.settingsWindow.set_position(centerX, centerY);
       return false;
     });
 
