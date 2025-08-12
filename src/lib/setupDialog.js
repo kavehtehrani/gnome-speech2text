@@ -43,7 +43,7 @@ export class ServiceSetupDialog {
       style: `
         background-color: rgba(20, 20, 20, 0.95);
         border-radius: 12px;
-        padding: 25px;
+        padding: 24px;
         min-width: 600px;
         max-width: 700px;
         border: ${STYLES.DIALOG_BORDER};
@@ -552,10 +552,10 @@ This service needs to be installed separately from the extension.`,
       if (dialogWidth === 0) dialogWidth = 700;
       if (dialogHeight === 0) dialogHeight = 500;
 
-      this.dialogContainer.set_position(
-        (monitor.width - dialogWidth) / 2,
-        (monitor.height - dialogHeight) / 2
-      );
+      // Use integer coordinates in overlay parent space to avoid subpixel blur
+      const centerX = Math.round((monitor.width - dialogWidth) / 2);
+      const centerY = Math.round((monitor.height - dialogHeight) / 2);
+      this.dialogContainer.set_position(centerX, centerY);
       return false;
     });
 
