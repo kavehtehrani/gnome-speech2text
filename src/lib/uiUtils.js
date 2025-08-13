@@ -1,4 +1,3 @@
-import Clutter from "gi://Clutter";
 import Meta from "gi://Meta";
 import St from "gi://St";
 import { COLORS, STYLES } from "./constants.js";

@@ -19,6 +19,9 @@ export class RecordingDialog {
     this.startTime = null;
     this.elapsedTime = 0;
     this.timerInterval = null;
+    this.focusTimeoutId = null;
+    this.buttonFocusTimeoutId = null;
+    this.openFocusTimeoutId = null;
     this.isPreviewMode = false;
     this.transcribedText = "";
 
@@ -421,8 +424,9 @@ export class RecordingDialog {
     this.container.add_child(textEntry);
 
     // Focus the text entry after a short delay and select all text
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+    this.focusTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
       clutterText.set_selection(0, text.length);
+      this.focusTimeoutId = null;
       return false;
     });
 
@@ -469,10 +473,15 @@ export class RecordingDialog {
     });
 
     // Set focus on copy button so Enter key works
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-      copyButton.grab_key_focus();
-      return false;
-    });
+    this.buttonFocusTimeoutId = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT,
+      150,
+      () => {
+        copyButton.grab_key_focus();
+        this.buttonFocusTimeoutId = null;
+        return false;
+      }
+    );
 
     cancelButton.connect("clicked", () => {
       this.close();
@@ -588,33 +597,41 @@ export class RecordingDialog {
       this.startTimer();
 
       // Focus solution with improved Wayland compatibility
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-        try {
-          // Only attempt focus grab if the modal is still valid and has a parent
-          if (this.modalBarrier?.get_parent && this.modalBarrier.get_parent()) {
-            // On Wayland, focus management is more restricted
-            // Try the safer approach first
-            if (this.modalBarrier.grab_key_focus) {
-              this.modalBarrier.grab_key_focus();
-              console.log("Focus grabbed using grab_key_focus");
-            }
+      this.openFocusTimeoutId = GLib.timeout_add(
+        GLib.PRIORITY_DEFAULT,
+        100,
+        () => {
+          try {
+            // Only attempt focus grab if the modal is still valid and has a parent
+            if (
+              this.modalBarrier?.get_parent &&
+              this.modalBarrier.get_parent()
+            ) {
+              // On Wayland, focus management is more restricted
+              // Try the safer approach first
+              if (this.modalBarrier.grab_key_focus) {
+                this.modalBarrier.grab_key_focus();
+                console.log("Focus grabbed using grab_key_focus");
+              }
 
-            // Only try global.stage.set_key_focus on X11 or as fallback
-            const isWayland = Meta.is_wayland_compositor();
-            if (!isWayland && global.stage?.set_key_focus) {
-              global.stage.set_key_focus(this.modalBarrier);
-              console.log("Focus set using global.stage.set_key_focus");
+              // Only try global.stage.set_key_focus on X11 or as fallback
+              const isWayland = Meta.is_wayland_compositor();
+              if (!isWayland && global.stage?.set_key_focus) {
+                global.stage.set_key_focus(this.modalBarrier);
+                console.log("Focus set using global.stage.set_key_focus");
+              }
             }
+          } catch (error) {
+            console.log(
+              "Failed to set focus (this is non-critical):",
+              error.message
+            );
+            // Continue without focus if it fails - this is not critical for functionality
           }
-        } catch (error) {
-          console.log(
-            "Failed to set focus (this is non-critical):",
-            error.message
-          );
-          // Continue without focus if it fails - this is not critical for functionality
+          this.openFocusTimeoutId = null;
+          return false;
         }
-        return false;
-      });
+      );
     } catch (error) {
       console.error("Error opening recording dialog:", error);
       // Try to clean up if opening fails
@@ -641,6 +658,20 @@ export class RecordingDialog {
     try {
       // Stop timer first
       this.stopTimer();
+
+      // Clean up timeout sources
+      if (this.focusTimeoutId) {
+        GLib.Source.remove(this.focusTimeoutId);
+        this.focusTimeoutId = null;
+      }
+      if (this.buttonFocusTimeoutId) {
+        GLib.Source.remove(this.buttonFocusTimeoutId);
+        this.buttonFocusTimeoutId = null;
+      }
+      if (this.openFocusTimeoutId) {
+        GLib.Source.remove(this.openFocusTimeoutId);
+        this.openFocusTimeoutId = null;
+      }
 
       // Safely disconnect signal handlers using a more defensive approach
       if (this.keyboardHandlerId) {

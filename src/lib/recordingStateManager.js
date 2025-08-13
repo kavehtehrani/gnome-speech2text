@@ -47,7 +47,8 @@ export class RecordingStateManager {
       );
 
       if (!this.dbusManager) {
-        throw new Error("RecordingStateManager: dbusManager is null");
+        console.error("RecordingStateManager: dbusManager is null");
+        return false;
       }
 
       const recordingId = await this.dbusManager.startRecording(

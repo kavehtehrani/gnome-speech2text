@@ -13,6 +13,7 @@ export class ShortcutCapture {
     this.captureWindow = null;
     this.keyPressHandler = null;
     this.keyReleaseHandler = null;
+    this.centerTimeoutId = null;
   }
 
   capture(callback) {
@@ -53,7 +54,7 @@ export class ShortcutCapture {
     this.overlay.set_position(monitor.x, monitor.y);
 
     // Center the capture window
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [windowWidth, windowHeight] = this.captureWindow.get_size();
       if (windowWidth === 0) windowWidth = 400;
       if (windowHeight === 0) windowHeight = 200;
@@ -62,6 +63,7 @@ export class ShortcutCapture {
         (monitor.width - windowWidth) / 2,
         (monitor.height - windowHeight) / 2
       );
+      this.centerTimeoutId = null;
       return false;
     });
 
@@ -100,7 +102,6 @@ export class ShortcutCapture {
       "key-press-event",
       (actor, event) => {
         const keyval = event.get_key_symbol();
-        const state = event.get_state();
         const keyName = Clutter.keyval_name(keyval);
 
         if (keyval === Clutter.KEY_Escape) {
@@ -161,23 +162,23 @@ export class ShortcutCapture {
     );
 
     // Also handle key release to reset modifier state if needed
-    this.keyReleaseHandler = this.overlay.connect(
-      "key-release-event",
-      (actor, event) => {
-        const keyval = event.get_key_symbol();
-        const keyName = Clutter.keyval_name(keyval);
-
-        // Don't reset modifiers on release - let user build combination
-        // This allows holding multiple modifiers before pressing the final key
-        return Clutter.EVENT_STOP;
-      }
-    );
+    this.keyReleaseHandler = this.overlay.connect("key-release-event", () => {
+      // Don't reset modifiers on release - let user build combination
+      // This allows holding multiple modifiers before pressing the final key
+      return Clutter.EVENT_STOP;
+    });
 
     this.overlay.grab_key_focus();
     this.overlay.set_reactive(true);
   }
 
   cleanup() {
+    // Clean up timeout sources
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+      this.centerTimeoutId = null;
+    }
+
     if (this.overlay) {
       cleanupModal(this.overlay, {
         keyPressHandler: this.keyPressHandler,

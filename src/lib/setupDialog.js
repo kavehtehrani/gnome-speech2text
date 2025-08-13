@@ -24,6 +24,7 @@ export class ServiceSetupDialog {
     this.isFirstRun = isFirstRun;
     this.isManualRequest = errorMessage === "Manual setup guide requested";
     this.overlay = null;
+    this.centerTimeoutId = null;
     this._buildDialog();
   }
 
@@ -499,7 +500,7 @@ This service needs to be installed separately from the extension.`,
 
       // Use proper async subprocess to open gnome-terminal safely
       try {
-        const proc = Gio.Subprocess.new(
+        const _ = Gio.Subprocess.new(
           [
             "gnome-terminal",
             `--working-directory=${extensionDir}/speech2text-service`,
@@ -547,7 +548,7 @@ This service needs to be installed separately from the extension.`,
     this.overlay.set_size(monitor.width, monitor.height);
 
     // Center the dialog
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [dialogWidth, dialogHeight] = this.dialogContainer.get_size();
       if (dialogWidth === 0) dialogWidth = 700;
       if (dialogHeight === 0) dialogHeight = 500;
@@ -556,6 +557,7 @@ This service needs to be installed separately from the extension.`,
       const centerX = Math.round((monitor.width - dialogWidth) / 2);
       const centerY = Math.round((monitor.height - dialogHeight) / 2);
       this.dialogContainer.set_position(centerX, centerY);
+      this.centerTimeoutId = null;
       return false;
     });
 
@@ -564,6 +566,12 @@ This service needs to be installed separately from the extension.`,
   }
 
   close() {
+    // Clean up timeout sources
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+      this.centerTimeoutId = null;
+    }
+
     if (this.overlay) {
       cleanupModal(this.overlay, {
         keyPressHandler: this.keyPressHandler,

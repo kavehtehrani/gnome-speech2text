@@ -1,5 +1,4 @@
 import Clutter from "gi://Clutter";
-import Gio from "gi://Gio";
 import Meta from "gi://Meta";
 import Shell from "gi://Shell";
 import St from "gi://St";
@@ -43,10 +42,7 @@ export default class Speech2TextExtension extends Extension {
     this.currentKeybinding = null;
     this.icon = null;
     this.isEnabled = false;
-
-    console.log("Creating new DBusManager instance");
-    this.dbusManager = new DBusManager();
-
+    this.dbusManager = null;
     this.recordingStateManager = null; // Will be initialized after icon creation
   }
 
@@ -82,8 +78,8 @@ export default class Speech2TextExtension extends Extension {
       }
     }
 
-    // Final check to ensure it's still valid
-    return this.dbusManager !== null;
+    // At this point, dbusManager is guaranteed to be non-null
+    return true;
   }
 
   async _initDBus() {
@@ -174,6 +170,10 @@ export default class Speech2TextExtension extends Extension {
   enable() {
     console.log("Enabling Speech2Text extension (D-Bus version)");
 
+    // Create DBusManager instance
+    console.log("Creating new DBusManager instance");
+    this.dbusManager = new DBusManager();
+
     // Prevent multiple enables
     if (this.isEnabled) {
       console.log("Extension already enabled, skipping");
@@ -194,15 +194,9 @@ export default class Speech2TextExtension extends Extension {
     try {
       // Initialize settings
       this.settings = this.getSettings("org.shell.extensions.speech2text");
-      if (!this.settings) {
-        throw new Error("Failed to initialize settings");
-      }
 
       // Create the panel button
       this.icon = new PanelMenu.Button(0.0, "Speech2Text Indicator");
-      if (!this.icon) {
-        throw new Error("Failed to create panel button");
-      }
 
       // Set up the icon
       let icon = new St.Icon({
@@ -362,15 +356,8 @@ export default class Speech2TextExtension extends Extension {
   }
 
   setupKeybinding() {
-    // Check if keybinding exists before trying to remove it
-    try {
-      // Get current keybindings to check if ours exists
-      const currentBindings = Main.wm.getKeybindingMode();
-      // Try to remove existing keybinding only if it might exist
-      Main.wm.removeKeybinding("toggle-recording");
-    } catch (e) {
-      // Ignore errors - keybinding might not exist
-    }
+    // Remove existing keybinding if it exists
+    Main.wm.removeKeybinding("toggle-recording");
 
     // Get shortcut from settings
     let shortcuts = this.settings.get_strv("toggle-recording");
@@ -383,52 +370,24 @@ export default class Speech2TextExtension extends Extension {
       this.settings.set_strv("toggle-recording", [this.currentKeybinding]);
     }
 
-    // Register keybinding with better error handling
+    // Register keybinding
     // Store reference to 'this' to avoid context issues in callback
     const self = this;
-    try {
-      Main.wm.addKeybinding(
-        "toggle-recording",
-        this.settings,
-        Meta.KeyBindingFlags.NONE,
-        Shell.ActionMode.NORMAL,
-        () => {
-          console.log(
-            "Keyboard shortcut triggered, extension enabled:",
-            self.isEnabled
-          );
-          // Use direct reference to this extension instance
-          self.toggleRecording();
-        }
-      );
-      console.log(`Keybinding registered: ${this.currentKeybinding}`);
-    } catch (e) {
-      console.error(`Error registering keybinding: ${e}`);
-      // Try with a fallback shortcut if the original fails
-      try {
-        this.currentKeybinding = "<Super><Alt>s";
-        this.settings.set_strv("toggle-recording", [this.currentKeybinding]);
-        Main.wm.addKeybinding(
-          "toggle-recording",
-          this.settings,
-          Meta.KeyBindingFlags.NONE,
-          Shell.ActionMode.NORMAL,
-          () => {
-            console.log(
-              "Keyboard shortcut triggered (fallback), extension enabled:",
-              self.isEnabled
-            );
-            // Use direct reference to this extension instance
-            self.toggleRecording();
-          }
-        );
+    Main.wm.addKeybinding(
+      "toggle-recording",
+      this.settings,
+      Meta.KeyBindingFlags.NONE,
+      Shell.ActionMode.NORMAL,
+      () => {
         console.log(
-          `Fallback keybinding registered: ${this.currentKeybinding}`
+          "Keyboard shortcut triggered, extension enabled:",
+          self.isEnabled
         );
-      } catch (fallbackError) {
-        console.error(`Fallback keybinding also failed: ${fallbackError}`);
+        // Use direct reference to this extension instance
+        self.toggleRecording();
       }
-    }
+    );
+    console.log(`Keybinding registered: ${this.currentKeybinding}`);
   }
 
   async toggleRecording() {
@@ -875,13 +834,7 @@ export default class Speech2TextExtension extends Extension {
     this.currentKeybinding = null;
 
     // Remove keybinding
-    try {
-      // Check if keybinding exists before trying to remove it
-      const currentBindings = Main.wm.getKeybindingMode();
-      Main.wm.removeKeybinding("toggle-recording");
-    } catch (e) {
-      // Ignore errors - keybinding might not exist
-    }
+    Main.wm.removeKeybinding("toggle-recording");
 
     // Clean up panel icon first (CRITICAL for avoiding conflicts)
     try {
@@ -922,8 +875,4 @@ export default class Speech2TextExtension extends Extension {
       this.button = null;
     }
   }
-}
-
-function init(metadata) {
-  return new Speech2TextExtension(metadata);
 }

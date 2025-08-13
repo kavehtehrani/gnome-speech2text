@@ -30,6 +30,7 @@ export class SettingsDialog {
     this.clipboardCheckboxIcon = null;
     this.skipPreviewCheckbox = null;
     this.skipPreviewCheckboxIcon = null;
+    this.centerTimeoutId = null;
   }
 
   show() {
@@ -43,6 +44,12 @@ export class SettingsDialog {
   }
 
   close() {
+    // Clean up timeout sources
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+      this.centerTimeoutId = null;
+    }
+
     if (this.overlay) {
       cleanupModal(this.overlay, {});
       this.overlay = null;
@@ -440,7 +447,7 @@ export class SettingsDialog {
     this.overlay.set_position(monitor.x, monitor.y);
 
     // Center the settings window
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [windowWidth, windowHeight] = this.settingsWindow.get_size();
       if (windowWidth === 0) windowWidth = 450;
       if (windowHeight === 0)
@@ -450,6 +457,7 @@ export class SettingsDialog {
       const centerX = Math.round((monitor.width - windowWidth) / 2);
       const centerY = Math.round((monitor.height - windowHeight) / 2);
       this.settingsWindow.set_position(centerX, centerY);
+      this.centerTimeoutId = null;
       return false;
     });
 
