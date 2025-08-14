@@ -2,6 +2,45 @@
 
 set -e
 
+# Parse command line arguments
+INSTALL_MODE=""
+FORCE_MODE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --local)
+            INSTALL_MODE="local"
+            FORCE_MODE=true
+            shift
+            ;;
+        --pypi)
+            INSTALL_MODE="pypi"
+            FORCE_MODE=true
+            shift
+            ;;
+        --help|-h)
+            echo "GNOME Speech2Text Service Installer"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --local    Force installation from local source (requires pyproject.toml)"
+            echo "  --pypi     Force installation from PyPI"
+            echo "  --help     Show this help message"
+            echo ""
+            echo "Without options, installation mode is auto-detected:"
+            echo "  - Local mode: when pyproject.toml is found in script directory"
+            echo "  - PyPI mode: when no local source is available"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Check if running interactively
 INTERACTIVE=true
 if [ ! -t 0 ]; then
@@ -49,7 +88,31 @@ ask_user() {
     echo "$response"
 }
 
+# Detect installation mode
+detect_install_mode() {
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    if [ "$FORCE_MODE" = true ]; then
+        echo "🔧 Installation mode forced: $INSTALL_MODE"
+        return
+    fi
+    
+    # Auto-detect based on available files
+    if [ -f "$SCRIPT_DIR/pyproject.toml" ]; then
+        INSTALL_MODE="local"
+        echo "📦 Local repository detected - using local installation"
+        echo "   Found: $SCRIPT_DIR/pyproject.toml"
+    else
+        INSTALL_MODE="pypi"
+        echo "📦 PyPI installation mode - no local source found"
+        echo "   Use --local if you have the source code available"
+    fi
+}
+
 print_status "Installing GNOME Speech2Text D-Bus Service"
+
+# Detect installation mode early
+detect_install_mode
 
 echo ""
 echo -e "${BLUE}This script will install all required dependencies for Ubuntu.${NC}"
@@ -298,10 +361,59 @@ print_status "Upgrading pip..."
 
 print_status "Installing Python dependencies..."
 
-# Install the service package from local directory
-print_status "Installing gnome-speech2text-service package..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"$VENV_DIR/bin/pip" install "$SCRIPT_DIR" || error_exit "Failed to install gnome-speech2text-service package"
+# Install the service package based on detected mode
+install_service_package() {
+    case "$INSTALL_MODE" in
+        "local")
+            print_status "Installing gnome-speech2text-service from local source..."
+            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            
+            if [ ! -f "$SCRIPT_DIR/pyproject.toml" ]; then
+                error_exit "Local installation requested but pyproject.toml not found in $SCRIPT_DIR"
+            fi
+            
+            "$VENV_DIR/bin/pip" install "$SCRIPT_DIR" || error_exit "Failed to install local gnome-speech2text-service package"
+            echo "✅ Installed from local source: $SCRIPT_DIR"
+            ;;
+            
+        "pypi")
+            print_status "Installing gnome-speech2text-service from PyPI..."
+            
+            # Try PyPI installation with fallback
+            if "$VENV_DIR/bin/pip" install gnome-speech2text-service; then
+                echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
+            else
+                echo ""
+                echo -e "${YELLOW}⚠️  PyPI installation failed!${NC}"
+                
+                # Offer local fallback if available
+                SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+                if [ -f "$SCRIPT_DIR/pyproject.toml" ]; then
+                    echo "Local source code is available as fallback."
+                    local fallback
+                    fallback=$(ask_user "Try installing from local source instead? [Y/n]: " "Y")
+                    
+                    if [[ "$fallback" =~ ^[Yy]$ ]] || [ -z "$fallback" ]; then
+                        print_status "Attempting local installation as fallback..."
+                        "$VENV_DIR/bin/pip" install "$SCRIPT_DIR" || error_exit "Both PyPI and local installation failed"
+                        echo "✅ Installed from local source (fallback)"
+                    else
+                        error_exit "PyPI installation failed and local fallback declined"
+                    fi
+                else
+                    echo "No local source available for fallback."
+                    error_exit "PyPI installation failed. Please check your internet connection and try again."
+                fi
+            fi
+            ;;
+            
+        *)
+            error_exit "Unknown installation mode: $INSTALL_MODE"
+            ;;
+    esac
+}
+
+install_service_package
 
 print_status "Creating service wrapper script..."
 # Create a wrapper script that activates the venv and runs the service
@@ -319,9 +431,35 @@ print_status "Installing D-Bus service..."
 DBUS_SERVICE_DIR="$HOME/.local/share/dbus-1/services"
 mkdir -p "$DBUS_SERVICE_DIR"
 
-# Update the service file with correct path
-sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/gnome-speech2text-service|g" \
-    "$SCRIPT_DIR/data/org.gnome.Speech2Text.service" > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+# Create D-Bus service file based on installation mode
+install_dbus_service_file() {
+    case "$INSTALL_MODE" in
+        "local")
+            # Use local data directory
+            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            if [ -f "$SCRIPT_DIR/data/org.gnome.Speech2Text.service" ]; then
+                sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/gnome-speech2text-service|g" \
+                    "$SCRIPT_DIR/data/org.gnome.Speech2Text.service" > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+                echo "✅ D-Bus service file installed from local data"
+            else
+                error_exit "Local D-Bus service file not found: $SCRIPT_DIR/data/org.gnome.Speech2Text.service"
+            fi
+            ;;
+            
+        "pypi")
+            # Create D-Bus service file directly (since data files aren't included in PyPI package for GNOME compliance)
+            cat > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service" << EOF
+[D-BUS Service]
+Name=org.gnome.Speech2Text
+Exec=$SERVICE_DIR/gnome-speech2text-service
+User=session
+EOF
+            echo "✅ D-Bus service file created for PyPI installation"
+            ;;
+    esac
+}
+
+install_dbus_service_file
 
 print_status "Creating desktop entry..."
 DESKTOP_DIR="$HOME/.local/share/applications"
@@ -342,6 +480,13 @@ echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  GNOME Speech2Text Service Installed  ${NC}"
 echo -e "${BLUE}========================================${NC}"
+echo ""
+echo -e "${YELLOW}Installation mode: $INSTALL_MODE${NC}"
+if [ "$INSTALL_MODE" = "pypi" ]; then
+    echo -e "${YELLOW}Package source: https://pypi.org/project/gnome-speech2text-service/${NC}"
+else
+    echo -e "${YELLOW}Package source: Local repository${NC}"
+fi
 echo ""
 echo -e "${YELLOW}The D-Bus service has been installed and registered.${NC}"
 echo -e "${YELLOW}It will start automatically when the GNOME extension requests it.${NC}"
