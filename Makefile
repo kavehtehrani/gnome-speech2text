@@ -36,7 +36,6 @@ install:
 	@echo "📦 Installing extension to $(EXTENSION_DIR)..."
 	@mkdir -p $(EXTENSION_DIR)
 	@cp -r $(SOURCE_DIR)/* $(EXTENSION_DIR)/
-	@cp -r speech2text-service $(EXTENSION_DIR)/
 	@echo "✅ Extension files installed successfully!"
 	@echo "🔧 Compiling GSettings schemas..."
 	@glib-compile-schemas $(SCHEMAS_DIR)
@@ -91,7 +90,6 @@ clean-install:
 	@echo "📦 Installing extension to $(EXTENSION_DIR)..."
 	@mkdir -p $(EXTENSION_DIR)
 	@cp -r $(SOURCE_DIR)/* $(EXTENSION_DIR)/
-	@cp -r speech2text-service $(EXTENSION_DIR)/
 	@echo "✅ Extension installed successfully!"
 
 
@@ -150,8 +148,7 @@ package:
 	cp -r $(SOURCE_DIR)/* "$$PACKAGE_DIR/" && \
 	echo "   Recompiling schemas for package..." && \
 	glib-compile-schemas "$$PACKAGE_DIR/schemas/" && \
-	echo "   Copying service files..." && \
-	cp -r speech2text-service "$$PACKAGE_DIR/" && \
+	echo "   Service is now separate (not included in extension package)..." && \
 	echo "   Creating ZIP package..." && \
 	cd "$$PACKAGE_DIR" && \
 	zip -r "../$$PACKAGE_FILE" . && \
@@ -228,15 +225,7 @@ test-install: package
 		exit 1; \
 	fi && \
 	echo "" && \
-	echo "   Step 4: Check service installation files..." && \
-	if [ -d "speech2text-service" ] && [ -f "speech2text-service/install.sh" ]; then \
-		echo "   ✅ Service installation files present"; \
-		echo "   📋 Service files:" && \
-		ls -la speech2text-service/; \
-	else \
-		echo "   ❌ Missing service installation files"; \
-		exit 1; \
-	fi && \
+	echo "   Step 4: Service is now separate (not bundled with extension)..." && \
 	echo "" && \
 	echo "   Step 5: Verify schemas..." && \
 	if [ -f "schemas/org.shell.extensions.speech2text.gschema.xml" ] && [ -f "schemas/gschemas.compiled" ]; then \
@@ -259,7 +248,7 @@ test-install: package
 	echo "   The extension is now installed exactly as it would be from extensions.gnome.org" && \
 	echo "" && \
 	echo "   Next steps for full testing:" && \
-	echo "   1. Run: ./speech2text-service/install.sh (to install D-Bus service)" && \
+	echo "   1. Install service separately: cd service && ./install.sh" && \
 	echo "   2. Restart GNOME Shell (Alt+F2 → r → Enter)" && \
 	echo "   3. Enable the extension in GNOME Extensions app" && \
 	echo "" && \

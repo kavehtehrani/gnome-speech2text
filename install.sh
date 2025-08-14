@@ -103,15 +103,15 @@ check_project_structure() {
         error_exit "Makefile not found. Are you running this from the project root?"
     fi
     
-    if [ ! -d "$SCRIPT_DIR/speech2text-service" ]; then
-        error_exit "speech2text-service directory not found. Are you running this from the project root?"
+    if [ ! -d "$SCRIPT_DIR/service" ]; then
+        error_exit "service directory not found. Are you running this from the project root?"
     fi
     
     if [ ! -d "$SCRIPT_DIR/src" ]; then
         error_exit "src directory not found. Are you running this from the project root?"
     fi
     
-    if [ ! -f "$SCRIPT_DIR/speech2text-service/install.sh" ]; then
+    if [ ! -f "$SCRIPT_DIR/service/install.sh" ]; then
         error_exit "D-Bus service installer not found."
     fi
     
@@ -123,13 +123,10 @@ detect_distro() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         DISTRO="$ID"
-        DISTRO_VERSION="$VERSION_ID"
     elif command_exists lsb_release; then
         DISTRO=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
-        DISTRO_VERSION=$(lsb_release -sr)
     else
         DISTRO="unknown"
-        DISTRO_VERSION="unknown"
     fi
 }
 
@@ -269,7 +266,7 @@ install_dbus_service() {
     
     print_info "The D-Bus service handles speech recognition and runs in the background"
     
-    cd "$SCRIPT_DIR/speech2text-service"
+    cd "$SCRIPT_DIR/service"
     
     # Check if service installer exists and is executable
     if [ ! -x "install.sh" ]; then

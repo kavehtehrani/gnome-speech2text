@@ -2,7 +2,7 @@
 
 A GNOME Shell extension that adds speech-to-text functionality using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words automatically typed wherever your cursor is.
 
-This extension follows GNOME's architectural guidelines by using a D-Bus service for speech processing, making it lightweight and suitable for the GNOME Extensions store.
+This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing, making it lightweight and suitable for the GNOME Extensions store. The service is packaged separately and can be installed via pip.
 
 ![recording-modal](./images/recording-modal.png)
 
@@ -11,7 +11,7 @@ This extension follows GNOME's architectural guidelines by using a D-Bus service
 The extension consists of two components:
 
 1. **GNOME Extension** (lightweight UI) - Provides the panel button, keyboard shortcuts, and settings
-2. **D-Bus Service** (background process) - Handles audio recording, speech transcription, and text insertion
+2. **D-Bus Service** (separate package) - Handles audio recording, speech transcription, and text insertion
 
 This separation ensures the extension follows GNOME's best practices and security guidelines.
 
@@ -108,8 +108,21 @@ The extension automatically detects if the required service is missing and provi
 This will:
 
 - Create a Python virtual environment
+- Install the `gnome-speech2text-service` package locally
 - Install required Python packages (OpenAI Whisper, etc.)
 - Set up D-Bus service files
+
+### Alternative: Service-Only Installation
+
+If you only want to install the D-Bus service (for development or advanced users):
+
+```bash
+# Install just the service
+cd service/
+./install.sh
+```
+
+The service is also available as a Python package and will be published to PyPI in the future for easier installation.
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 
@@ -147,13 +160,13 @@ If the D-Bus service isn't working:
 dbus-send --session --print-reply --dest=org.gnome.Speech2Text /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus
 
 # Start the service manually
-~/.local/share/gnome-speech2text-service/speech2text-service
+~/.local/share/gnome-speech2text-service/gnome-speech2text-service
 
 # Check D-Bus service file
 ls ~/.local/share/dbus-1/services/org.gnome.Speech2Text.service
 ```
 
-You can read more about the D-Bus service here: [D-Bus Service Documentation](./speech2text-service/README.md).
+You can read more about the D-Bus service here: [D-Bus Service Documentation](./service/README.md).
 
 ## Usage
 
@@ -209,7 +222,7 @@ systemctl --user status speech2text-service
 
 # Generate comprehensive crash report
 ./debug-crash.sh
-````
+```
 
 ## Uninstallation
 
