@@ -13,6 +13,7 @@ import signal
 import time
 import threading
 import uuid
+import syslog
 from datetime import datetime
 
 class Speech2TextService(dbus.service.Object):
@@ -31,6 +32,9 @@ class Speech2TextService(dbus.service.Object):
         self.dependencies_checked = False
         self.missing_deps = []
         
+        # Initialize syslog for proper journalctl logging
+        syslog.openlog("gnome-speech2text-service", syslog.LOG_PID, syslog.LOG_USER)
+        syslog.syslog(syslog.LOG_INFO, "Speech2Text D-Bus service started")
         print("Speech2Text D-Bus service started")
         
     def _load_whisper_model(self):
@@ -253,8 +257,17 @@ class Speech2TextService(dbus.service.Object):
             process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, 
                                      stdout=subprocess.PIPE, text=True)
             recording_info['process'] = process
-            print(f"FFmpeg process started with PID: {process.pid}")
-            print(f"FFmpeg command: {' '.join(cmd)}")
+            syslog.syslog(syslog.LOG_INFO, f"FFmpeg process started with PID: {process.pid}")
+            syslog.syslog(syslog.LOG_INFO, f"FFmpeg command: {' '.join(cmd)}")
+            
+            # Check if process started successfully
+            time.sleep(0.1)  # Give it a moment to start
+            if process.poll() is not None:
+                # Process failed immediately
+                stderr_output = process.stderr.read() if process.stderr else "No stderr available"
+                syslog.syslog(syslog.LOG_ERR, f"FFmpeg process failed immediately with return code: {process.returncode}")
+                syslog.syslog(syslog.LOG_ERR, f"FFmpeg stderr: {stderr_output}")
+                raise Exception(f"FFmpeg failed to start: {stderr_output}")
             
             # Wait for process or manual stop
             while process.poll() is None and recording_info.get('stop_requested', False) == False:
@@ -262,7 +275,7 @@ class Speech2TextService(dbus.service.Object):
             
             # Stop recording if requested - ensure proper buffer flushing
             if recording_info.get('stop_requested', False):
-                print(f"Stop requested for recording {recording_id}, terminating FFmpeg process")
+                syslog.syslog(syslog.LOG_INFO, f"Stop requested for recording {recording_id}, terminating FFmpeg process")
                 try:
                     # Close stdin to signal FFmpeg to flush buffers and finish
                     if process.stdin:
@@ -273,26 +286,26 @@ class Speech2TextService(dbus.service.Object):
                         process.communicate(input='q', timeout=2.0)
                     except subprocess.TimeoutExpired:
                         # If 'q' command doesn't work, try SIGINT (graceful)
-                        print("FFmpeg didn't respond to 'q', trying SIGINT")
+                        syslog.syslog(syslog.LOG_WARNING, "FFmpeg didn't respond to 'q', trying SIGINT")
                         process.send_signal(signal.SIGINT)
                         
                         try:
                             process.wait(timeout=2.0)
                         except subprocess.TimeoutExpired:
                             # If still running, try SIGTERM
-                            print("SIGINT didn't work, trying SIGTERM")
+                            syslog.syslog(syslog.LOG_WARNING, "SIGINT didn't work, trying SIGTERM")
                             process.terminate()
                             
                             try:
                                 process.wait(timeout=2.0)
                             except subprocess.TimeoutExpired:
                                 # Force kill as last resort
-                                print("SIGTERM didn't work, force killing FFmpeg process")
+                                syslog.syslog(syslog.LOG_WARNING, "SIGTERM didn't work, force killing FFmpeg process")
                                 process.kill()
                                 process.wait()
                                 
                 except Exception as e:
-                    print(f"Error stopping recording process: {e}")
+                    syslog.syslog(syslog.LOG_ERR, f"Error stopping recording process: {e}")
                     # Ensure process is terminated even if error occurs
                     try:
                         process.kill()
@@ -301,28 +314,34 @@ class Speech2TextService(dbus.service.Object):
                         pass
             
             process.wait()
-            print(f"FFmpeg process finished with return code: {process.returncode}")
+            syslog.syslog(syslog.LOG_INFO, f"FFmpeg process finished with return code: {process.returncode}")
+            
+            # Capture any stderr output from FFmpeg
+            if process.stderr:
+                stderr_output = process.stderr.read()
+                if stderr_output:
+                    syslog.syslog(syslog.LOG_INFO, f"FFmpeg stderr output: {stderr_output}")
             
             # Give a small delay for file system to flush the audio data
             time.sleep(0.3)
             
             # Check if we have valid audio with retry logic for short recordings
             audio_valid = False
-            print(f"Checking audio file: {audio_file}")
+            syslog.syslog(syslog.LOG_INFO, f"Checking audio file: {audio_file}")
             for attempt in range(5):  # Try up to 5 times
                 if os.path.exists(audio_file):
                     file_size = os.path.getsize(audio_file)
-                    print(f"Attempt {attempt + 1}: File exists, size: {file_size} bytes")
+                    syslog.syslog(syslog.LOG_INFO, f"Attempt {attempt + 1}: File exists, size: {file_size} bytes")
                     # Lower threshold to 100 bytes (just above WAV header size)
                     # and ensure file has some content
                     if file_size > 100:
                         audio_valid = True
-                        print(f"Audio validation successful on attempt {attempt + 1}")
+                        syslog.syslog(syslog.LOG_INFO, f"Audio validation successful on attempt {attempt + 1}")
                         break
                     else:
-                        print(f"File too small ({file_size} bytes), retrying...")
+                        syslog.syslog(syslog.LOG_WARNING, f"File too small ({file_size} bytes), retrying...")
                 else:
-                    print(f"Attempt {attempt + 1}: File doesn't exist yet")
+                    syslog.syslog(syslog.LOG_WARNING, f"Attempt {attempt + 1}: File doesn't exist yet")
                 # Small delay between attempts
                 if attempt < 4:  # Wait between all attempts except the last one
                     time.sleep(0.2)
@@ -337,7 +356,7 @@ class Speech2TextService(dbus.service.Object):
                 recording_info['status'] = 'failed'
                 file_size = os.path.getsize(audio_file) if os.path.exists(audio_file) else 0
                 error_msg = f"Audio validation failed: file_size={file_size} bytes, file_exists={os.path.exists(audio_file)}"
-                print(f"DEBUG: {error_msg}")
+                syslog.syslog(syslog.LOG_ERR, f"DEBUG: {error_msg}")
                 self.RecordingError(recording_id, f"No audio recorded or file too small (size: {file_size} bytes)")
                 
         except Exception as e:
