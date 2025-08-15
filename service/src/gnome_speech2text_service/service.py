@@ -327,7 +327,7 @@ class Speech2TextService(dbus.service.Object):
             
             # Check if we have valid audio with retry logic for short recordings
             audio_valid = False
-            syslog.syslog(syslog.LOG_INFO, f"Checking audio file: {audio_file}")
+            syslog.syslog(syslog.LOG_INFO, f"*** Checking audio file: {audio_file}")
             for attempt in range(5):  # Try up to 5 times
                 if os.path.exists(audio_file):
                     file_size = os.path.getsize(audio_file)
