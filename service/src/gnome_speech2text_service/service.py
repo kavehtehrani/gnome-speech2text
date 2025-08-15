@@ -234,25 +234,44 @@ class Speech2TextService(dbus.service.Object):
             # Emit recording started signal
             self.RecordingStarted(recording_id)
             
-            # Use ffmpeg to record audio with low-latency flags for Wayland/PipeWire compatibility
-            cmd = [
-                'ffmpeg', '-y',
-                '-hide_banner',
-                '-nostats',
-                '-loglevel', 'error',
-                '-f', 'pulse',
-                '-thread_queue_size', '512',
-                '-i', 'default',
-                '-fflags', '+nobuffer',
-                '-flags', 'low_delay',
-                '-probesize', '32',
-                '-analyzeduration', '0',
-                '-t', str(max_duration),
-                '-ar', '16000',
-                '-ac', '1',
-                '-f', 'wav',
-                audio_file
-            ]
+            # Use ffmpeg to record audio - different approach for Wayland vs X11
+            display_server = self._detect_display_server()
+            
+            if display_server == 'wayland':
+                # On Wayland, use more conservative settings to ensure audio is captured
+                cmd = [
+                    'ffmpeg', '-y',
+                    '-hide_banner',
+                    '-nostats',
+                    '-loglevel', 'error',
+                    '-f', 'pulse',
+                    '-i', 'default',
+                    '-t', str(max_duration),
+                    '-ar', '16000',
+                    '-ac', '1',
+                    '-f', 'wav',
+                    audio_file
+                ]
+            else:
+                # On X11, use low-latency flags
+                cmd = [
+                    'ffmpeg', '-y',
+                    '-hide_banner',
+                    '-nostats',
+                    '-loglevel', 'error',
+                    '-f', 'pulse',
+                    '-thread_queue_size', '512',
+                    '-i', 'default',
+                    '-fflags', '+nobuffer',
+                    '-flags', 'low_delay',
+                    '-probesize', '32',
+                    '-analyzeduration', '0',
+                    '-t', str(max_duration),
+                    '-ar', '16000',
+                    '-ac', '1',
+                    '-f', 'wav',
+                    audio_file
+                ]
             
             process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, 
                                      stdout=subprocess.PIPE, text=True)
