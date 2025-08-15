@@ -293,29 +293,27 @@ class Speech2TextService(dbus.service.Object):
             if recording_info.get('stop_requested', False):
                 syslog.syslog(syslog.LOG_INFO, f"Stop requested for recording {recording_id}, terminating FFmpeg process")
                 try:
-                    # Send 'q' command to FFmpeg for graceful exit
+                    # Use SIGINT for graceful termination (standard way to stop FFmpeg)
+                    syslog.syslog(syslog.LOG_INFO, f"Sending SIGINT to FFmpeg process {process.pid}")
+                    process.send_signal(signal.SIGINT)
+                    
                     try:
-                        process.communicate(input='q', timeout=2.0)
+                        process.wait(timeout=3.0)
+                        syslog.syslog(syslog.LOG_INFO, f"FFmpeg terminated gracefully with SIGINT")
                     except subprocess.TimeoutExpired:
-                        # If 'q' command doesn't work, try SIGINT (graceful)
-                        syslog.syslog(syslog.LOG_WARNING, "FFmpeg didn't respond to 'q', trying SIGINT")
-                        process.send_signal(signal.SIGINT)
+                        # If SIGINT doesn't work, try SIGTERM
+                        syslog.syslog(syslog.LOG_WARNING, "SIGINT timeout, trying SIGTERM")
+                        process.terminate()
                         
                         try:
                             process.wait(timeout=2.0)
+                            syslog.syslog(syslog.LOG_INFO, f"FFmpeg terminated with SIGTERM")
                         except subprocess.TimeoutExpired:
-                            # If still running, try SIGTERM
-                            syslog.syslog(syslog.LOG_WARNING, "SIGINT didn't work, trying SIGTERM")
-                            process.terminate()
+                            # Force kill as last resort
+                            syslog.syslog(syslog.LOG_WARNING, "SIGTERM timeout, force killing FFmpeg process")
+                            process.kill()
+                            process.wait()
                             
-                            try:
-                                process.wait(timeout=2.0)
-                            except subprocess.TimeoutExpired:
-                                # Force kill as last resort
-                                syslog.syslog(syslog.LOG_WARNING, "SIGTERM didn't work, force killing FFmpeg process")
-                                process.kill()
-                                process.wait()
-                                
                 except Exception as e:
                     syslog.syslog(syslog.LOG_ERR, f"Error stopping recording process: {e}")
                     # Ensure process is terminated even if error occurs
@@ -328,11 +326,14 @@ class Speech2TextService(dbus.service.Object):
             process.wait()
             syslog.syslog(syslog.LOG_INFO, f"FFmpeg process finished with return code: {process.returncode}")
             
-            # Capture any stderr output from FFmpeg
-            if process.stderr:
-                stderr_output = process.stderr.read()
-                if stderr_output:
-                    syslog.syslog(syslog.LOG_INFO, f"FFmpeg stderr output: {stderr_output}")
+            # Capture any stderr output from FFmpeg (safely)
+            try:
+                if process.stderr and not process.stderr.closed:
+                    stderr_output = process.stderr.read()
+                    if stderr_output:
+                        syslog.syslog(syslog.LOG_INFO, f"FFmpeg stderr output: {stderr_output}")
+            except (ValueError, OSError) as e:
+                syslog.syslog(syslog.LOG_DEBUG, f"Could not read stderr (process terminated): {e}")
             
             # Give a small delay for file system to flush the audio data
             time.sleep(0.3)
