@@ -230,11 +230,19 @@ class Speech2TextService(dbus.service.Object):
             # Emit recording started signal
             self.RecordingStarted(recording_id)
             
-            # Use ffmpeg to record audio
+            # Use ffmpeg to record audio with low-latency flags for Wayland/PipeWire compatibility
             cmd = [
                 'ffmpeg', '-y',
+                '-hide_banner',
+                '-nostats',
+                '-loglevel', 'error',
                 '-f', 'pulse',
+                '-thread_queue_size', '512',
                 '-i', 'default',
+                '-fflags', '+nobuffer',
+                '-flags', 'low_delay',
+                '-probesize', '32',
+                '-analyzeduration', '0',
                 '-t', str(max_duration),
                 '-ar', '16000',
                 '-ac', '1',
@@ -242,7 +250,7 @@ class Speech2TextService(dbus.service.Object):
                 audio_file
             ]
             
-            process = subprocess.Popen(cmd, stderr=subprocess.PIPE, 
+            process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, 
                                      stdout=subprocess.PIPE, text=True)
             recording_info['process'] = process
             
@@ -250,33 +258,44 @@ class Speech2TextService(dbus.service.Object):
             while process.poll() is None and recording_info.get('stop_requested', False) == False:
                 time.sleep(0.1)
             
-            # Stop recording if requested
+            # Stop recording if requested - ensure proper buffer flushing
             if recording_info.get('stop_requested', False):
                 try:
-                    # First try SIGINT (graceful)
-                    process.send_signal(signal.SIGINT)
-                    time.sleep(0.5)
+                    # Close stdin to signal FFmpeg to flush buffers and finish
+                    if process.stdin:
+                        process.stdin.close()
                     
-                    # If still running, try SIGTERM
-                    if process.poll() is None:
-                        process.terminate()
-                        time.sleep(0.5)
-                    
-                    # If still running, force kill
-                    if process.poll() is None:
-                        process.kill()
-                        time.sleep(0.2)
-                    
-                    # Final check and force cleanup if needed
-                    if process.poll() is None:
-                        print(f"Warning: ffmpeg process {process.pid} may still be running")
+                    # Send 'q' command to FFmpeg for graceful exit
+                    try:
+                        process.communicate(input='q', timeout=2.0)
+                    except subprocess.TimeoutExpired:
+                        # If 'q' command doesn't work, try SIGINT (graceful)
+                        print("FFmpeg didn't respond to 'q', trying SIGINT")
+                        process.send_signal(signal.SIGINT)
+                        
                         try:
-                            # Try system kill as last resort
-                            subprocess.run(['kill', '-9', str(process.pid)], check=False)
-                        except:
-                            pass
+                            process.wait(timeout=2.0)
+                        except subprocess.TimeoutExpired:
+                            # If still running, try SIGTERM
+                            print("SIGINT didn't work, trying SIGTERM")
+                            process.terminate()
+                            
+                            try:
+                                process.wait(timeout=2.0)
+                            except subprocess.TimeoutExpired:
+                                # Force kill as last resort
+                                print("SIGTERM didn't work, force killing FFmpeg process")
+                                process.kill()
+                                process.wait()
+                                
                 except Exception as e:
                     print(f"Error stopping recording process: {e}")
+                    # Ensure process is terminated even if error occurs
+                    try:
+                        process.kill()
+                        process.wait()
+                    except:
+                        pass
             
             process.wait()
             

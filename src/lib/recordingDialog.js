@@ -134,14 +134,9 @@ export class RecordingDialog {
     this.progressContainer.add_child(this.progressBar);
     this.progressContainer.add_child(this.timeDisplay);
 
-    // Instructions - with Wayland-specific message
-    const isWayland = Meta.is_wayland_compositor();
-    const instructionText = isWayland
-      ? "Speak now (minimum 3 seconds on Wayland)\nPress Enter to process, Escape to cancel."
-      : "Speak now\nPress Enter to process, Escape to cancel.";
-
+    // Instructions
     this.instructionLabel = new St.Label({
-      text: instructionText,
+      text: "Speak now\nPress Enter to process, Escape to cancel.",
       style: `font-size: 16px; color: ${COLORS.LIGHT_GRAY}; text-align: center;`,
     });
 
