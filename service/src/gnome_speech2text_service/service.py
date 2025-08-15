@@ -270,17 +270,29 @@ class Speech2TextService(dbus.service.Object):
                 raise Exception(f"FFmpeg failed to start: {stderr_output}")
             
             # Wait for process or manual stop
-            while process.poll() is None and recording_info.get('stop_requested', False) == False:
+            # Give FFmpeg a minimum time to initialize on Wayland
+            start_time = time.time()
+            display_server = self._detect_display_server()
+            min_recording_time = 1.5 if display_server == 'wayland' else 0.0
+            
+            while process.poll() is None:
+                elapsed = time.time() - start_time
+                
+                if recording_info.get('stop_requested', False):
+                    # On Wayland, ensure minimum time for FFmpeg to initialize
+                    if display_server == 'wayland' and elapsed < min_recording_time:
+                        syslog.syslog(syslog.LOG_INFO, f"Wayland: Delaying stop request ({elapsed:.1f}s < {min_recording_time}s)")
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        break
+                        
                 time.sleep(0.1)
             
             # Stop recording if requested - ensure proper buffer flushing
             if recording_info.get('stop_requested', False):
                 syslog.syslog(syslog.LOG_INFO, f"Stop requested for recording {recording_id}, terminating FFmpeg process")
                 try:
-                    # Close stdin to signal FFmpeg to flush buffers and finish
-                    if process.stdin:
-                        process.stdin.close()
-                    
                     # Send 'q' command to FFmpeg for graceful exit
                     try:
                         process.communicate(input='q', timeout=2.0)
