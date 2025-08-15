@@ -9,10 +9,10 @@ description = "D-Bus service providing speech-to-text functionality for GNOME Sh
 readme = "README.md"
 license = {text = "GPL-2.0-or-later"}
 authors = [
-    {name = "Kaveh Tehrani", email = "kaveh@kaveh.page"}
+    {name = "Kaveh Tehrani", email = "codemonkey13x@gmail.com.page"}
 ]
 maintainers = [
-    {name = "Kaveh Tehrani", email = "kaveh@kaveh.page"}
+    {name = "Kaveh Tehrani", email = "codemonkey13x@gmail.com.page"}
 ]
 keywords = [
     "gnome",
