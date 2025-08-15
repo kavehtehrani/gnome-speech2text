@@ -143,7 +143,7 @@ If the extension doesn't appear in GNOME Extensions:
 
 ```bash
 # View extension logs
-journalctl /usr/bin/gnome-shell -f
+journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text)"
 
 # Check installation status
 make status
@@ -212,7 +212,7 @@ This script will analyze system logs and generate a detailed crash report. Choos
 
 ```bash
 # Extension logs
-journalctl /usr/bin/gnome-shell -f
+journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text)"
 
 # Service logs
 journalctl --user -u speech2text-service -f
