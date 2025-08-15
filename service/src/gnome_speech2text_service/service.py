@@ -253,6 +253,8 @@ class Speech2TextService(dbus.service.Object):
             process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, 
                                      stdout=subprocess.PIPE, text=True)
             recording_info['process'] = process
+            print(f"FFmpeg process started with PID: {process.pid}")
+            print(f"FFmpeg command: {' '.join(cmd)}")
             
             # Wait for process or manual stop
             while process.poll() is None and recording_info.get('stop_requested', False) == False:
@@ -260,6 +262,7 @@ class Speech2TextService(dbus.service.Object):
             
             # Stop recording if requested - ensure proper buffer flushing
             if recording_info.get('stop_requested', False):
+                print(f"Stop requested for recording {recording_id}, terminating FFmpeg process")
                 try:
                     # Close stdin to signal FFmpeg to flush buffers and finish
                     if process.stdin:
@@ -298,22 +301,30 @@ class Speech2TextService(dbus.service.Object):
                         pass
             
             process.wait()
+            print(f"FFmpeg process finished with return code: {process.returncode}")
             
             # Give a small delay for file system to flush the audio data
             time.sleep(0.3)
             
             # Check if we have valid audio with retry logic for short recordings
             audio_valid = False
-            for attempt in range(5):  # Try up to 3 times
+            print(f"Checking audio file: {audio_file}")
+            for attempt in range(5):  # Try up to 5 times
                 if os.path.exists(audio_file):
                     file_size = os.path.getsize(audio_file)
-                    # Lower threshold to 400 bytes (just above WAV header size)
+                    print(f"Attempt {attempt + 1}: File exists, size: {file_size} bytes")
+                    # Lower threshold to 100 bytes (just above WAV header size)
                     # and ensure file has some content
                     if file_size > 100:
                         audio_valid = True
+                        print(f"Audio validation successful on attempt {attempt + 1}")
                         break
+                    else:
+                        print(f"File too small ({file_size} bytes), retrying...")
+                else:
+                    print(f"Attempt {attempt + 1}: File doesn't exist yet")
                 # Small delay between attempts
-                if attempt < 2:
+                if attempt < 4:  # Wait between all attempts except the last one
                     time.sleep(0.2)
             
             if audio_valid:
@@ -325,6 +336,8 @@ class Speech2TextService(dbus.service.Object):
             else:
                 recording_info['status'] = 'failed'
                 file_size = os.path.getsize(audio_file) if os.path.exists(audio_file) else 0
+                error_msg = f"Audio validation failed: file_size={file_size} bytes, file_exists={os.path.exists(audio_file)}"
+                print(f"DEBUG: {error_msg}")
                 self.RecordingError(recording_id, f"No audio recorded or file too small (size: {file_size} bytes)")
                 
         except Exception as e:
