@@ -300,21 +300,21 @@ class Speech2TextService(dbus.service.Object):
             process.wait()
             
             # Give a small delay for file system to flush the audio data
-            time.sleep(0.2)
+            time.sleep(0.3)
             
             # Check if we have valid audio with retry logic for short recordings
             audio_valid = False
-            for attempt in range(3):  # Try up to 3 times
+            for attempt in range(5):  # Try up to 3 times
                 if os.path.exists(audio_file):
                     file_size = os.path.getsize(audio_file)
                     # Lower threshold to 400 bytes (just above WAV header size)
                     # and ensure file has some content
-                    if file_size > 400:
+                    if file_size > 100:
                         audio_valid = True
                         break
                 # Small delay between attempts
                 if attempt < 2:
-                    time.sleep(0.1)
+                    time.sleep(0.2)
             
             if audio_valid:
                 recording_info['status'] = 'recorded'
