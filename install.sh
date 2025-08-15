@@ -95,27 +95,30 @@ ask_user() {
     echo "$response"
 }
 
-# Check if we're in the correct directory
+# Check if we're in the correct directory and detect installation mode
 check_project_structure() {
     print_section "Verifying Project Structure"
+    
+    # Check for extension files
+    if [ ! -d "$SCRIPT_DIR/src" ]; then
+        error_exit "src directory not found. Are you running this from the project root?"
+    fi
     
     if [ ! -f "$SCRIPT_DIR/Makefile" ]; then
         error_exit "Makefile not found. Are you running this from the project root?"
     fi
     
-    if [ ! -d "$SCRIPT_DIR/service" ]; then
-        error_exit "service directory not found. Are you running this from the project root?"
+    # Check if service directory exists (full repo) or not (GNOME store download)
+    if [ -d "$SCRIPT_DIR/service" ] && [ -f "$SCRIPT_DIR/service/install.sh" ]; then
+        INSTALL_MODE="full_repo"
+        print_status "Full repository detected - will install service from local source"
+    else
+        INSTALL_MODE="extension_only"
+        print_status "Extension-only installation - service will be installed from PyPI"
+        print_info "This appears to be a GNOME Extensions store download"
     fi
     
-    if [ ! -d "$SCRIPT_DIR/src" ]; then
-        error_exit "src directory not found. Are you running this from the project root?"
-    fi
-    
-    if [ ! -f "$SCRIPT_DIR/service/install.sh" ]; then
-        error_exit "D-Bus service installer not found."
-    fi
-    
-    print_status "Project structure verified"
+    print_status "Project structure verified (mode: $INSTALL_MODE)"
 }
 
 # Detect the Linux distribution
@@ -260,29 +263,346 @@ check_system_deps() {
     fi
 }
 
+# Create a standalone service installer for GNOME Extensions store downloads
+create_standalone_service_installer() {
+    TEMP_INSTALLER=$(mktemp)
+    
+    cat > "$TEMP_INSTALLER" << 'EOF'
+#!/bin/bash
+
+set -e
+
+# Parse command line arguments
+INSTALL_MODE=""
+FORCE_MODE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --local)
+            INSTALL_MODE="local"
+            FORCE_MODE=true
+            shift
+            ;;
+        --pypi)
+            INSTALL_MODE="pypi"
+            FORCE_MODE=true
+            shift
+            ;;
+        --help|-h)
+            echo "GNOME Speech2Text Service Installer"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --local    Force installation from local source (requires pyproject.toml)"
+            echo "  --pypi     Force installation from PyPI"
+            echo "  --help     Show this help message"
+            echo ""
+            echo "Without options, installation mode is auto-detected:"
+            echo "  - Local mode: when pyproject.toml is found in script directory"
+            echo "  - PyPI mode: when no local source is available"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Check if running interactively
+INTERACTIVE=true
+if [ ! -t 0 ]; then
+    INTERACTIVE=false
+    echo "Running in non-interactive mode (piped execution)"
+fi
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+print_status() {
+    echo -e "${GREEN}==>${NC} $1"
+}
+
+error_exit() {
+    echo -e "${RED}Error:${NC} $1"
+    exit 1
+}
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+version_ge() {
+    printf '%s\n%s\n' "$2" "$1" | sort -V -C
+}
+
+# Helper function for interactive prompts
+ask_user() {
+    local prompt="$1"
+    local default="$2"
+    local response=""
+    
+    if [ "$INTERACTIVE" = true ]; then
+        read -p "$prompt" response
+    else
+        echo "$prompt$default (non-interactive default)"
+        response="$default"
+    fi
+    
+    echo "$response"
+}
+
+# Since this is PyPI mode, force it
+INSTALL_MODE="pypi"
+
+print_status "Installing GNOME Speech2Text D-Bus Service from PyPI"
+
+echo ""
+echo -e "${BLUE}This script will install all required dependencies for Ubuntu.${NC}"
+echo ""
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, wl-clipboard"
+    echo "We need to run the following command to install all dependencies:"
+    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard"
+else
+    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, xclip"
+    echo "We need to run the following command to install all dependencies:"
+    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip"
+fi
+echo ""
+install_all=$(ask_user "Would you like to install all dependencies at once? [Y/n]: " "Y")
+case "$install_all" in
+    [Nn]* ) 
+        echo "Checking dependencies individually..."
+        ;;
+    * ) 
+        print_status "Installing all dependencies..."
+        if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard
+        else
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip
+        fi
+        if [ $? -eq 0 ]; then
+            print_status "All dependencies installed successfully!"
+        else
+            echo -e "${YELLOW}Warning:${NC} Some packages may have failed to install. Checking individually..."
+        fi
+        ;;
+esac
+
+echo ""
+
+# Check for required system dependencies
+print_status "Checking system dependencies..."
+
+# Check for Python 3.8+
+if ! command_exists python3; then
+    echo -e "${RED}Error:${NC} Python 3 is not installed."
+    echo ""
+    echo "Please run the following command to install Python 3:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3${NC}"
+    echo ""
+    install_python=$(ask_user "Would you like to run this command now? [y/N]: " "y")
+    case "$install_python" in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3 || error_exit "Failed to install Python 3"
+            ;;
+        * ) 
+            error_exit "Python 3 is required. Please install it and run this script again."
+            ;;
+    esac
+fi
+
+PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+if ! version_ge "$PYTHON_VERSION" "3.8"; then
+    echo -e "${RED}Error:${NC} Python 3.8 or higher is required. Found version $PYTHON_VERSION"
+    echo ""
+    echo "Please run the following command to install a newer Python version:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3.8${NC}"
+    error_exit "Python version too old"
+fi
+
+print_status "Python version $PYTHON_VERSION detected ✓"
+
+# Check for pip
+if ! command_exists pip3; then
+    echo -e "${RED}Error:${NC} pip3 is not installed."
+    echo ""
+    echo "Please run the following command to install pip3:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-pip${NC}"
+    echo ""
+    install_pip=$(ask_user "Would you like to run this command now? [y/N]: " "y")
+    case "$install_pip" in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3-pip || error_exit "Failed to install pip3"
+            ;;
+        * ) 
+            error_exit "pip3 is required. Please install it and run this script again."
+            ;;
+    esac
+fi
+
+# Create virtual environment for the service
+SERVICE_DIR="$HOME/.local/share/gnome-speech2text-service"
+VENV_DIR="$SERVICE_DIR/venv"
+
+print_status "Creating service directory: $SERVICE_DIR"
+mkdir -p "$SERVICE_DIR"
+
+print_status "Creating Python virtual environment..."
+if ! python3 -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
+    echo -e "${RED}Error:${NC} Failed to create virtual environment. python3-venv may not be installed."
+    echo ""
+    echo "Please run the following command to install python3-venv:"
+    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-venv${NC}"
+    echo ""
+    install_venv=$(ask_user "Would you like to run this command now? [y/N]: " "y")
+    case "$install_venv" in
+        [Yy]* ) 
+            sudo apt update && sudo apt install -y python3-venv || error_exit "Failed to install python3-venv"
+            python3 -m venv "$VENV_DIR" --system-site-packages || error_exit "Failed to create virtual environment"
+            ;;
+        * ) 
+            error_exit "python3-venv is required. Please install it and run this script again."
+            ;;
+    esac
+fi
+
+print_status "Upgrading pip..."
+"$VENV_DIR/bin/pip" install --upgrade pip
+
+print_status "Installing Python dependencies..."
+
+# Install from PyPI
+print_status "Installing gnome-speech2text-service from PyPI..."
+
+if "$VENV_DIR/bin/pip" install gnome-speech2text-service; then
+    echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
+else
+    error_exit "PyPI installation failed. Please check your internet connection and try again."
+fi
+
+print_status "Creating service wrapper script..."
+# Create a wrapper script that activates the venv and runs the service
+cat > "$SERVICE_DIR/gnome-speech2text-service" << 'WRAPPER_EOF'
+#!/bin/bash
+# GNOME Speech2Text Service Wrapper
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$SCRIPT_DIR/venv"
+exec "$VENV_DIR/bin/gnome-speech2text-service" "$@"
+WRAPPER_EOF
+chmod +x "$SERVICE_DIR/gnome-speech2text-service"
+
+print_status "Installing D-Bus service..."
+# Install D-Bus service file
+DBUS_SERVICE_DIR="$HOME/.local/share/dbus-1/services"
+mkdir -p "$DBUS_SERVICE_DIR"
+
+# Create D-Bus service file directly (PyPI mode)
+cat > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service" << SERVICE_EOF
+[D-BUS Service]
+Name=org.gnome.Speech2Text
+Exec=$SERVICE_DIR/gnome-speech2text-service
+User=session
+SERVICE_EOF
+echo "✅ D-Bus service file created for PyPI installation"
+
+print_status "Creating desktop entry..."
+DESKTOP_DIR="$HOME/.local/share/applications"
+mkdir -p "$DESKTOP_DIR"
+
+echo "[Desktop Entry]" > "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Type=Application" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Name=GNOME Speech2Text Service" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Comment=D-Bus service for speech-to-text functionality" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Exec=$SERVICE_DIR/gnome-speech2text-service" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Icon=audio-input-microphone" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "StartupNotify=false" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "NoDisplay=true" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "Categories=Utility;" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+
+print_status "Installation complete!"
+echo ""
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}  GNOME Speech2Text Service Installed  ${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo ""
+echo -e "${YELLOW}Installation mode: pypi${NC}"
+echo -e "${YELLOW}Package source: https://pypi.org/project/gnome-speech2text-service/${NC}"
+echo ""
+echo -e "${YELLOW}The D-Bus service has been installed and registered.${NC}"
+echo -e "${YELLOW}It will start automatically when the GNOME extension requests it.${NC}"
+echo ""
+echo -e "${YELLOW}To manually test the service:${NC}"
+echo "  $SERVICE_DIR/gnome-speech2text-service"
+echo ""
+echo -e "${YELLOW}To verify D-Bus registration:${NC}"
+echo "  dbus-send --session --dest=org.gnome.Speech2Text --print-reply /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus"
+echo ""
+echo -e "${YELLOW}To uninstall the service:${NC}"
+echo "  rm -rf $SERVICE_DIR"
+echo "  rm $DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+echo "  rm $DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo ""
+echo -e "${GREEN}🎉 Service installation completed successfully!${NC}"
+echo -e "${GREEN}The service is ready to be used by the GNOME Shell extension.${NC}"
+EOF
+
+    chmod +x "$TEMP_INSTALLER"
+}
+
 # Install D-Bus service
 install_dbus_service() {
     print_section "Installing D-Bus Service"
     
     print_info "The D-Bus service handles speech recognition and runs in the background"
     
-    cd "$SCRIPT_DIR/service"
+    case "$INSTALL_MODE" in
+        "full_repo")
+            print_info "Installing service from local repository..."
+            cd "$SCRIPT_DIR/service"
+            
+            # Check if service installer exists and is executable
+            if [ ! -x "install.sh" ]; then
+                chmod +x install.sh
+            fi
+            
+            print_info "Running D-Bus service installer..."
+            
+            # Run the service installer in local mode
+            if [ "$INTERACTIVE" = true ]; then
+                ./install.sh --local
+            else
+                echo "y" | ./install.sh --local
+            fi
+            
+            cd "$SCRIPT_DIR"
+            ;;
+            
+        "extension_only")
+            print_info "Installing service from PyPI (GNOME Extensions store mode)..."
+            
+            # Create a temporary service installer script
+            create_standalone_service_installer
+            
+            # Run the standalone installer
+            if [ "$INTERACTIVE" = true ]; then
+                bash "$TEMP_INSTALLER" --pypi
+            else
+                echo "y" | bash "$TEMP_INSTALLER" --pypi
+            fi
+            
+            # Clean up temporary file
+            rm -f "$TEMP_INSTALLER"
+            ;;
+    esac
     
-    # Check if service installer exists and is executable
-    if [ ! -x "install.sh" ]; then
-        chmod +x install.sh
-    fi
-    
-    print_info "Running D-Bus service installer..."
-    
-    # Run the service installer
-    if [ "$INTERACTIVE" = true ]; then
-        ./install.sh
-    else
-        echo "y" | ./install.sh
-    fi
-    
-    cd "$SCRIPT_DIR"
     print_status "D-Bus service installation completed"
 }
 
