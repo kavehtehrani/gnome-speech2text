@@ -402,8 +402,8 @@ class Speech2TextService(dbus.service.Object):
             # Generate unique recording ID
             recording_id = str(uuid.uuid4())
             
-            # Validate duration
-            duration = max(10, min(300, duration))  # 10s to 5min
+            # Validate duration (allow short recordings, user can stop manually)
+            duration = min(max(1, duration), 300)  # 1s to 5min
             
             # Store recording info
             self.active_recordings[recording_id] = {

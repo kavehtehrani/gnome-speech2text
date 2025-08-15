@@ -380,7 +380,7 @@ install_service_package() {
             print_status "Installing gnome-speech2text-service from PyPI..."
             
             # Try PyPI installation with fallback
-            if "$VENV_DIR/bin/pip" install gnome-speech2text-service; then
+            if "$VENV_DIR/bin/pip" install --upgrade gnome-speech2text-service; then
                 echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
             else
                 echo ""

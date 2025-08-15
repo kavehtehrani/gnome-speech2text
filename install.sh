@@ -482,7 +482,7 @@ print_status "Installing Python dependencies..."
 # Install from PyPI
 print_status "Installing gnome-speech2text-service from PyPI..."
 
-if "$VENV_DIR/bin/pip" install gnome-speech2text-service; then
+if "$VENV_DIR/bin/pip" install --upgrade gnome-speech2text-service; then
     echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
 else
     error_exit "PyPI installation failed. Please check your internet connection and try again."
