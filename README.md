@@ -75,9 +75,19 @@ On GNOME 48 with Wayland, the extension automatically disables cursor hover effe
 
 ## Installation
 
-### GNOME Extensions Store (Work in Progress)
+### GNOME Extensions Store
 
-🚧 This extension is currently under review for the GNOME Extensions website. Once approved, it will be available for easy installation directly from the website.
+🎉 **Available Now!** This extension is available on the GNOME Extensions website for easy installation.
+
+**Installation from GNOME Extensions Store:**
+
+1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/XXXX/gnome-speech2text/) (link will be available after approval)
+2. Click "Install" to add the extension
+3. The extension will automatically detect that the D-Bus service is missing
+4. Follow the setup dialog to install the required service (automatically downloads from PyPI)
+5. Restart GNOME Shell to complete the installation
+
+**Note:** The extension package is lightweight and follows GNOME guidelines. The D-Bus service is installed separately as a Python package from PyPI.
 
 ### Quick Installation (Recommended)
 
@@ -95,7 +105,7 @@ cd gnome-speech2text
 This script will:
 
 - Check system dependencies and guide you through installing any missing ones
-- Install the D-Bus service automatically
+- Install the D-Bus service automatically (from local source or PyPI)
 - Install the GNOME extension and compile schemas
 - Apply compatibility fixes for GNOME 48/Wayland automatically
 - Provide instructions for restarting GNOME Shell
@@ -105,24 +115,36 @@ This script will:
 
 The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with automatic or manual installation options.
 
-This will:
+**For Full Repository Installation:**
 
-- Create a Python virtual environment
-- Install the `gnome-speech2text-service` package locally
-- Install required Python packages (OpenAI Whisper, etc.)
-- Set up D-Bus service files
+- Creates a Python virtual environment
+- Installs the `gnome-speech2text-service` package from local source
+- Installs required Python packages (OpenAI Whisper, etc.)
+- Sets up D-Bus service files
+
+**For GNOME Extensions Store Installation:**
+
+- Downloads the installation script from GitHub
+- Creates a Python virtual environment
+- Installs the `gnome-speech2text-service` package from PyPI
+- Installs required Python packages (OpenAI Whisper, etc.)
+- Sets up D-Bus service files
 
 ### Alternative: Service-Only Installation
 
 If you only want to install the D-Bus service (for development or advanced users):
 
 ```bash
-# Install just the service
+# Install just the service from local source
 cd service/
-./install.sh
+./install.sh --local
+
+# Or install from PyPI
+cd service/
+./install.sh --pypi
 ```
 
-The service is also available as a Python package and will be published to PyPI in the future for easier installation.
+The service is available as a Python package on PyPI: `gnome-speech2text-service`
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 

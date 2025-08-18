@@ -5,6 +5,7 @@ set -e
 # Parse command line arguments
 INSTALL_MODE=""
 FORCE_MODE=false
+NON_INTERACTIVE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -18,15 +19,20 @@ while [[ $# -gt 0 ]]; do
             FORCE_MODE=true
             shift
             ;;
+        --non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
         --help|-h)
             echo "GNOME Speech2Text Service Installer"
             echo ""
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --local    Force installation from local source (requires pyproject.toml)"
-            echo "  --pypi     Force installation from PyPI"
-            echo "  --help     Show this help message"
+            echo "  --local           Force installation from local source (requires pyproject.toml)"
+            echo "  --pypi            Force installation from PyPI"
+            echo "  --non-interactive Run without user prompts (auto-accept defaults)"
+            echo "  --help            Show this help message"
             echo ""
             echo "Without options, installation mode is auto-detected:"
             echo "  - Local mode: when pyproject.toml is found in script directory"
@@ -43,9 +49,13 @@ done
 
 # Check if running interactively
 INTERACTIVE=true
-if [ ! -t 0 ]; then
+if [ ! -t 0 ] || [ "$NON_INTERACTIVE" = true ]; then
     INTERACTIVE=false
-    echo "Running in non-interactive mode (piped execution)"
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo "Running in non-interactive mode (--non-interactive flag)"
+    else
+        echo "Running in non-interactive mode (piped execution)"
+    fi
 fi
 
 # Colors for output

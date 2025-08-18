@@ -119,12 +119,13 @@ export class ServiceSetupDialog {
     const explanationText = new St.Label({
       text: this.isFirstRun
         ? `To enable speech-to-text functionality, we need to install a background service.
-This is a one-time setup that handles audio recording and speech processing.`
+This is a one-time setup that handles audio recording and speech processing.
+The service is installed separately from the extension (following GNOME guidelines).`
         : this.isManualRequest
         ? `Instructions for installing and troubleshooting the Speech2Text service.
 Use this if you need to reinstall the service or help someone else set it up.`
         : `GNOME Speech2Text requires a background service for speech processing.
-This service needs to be installed separately from the extension.`,
+This service is installed separately from the extension (following GNOME guidelines).`,
       style: `
         font-size: 16px;
         color: ${COLORS.WHITE};
@@ -227,12 +228,12 @@ This service needs to be installed separately from the extension.`,
     });
 
     const step2 = new St.Label({
-      text: "2. Download and install the service (includes all dependencies):",
+      text: "2. Download and install the service (automatically handles dependencies):",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
     const installCommandBox = new St.Label({
-      text: "wget -O- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash",
+      text: "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash",
       style: `
         background-color: ${COLORS.DARK_GRAY};
         border: 1px solid ${COLORS.SECONDARY};
@@ -297,7 +298,7 @@ This service needs to be installed separately from the extension.`,
 
     copyInstallInlineButton.connect("clicked", () => {
       this._copyToClipboard(
-        "wget -O- https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/speech2text-service/install.sh | bash"
+        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash"
       );
       Main.notify("Speech2Text", "Install command copied to clipboard!");
     });
@@ -484,30 +485,24 @@ This service needs to be installed separately from the extension.`,
 
   _runAutomaticInstall() {
     try {
-      // Get the path to the install.sh script
+      // Get the path to the extension directory
       const extensionDir = `${GLib.get_home_dir()}/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page`;
-      const installScriptPath = `${extensionDir}/speech2text-service/install.sh`;
 
-      // Check if install.sh exists
-      const installScript = Gio.File.new_for_path(installScriptPath);
-      if (!installScript.query_exists(null)) {
-        Main.notify(
-          "Speech2Text Error",
-          "Install script not found. Please ensure the extension is properly installed."
-        );
-        return;
-      }
+      // Setup modal should always use PyPI method since users are likely from GNOME Extensions store
+      const workingDir = extensionDir;
+      const installCommand =
+        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash -s -- --non-interactive";
 
       // Use proper async subprocess to open gnome-terminal safely
       try {
         const _ = Gio.Subprocess.new(
           [
             "gnome-terminal",
-            `--working-directory=${extensionDir}/speech2text-service`,
+            `--working-directory=${workingDir}`,
             "--",
             "bash",
             "-c",
-            './install.sh; echo; echo "Press Enter to close..."; read',
+            `${installCommand}; echo; echo "Press Enter to close..."; read`,
           ],
           Gio.SubprocessFlags.NONE
         );
@@ -522,7 +517,6 @@ This service needs to be installed separately from the extension.`,
       } catch (terminalError) {
         // Fallback: copy to clipboard if gnome-terminal unavailable (very rare)
         console.error(`Could not open gnome-terminal: ${terminalError}`);
-        const installCommand = `cd "${extensionDir}/speech2text-service" && ./install.sh`;
         this._copyToClipboard(installCommand);
         Main.notify(
           "Speech2Text",

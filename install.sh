@@ -11,9 +11,40 @@ SCRIPT_NAME="GNOME Speech2Text Installer"
 
 # Check if running interactively
 INTERACTIVE=true
-if [ ! -t 0 ] || [ ! -t 1 ]; then
+NON_INTERACTIVE=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        --help|-h)
+            echo "GNOME Speech2Text Extension Installer"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --non-interactive Run without user prompts (auto-accept defaults)"
+            echo "  --help            Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+if [ ! -t 0 ] || [ ! -t 1 ] || [ "$NON_INTERACTIVE" = true ]; then
     INTERACTIVE=false
-    echo "Running in non-interactive mode"
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo "Running in non-interactive mode (--non-interactive flag)"
+    else
+        echo "Running in non-interactive mode"
+    fi
 fi
 
 # Colors for output
@@ -88,7 +119,7 @@ ask_user() {
             response="$default"
         fi
     else
-        echo -e "${CYAN}❓ ${prompt}${default} (non-interactive default)${NC}"
+        echo -e "${CYAN}❓ ${prompt}${default} (non-interactive default)${NC}" >&2
         response="$default"
     fi
     
