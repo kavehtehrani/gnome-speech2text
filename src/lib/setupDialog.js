@@ -233,7 +233,7 @@ This service is installed separately from the extension (following GNOME guideli
     });
 
     const installCommandBox = new St.Label({
-      text: "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash",
+      text: "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi",
       style: `
         background-color: ${COLORS.DARK_GRAY};
         border: 1px solid ${COLORS.SECONDARY};
@@ -298,7 +298,7 @@ This service is installed separately from the extension (following GNOME guideli
 
     copyInstallInlineButton.connect("clicked", () => {
       this._copyToClipboard(
-        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash"
+        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi"
       );
       Main.notify("Speech2Text", "Install command copied to clipboard!");
     });
@@ -485,13 +485,11 @@ This service is installed separately from the extension (following GNOME guideli
 
   _runAutomaticInstall() {
     try {
-      // Get the path to the extension directory
-      const extensionDir = `${GLib.get_home_dir()}/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page`;
-
       // Setup modal should always use PyPI method since users are likely from GNOME Extensions store
-      const workingDir = extensionDir;
+      // Use the dedicated service-only installer that doesn't require project structure
+      const workingDir = GLib.get_tmp_dir();
       const installCommand =
-        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/install.sh | bash -s -- --non-interactive";
+        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi --non-interactive";
 
       // Use proper async subprocess to open gnome-terminal safely
       try {

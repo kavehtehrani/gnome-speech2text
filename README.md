@@ -77,7 +77,7 @@ On GNOME 48 with Wayland, the extension automatically disables cursor hover effe
 
 ### GNOME Extensions Store
 
-🎉 **Available Now!** This extension is available on the GNOME Extensions website for easy installation.
+🎉 **Available Now!** This extension is available on the GNOME Extensions website for easy installation. [WIP - Under ]
 
 **Installation from GNOME Extensions Store:**
 
