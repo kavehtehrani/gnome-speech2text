@@ -19,7 +19,8 @@ import {
 import { cleanupModal } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
-  constructor(errorMessage, isFirstRun = false) {
+  constructor(extension, errorMessage, isFirstRun = false) {
+    this.extension = extension;
     this.errorMessage = errorMessage;
     this.isFirstRun = isFirstRun;
     this.isManualRequest = errorMessage === "Manual setup guide requested";
@@ -487,8 +488,7 @@ This service is installed separately from the extension (following GNOME guideli
     try {
       const workingDir = GLib.get_home_dir();
       // Prefer bundled installer script from the extension package
-      const extension = this.extension;
-      const scriptPath = `${extension.path}/install-service.sh`;
+      const scriptPath = `${this.extension.path}/install-service.sh`;
       const command = `bash -c "chmod +x '${scriptPath}' && '${scriptPath}' --pypi --non-interactive; echo; echo 'Press Enter to close...'; read"`;
 
       try {

@@ -732,7 +732,7 @@ export default class Speech2TextExtension extends Extension {
   }
 
   _showServiceSetupDialog(errorMessage, isFirstRun = false) {
-    const setupDialog = new ServiceSetupDialog(errorMessage, isFirstRun);
+    const setupDialog = new ServiceSetupDialog(this, errorMessage, isFirstRun);
     setupDialog.show();
   }
 
