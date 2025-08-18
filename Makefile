@@ -91,7 +91,7 @@ clean:
 		echo "ℹ️  Extension not found at $(EXTENSION_DIR)"; \
 	fi
 	@echo "🧹 Removing D-Bus service..."
-	@PID=$$(ps aux | grep "speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
+	@PID=$$(ps aux | grep -E "gnome-speech2text-service|speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
 	if [ ! -z "$$PID" ]; then \
 		echo "   Found process $$PID, terminating..."; \
 		kill $$PID 2>/dev/null || true; \
@@ -154,7 +154,7 @@ package:
 # Clean only D-Bus service (for testing)
 clean-service:
 	@echo "🧹 Removing D-Bus service only..."
-	@PID=$$(ps aux | grep "speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
+	@PID=$$(ps aux | grep -E "gnome-speech2text-service|speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
 	if [ ! -z "$$PID" ]; then \
 		echo "   Found process $$PID, terminating..."; \
 		kill $$PID 2>/dev/null || true; \
