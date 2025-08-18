@@ -1,7 +1,7 @@
 {
   "uuid": "gnome-speech2text@kaveh.page",
   "name": "GNOME Speech2Text",
-  "description": "A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Whisper model. Speak into your microphone and have your words automatically typed out.",
+  "description": "A GNOME Shell extension that adds speech-to-text functionality using OpenAI's Whisper model. Requires the separate 'speech2text-service' to be installed (the extension communicates with it via D-Bus).",
   "shell-version": ["46", "47", "48"],
   "url": "https://github.com/kavehtehrani/gnome-speech2text/",
   "author": "Kaveh Tehrani",

@@ -356,11 +356,7 @@ export class SettingsDialog {
     });
 
     this.removeShortcutButton.connect("clicked", () => {
-      try {
-        Main.wm.removeKeybinding("toggle-recording");
-      } catch (e) {
-        // Ignore errors
-      }
+      Main.wm.removeKeybinding("toggle-recording");
       this.extension.currentKeybinding = null;
       this.settings.set_strv("toggle-recording", []);
       this.currentShortcutDisplay.set_text("No shortcut set");
