@@ -597,40 +597,39 @@ install_dbus_service() {
     case "$INSTALL_MODE" in
         "full_repo")
             print_info "Installing service from local repository..."
-            cd "$SCRIPT_DIR/service"
-            
-            # Check if service installer exists and is executable
-            if [ ! -x "install.sh" ]; then
-                chmod +x install.sh
+            # Use bundled installer; it auto-detects ../service/ for local source
+            local bundled_script="$SCRIPT_DIR/src/install-service.sh"
+            if [ ! -f "$bundled_script" ]; then
+                error_exit "Bundled installer not found: $bundled_script"
             fi
-            
-            print_info "Running D-Bus service installer..."
-            
-            # Run the service installer in local mode
+            if [ ! -x "$bundled_script" ]; then
+                chmod +x "$bundled_script"
+            fi
+
             if [ "$INTERACTIVE" = true ]; then
-                ./install.sh --local
+                bash "$bundled_script" --local
             else
-                echo "y" | ./install.sh --local
+                bash "$bundled_script" --local --non-interactive
             fi
-            
-            cd "$SCRIPT_DIR"
             ;;
             
         "extension_only")
             print_info "Installing service from PyPI (GNOME Extensions store mode)..."
-            
-            # Create a temporary service installer script
-            create_standalone_service_installer
-            
-            # Run the standalone installer
-            if [ "$INTERACTIVE" = true ]; then
-                bash "$TEMP_INSTALLER" --pypi
-            else
-                echo "y" | bash "$TEMP_INSTALLER" --pypi
+
+            # Use the bundled installer script included with the extension package
+            local bundled_script="$SCRIPT_DIR/src/install-service.sh"
+            if [ ! -f "$bundled_script" ]; then
+                error_exit "Bundled installer not found: $bundled_script"
             fi
-            
-            # Clean up temporary file
-            rm -f "$TEMP_INSTALLER"
+            if [ ! -x "$bundled_script" ]; then
+                chmod +x "$bundled_script"
+            fi
+
+            if [ "$INTERACTIVE" = true ]; then
+                bash "$bundled_script" --pypi
+            else
+                bash "$bundled_script" --pypi --non-interactive
+            fi
             ;;
     esac
     

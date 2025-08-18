@@ -45,28 +45,41 @@ pip install .
 
 ### D-Bus Registration
 
-After installation, you need to register the D-Bus service:
+After installation, you need to register the D-Bus service and desktop entry. Recommended options:
+
+1. Using the repository (local source install)
 
 ```bash
-# Run the provided install script
-./install.sh
+# From the repo root
+./src/install-service.sh --local
 ```
 
-This will:
+2. Using the bundled installer (PyPI install)
 
-- Set up the Python virtual environment
-- Install the service in the correct location
-- Register the D-Bus service files
-- Configure the desktop integration
+```bash
+# From the repo root
+./src/install-service.sh --pypi
+```
+
+The installer will:
+
+- Create a per-user virtual environment under `~/.local/share/gnome-speech2text-service/venv`
+- Install the `gnome-speech2text-service` package
+- Register the D-Bus service at `~/.local/share/dbus-1/services/org.gnome.Speech2Text.service`
+- Create a desktop entry at `~/.local/share/applications/gnome-speech2text-service.desktop`
 
 ## Usage
 
 ### Starting the Service
 
-The service is automatically started by D-Bus when needed. You can also start it manually:
+The service is D-Bus activated and starts automatically when requested by the extension. You can also start it manually:
 
 ```bash
+# If the entry point is on PATH (pip install)
 gnome-speech2text-service
+
+# Or via the per-user wrapper created by the installer
+~/.local/share/gnome-speech2text-service/gnome-speech2text-service
 ```
 
 ### Configuration
@@ -91,38 +104,11 @@ Signals:
 - `RecordingProgress(recording_id, progress)`
 - `RecordingError(recording_id, error_message)`
 
-## Development
-
-### Local Development
-
-```bash
-# Clone the repository
-git clone https://github.com/kavehtehrani/gnome-speech2text.git
-cd gnome-speech2text/service/
-
-# Install in development mode
-pip install -e .
-
-# Run the service
-gnome-speech2text-service
-```
-
-### Testing
-
-```bash
-# Install development dependencies
-pip install -e .[dev]
-
-# Run tests
-pytest
-```
-
 ## Requirements
 
 - **Python**: 3.8 or higher
 - **System**: Linux with D-Bus support
 - **Desktop**: GNOME Shell (tested on GNOME 46+)
-- **API**: OpenAI API key for speech recognition
 
 ## License
 

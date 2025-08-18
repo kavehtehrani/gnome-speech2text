@@ -485,22 +485,21 @@ This service is installed separately from the extension (following GNOME guideli
 
   _runAutomaticInstall() {
     try {
-      // Setup modal should always use PyPI method since users are likely from GNOME Extensions store
-      // Use the dedicated service-only installer that doesn't require project structure
-      const workingDir = GLib.get_tmp_dir();
-      const installCommand =
-        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi --non-interactive";
+      const workingDir = GLib.get_home_dir();
+      // Prefer bundled installer script from the extension package
+      const extension = this.extension;
+      const scriptPath = `${extension.path}/install-service.sh`;
+      const command = `bash -c "chmod +x '${scriptPath}' && '${scriptPath}' --pypi --non-interactive; echo; echo 'Press Enter to close...'; read"`;
 
-      // Use proper async subprocess to open gnome-terminal safely
       try {
-        const _ = Gio.Subprocess.new(
+        Gio.Subprocess.new(
           [
             "gnome-terminal",
             `--working-directory=${workingDir}`,
             "--",
             "bash",
             "-c",
-            `${installCommand}; echo; echo "Press Enter to close..."; read`,
+            command,
           ],
           Gio.SubprocessFlags.NONE
         );
@@ -513,8 +512,10 @@ This service is installed separately from the extension (following GNOME guideli
         );
         this.close();
       } catch (terminalError) {
-        // Fallback: copy to clipboard if gnome-terminal unavailable (very rare)
+        // Fallback to remote installer if terminal fails
         console.error(`Could not open gnome-terminal: ${terminalError}`);
+        const installCommand =
+          "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi --non-interactive";
         this._copyToClipboard(installCommand);
         Main.notify(
           "Speech2Text",
