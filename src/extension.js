@@ -15,27 +15,11 @@ import { DBusManager } from "./lib/dbusManager.js";
 import { ShortcutCapture } from "./lib/shortcutCapture.js";
 import { RecordingStateManager } from "./lib/recordingStateManager.js";
 
-let button;
 let extensionInstance = null; // Track singleton instance
 
 export default class Speech2TextExtension extends Extension {
   constructor(metadata) {
     super(metadata);
-
-    // Prevent multiple instances
-    if (extensionInstance) {
-      console.log(
-        "Extension instance already exists, cleaning up previous instance"
-      );
-      try {
-        extensionInstance.disable();
-      } catch (error) {
-        console.log("Error disabling previous instance:", error.message);
-      }
-      // Give a small delay to ensure cleanup completes
-      extensionInstance = null;
-    }
-    extensionInstance = this;
 
     this.settings = null;
     this.settingsDialog = null;
@@ -178,17 +162,6 @@ export default class Speech2TextExtension extends Extension {
     if (this.isEnabled) {
       console.log("Extension already enabled, skipping");
       return;
-    }
-
-    // CRITICAL: Clean up any existing panel indicators to prevent conflicts
-    try {
-      if (Main.panel.statusArea["speech2text-indicator"]) {
-        console.log("Cleaning up existing indicator before enable");
-        Main.panel.statusArea["speech2text-indicator"].destroy();
-        delete Main.panel.statusArea["speech2text-indicator"];
-      }
-    } catch (e) {
-      console.log("No existing indicator to clean up:", e.message);
     }
 
     try {
@@ -859,20 +832,6 @@ export default class Speech2TextExtension extends Extension {
       } catch (e) {
         // Ignore secondary cleanup errors
       }
-    }
-
-    // Clean up legacy button references
-    if (button) {
-      try {
-        button.destroy();
-      } catch (e) {
-        console.log("Error destroying legacy button:", e.message);
-      }
-      button = null;
-    }
-
-    if (this.button) {
-      this.button = null;
     }
   }
 }
