@@ -18,11 +18,19 @@ export function safeDisconnect(actor, handlerId, handlerName = "handler") {
 export function cleanupModal(overlay, handlers = {}) {
   try {
     // Disconnect event handlers
-    if (handlers.clickHandlerId) {
-      safeDisconnect(overlay, handlers.clickHandlerId, "click handler");
+    const clickId = handlers.clickHandlerId ?? handlers.clickHandler;
+    const keyPressId = handlers.keyPressHandlerId ?? handlers.keyPressHandler;
+    const keyReleaseId =
+      handlers.keyReleaseHandlerId ?? handlers.keyReleaseHandler;
+
+    if (clickId) {
+      safeDisconnect(overlay, clickId, "click handler");
     }
-    if (handlers.keyPressHandlerId) {
-      safeDisconnect(overlay, handlers.keyPressHandlerId, "key press handler");
+    if (keyPressId) {
+      safeDisconnect(overlay, keyPressId, "key press handler");
+    }
+    if (keyReleaseId) {
+      safeDisconnect(overlay, keyReleaseId, "key release handler");
     }
 
     // Remove from layout manager with better error handling
