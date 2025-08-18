@@ -234,48 +234,28 @@ class Speech2TextService(dbus.service.Object):
             # Emit recording started signal
             self.RecordingStarted(recording_id)
             
-            # Use ffmpeg to record audio - different approach for Wayland vs X11
+            # Use ffmpeg to record audio - unified approach for both X11 and Wayland
+            # Using Wayland-style configuration as it handles short recordings better
             display_server = self._detect_display_server()
             
-            if display_server == 'wayland':
-                # On Wayland, force frequent buffer flushes for short recordings
-                cmd = [
-                    'ffmpeg', '-y',
-                    '-hide_banner',
-                    '-nostats',
-                    '-loglevel', 'error',
-                    '-f', 'pulse',
-                    '-i', 'default',
-                    '-flush_packets', '1',          # Force packet flushing
-                    '-bufsize', '32k',              # Small buffer size
-                    '-avioflags', 'direct',         # Direct I/O, avoid buffering
-                    '-fflags', '+flush_packets',    # Additional flush flag
-                    '-t', str(max_duration),
-                    '-ar', '16000',
-                    '-ac', '1',
-                    '-f', 'wav',
-                    audio_file
-                ]
-            else:
-                # On X11, use low-latency flags
-                cmd = [
-                    'ffmpeg', '-y',
-                    '-hide_banner',
-                    '-nostats',
-                    '-loglevel', 'error',
-                    '-f', 'pulse',
-                    '-thread_queue_size', '512',
-                    '-i', 'default',
-                    '-fflags', '+nobuffer',
-                    '-flags', 'low_delay',
-                    '-probesize', '32',
-                    '-analyzeduration', '0',
-                    '-t', str(max_duration),
-                    '-ar', '16000',
-                    '-ac', '1',
-                    '-f', 'wav',
-                    audio_file
-                ]
+            # Unified configuration that works well for short recordings on both X11 and Wayland
+            cmd = [
+                'ffmpeg', '-y',
+                '-hide_banner',
+                '-nostats',
+                '-loglevel', 'error',
+                '-f', 'pulse',
+                '-i', 'default',
+                '-flush_packets', '1',          # Force packet flushing
+                '-bufsize', '32k',              # Small buffer size
+                '-avioflags', 'direct',         # Direct I/O, avoid buffering
+                '-fflags', '+flush_packets',    # Additional flush flag
+                '-t', str(max_duration),
+                '-ar', '16000',
+                '-ac', '1',
+                '-f', 'wav',
+                audio_file
+            ]
             
             process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, 
                                      stdout=subprocess.PIPE, text=True)
@@ -293,18 +273,18 @@ class Speech2TextService(dbus.service.Object):
                 raise Exception(f"FFmpeg failed to start: {stderr_output}")
             
             # Wait for process or manual stop
-            # Give FFmpeg a minimum time to initialize and record on Wayland
+            # Give FFmpeg a minimum time to initialize and record (unified for both X11 and Wayland)
             start_time = time.time()
-            min_recording_time = 3.0 if display_server == 'wayland' else 0.0
+            min_recording_time = 2.0  # Reduced from 3.0 since we're using better buffering settings
             syslog.syslog(syslog.LOG_INFO, f"Recording on {display_server}, minimum recording time: {min_recording_time}s")
             
             while process.poll() is None:
                 elapsed = time.time() - start_time
                 
                 if recording_info.get('stop_requested', False):
-                    # On Wayland, ensure minimum time for FFmpeg to initialize
-                    if display_server == 'wayland' and elapsed < min_recording_time:
-                        syslog.syslog(syslog.LOG_INFO, f"Wayland: Delaying stop request ({elapsed:.1f}s < {min_recording_time}s)")
+                    # Ensure minimum time for FFmpeg to initialize with new buffering settings
+                    if elapsed < min_recording_time:
+                        syslog.syslog(syslog.LOG_INFO, f"Delaying stop request ({elapsed:.1f}s < {min_recording_time}s)")
                         time.sleep(0.1)
                         continue
                     else:
@@ -312,44 +292,31 @@ class Speech2TextService(dbus.service.Object):
                         
                 time.sleep(0.1)
             
-            # Stop recording if requested - ensure proper buffer flushing
+            # Stop recording if requested - unified approach for both X11 and Wayland
             if recording_info.get('stop_requested', False):
                 syslog.syslog(syslog.LOG_INFO, f"Stop requested for recording {recording_id}, terminating FFmpeg process")
                 try:
-                    if display_server == 'wayland':
-                        # On Wayland, try to let FFmpeg finish more gracefully
-                        syslog.syslog(syslog.LOG_INFO, f"Wayland: Sending 'q' to FFmpeg stdin for graceful exit")
-                        try:
-                            # Send 'q' to tell FFmpeg to quit gracefully
-                            process.stdin.write('q\n')
-                            process.stdin.flush()
-                            process.stdin.close()
-                            
-                            # Give it time to finish and write the file
-                            process.wait(timeout=2.0)
-                            syslog.syslog(syslog.LOG_INFO, f"FFmpeg terminated gracefully with 'q' command")
-                        except (subprocess.TimeoutExpired, BrokenPipeError, OSError):
-                            # If 'q' doesn't work, fall back to SIGINT
-                            syslog.syslog(syslog.LOG_WARNING, "Wayland: 'q' command failed, trying SIGINT")
-                            process.send_signal(signal.SIGINT)
-                            
-                            try:
-                                process.wait(timeout=2.0)
-                                syslog.syslog(syslog.LOG_INFO, f"FFmpeg terminated with SIGINT")
-                            except subprocess.TimeoutExpired:
-                                syslog.syslog(syslog.LOG_WARNING, "Wayland: SIGINT timeout, force killing")
-                                process.kill()
-                                process.wait()
-                    else:
-                        # On X11, use SIGINT directly (it works fine)
-                        syslog.syslog(syslog.LOG_INFO, f"X11: Sending SIGINT to FFmpeg process {process.pid}")
+                    # Unified approach: try graceful exit first, then SIGINT, then force kill
+                    syslog.syslog(syslog.LOG_INFO, f"Sending 'q' to FFmpeg stdin for graceful exit")
+                    try:
+                        # Send 'q' to tell FFmpeg to quit gracefully
+                        process.stdin.write('q\n')
+                        process.stdin.flush()
+                        process.stdin.close()
+                        
+                        # Give it time to finish and write the file
+                        process.wait(timeout=2.0)
+                        syslog.syslog(syslog.LOG_INFO, f"FFmpeg terminated gracefully with 'q' command")
+                    except (subprocess.TimeoutExpired, BrokenPipeError, OSError):
+                        # If 'q' doesn't work, fall back to SIGINT
+                        syslog.syslog(syslog.LOG_WARNING, "'q' command failed, trying SIGINT")
                         process.send_signal(signal.SIGINT)
                         
                         try:
-                            process.wait(timeout=3.0)
-                            syslog.syslog(syslog.LOG_INFO, f"FFmpeg terminated gracefully with SIGINT")
+                            process.wait(timeout=2.0)
+                            syslog.syslog(syslog.LOG_INFO, f"FFmpeg terminated with SIGINT")
                         except subprocess.TimeoutExpired:
-                            syslog.syslog(syslog.LOG_WARNING, "X11: SIGINT timeout, force killing")
+                            syslog.syslog(syslog.LOG_WARNING, "SIGINT timeout, force killing")
                             process.kill()
                             process.wait()
                             
