@@ -233,8 +233,11 @@ This service is installed separately from the extension (following GNOME guideli
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
+    const REMOTE_INSTALL_CMD =
+      "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/src/install-service.sh | bash -s -- --pypi";
+
     const installCommandBox = new St.Label({
-      text: "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi",
+      text: REMOTE_INSTALL_CMD,
       style: `
         background-color: ${COLORS.DARK_GRAY};
         border: 1px solid ${COLORS.SECONDARY};
@@ -298,9 +301,7 @@ This service is installed separately from the extension (following GNOME guideli
     });
 
     copyInstallInlineButton.connect("clicked", () => {
-      this._copyToClipboard(
-        "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi"
-      );
+      this._copyToClipboard(REMOTE_INSTALL_CMD);
       Main.notify("Speech2Text", "Install command copied to clipboard!");
     });
 
@@ -514,9 +515,8 @@ This service is installed separately from the extension (following GNOME guideli
       } catch (terminalError) {
         // Fallback to remote installer if terminal fails
         console.error(`Could not open gnome-terminal: ${terminalError}`);
-        const installCommand =
-          "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service/install.sh | bash -s -- --pypi --non-interactive";
-        this._copyToClipboard(installCommand);
+        const remoteNonInteractive = `${REMOTE_INSTALL_CMD} --non-interactive`;
+        this._copyToClipboard(remoteNonInteractive);
         Main.notify(
           "Speech2Text",
           "Could not open terminal. Installation command copied to clipboard - please paste in your terminal."
