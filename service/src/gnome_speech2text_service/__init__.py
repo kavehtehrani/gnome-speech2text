@@ -3,7 +3,7 @@
 A D-Bus service that provides speech-to-text functionality for the GNOME Shell extension.
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __author__ = "Kaveh Tehrani"
 __email__ = "codemonkey13x@gmail.com"
 
