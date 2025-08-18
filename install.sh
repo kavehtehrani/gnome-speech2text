@@ -644,7 +644,7 @@ install_gnome_extension() {
     print_info "Installing extension files and compiling schemas..."
     
     # Use the Makefile for extension installation
-    if ! make clean-install; then
+    if ! make setup; then
         error_exit "Failed to install extension files"
     fi
     
