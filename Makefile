@@ -7,7 +7,7 @@ SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas
 SCHEMA_ID = org.shell.extensions.speech2text
 
-.PHONY: help install compile-schemas clean clean-service package clean-install status verify-schema clean-dist test-install
+.PHONY: help install compile-schemas clean clean-service package status verify-schema
 
 # Default target
 help:
@@ -18,14 +18,11 @@ help:
 	@echo ""
 	@echo "Available targets:"
 	@echo "  install          - Install extension + compile schemas"
-	@echo "  clean-install    - Clean old files + install (recommended)"
 	@echo "  compile-schemas  - Compile GSettings schemas only"
 	@echo "  setup           - Clean install + restart shell"
 	@echo "  clean           - Remove installed extension AND D-Bus service"
 	@echo "  clean-service   - Remove only D-Bus service (for testing)"
 	@echo "  package         - Create distribution package for GNOME Extensions store"
-	@echo "  clean-dist      - Clean distribution packages"
-	@echo "  test-install    - Create package and test installation locally"
 	@echo "  status          - Check extension installation status"
 	@echo "  verify-schema   - Verify schema is properly installed"
 	@echo ""
@@ -66,7 +63,7 @@ compile-schemas:
 
 
 # Complete setup process
-setup: clean-install compile-schemas
+setup: clean install compile-schemas
 	@echo ""
 	@echo "🎉 Extension setup completed!"
 	@echo "   The extension should now be available in GNOME Extensions."
@@ -80,17 +77,7 @@ setup: clean-install compile-schemas
 		echo "   ⚠️  Unknown session type - manual restart required"; \
 	fi
 
-# Clean install (ensures old schema files are removed)
-clean-install:
-	@echo "🧹 Cleaning old installation..."
-	@if [ -d "$(EXTENSION_DIR)" ]; then \
-		rm -rf $(EXTENSION_DIR); \
-		echo "✅ Removed old extension files"; \
-	fi
-	@echo "📦 Installing extension to $(EXTENSION_DIR)..."
-	@mkdir -p $(EXTENSION_DIR)
-	@cp -r $(SOURCE_DIR)/* $(EXTENSION_DIR)/
-	@echo "✅ Extension installed successfully!"
+
 
 
 
@@ -196,74 +183,9 @@ clean-service:
 	fi
 	@echo "🎯 D-Bus service cleanup finished!"
 
-# Test installation using created package (simulates GNOME Extensions store)
-test-install: package
-	@echo "🔧 Simulating GNOME Extensions store installation..."
-	@echo "   This replicates what happens when a user downloads from extensions.gnome.org" && \
-	echo "" && \
-	echo "   Step 1: Extract ZIP to extension directory..." && \
-	GNOME_EXTENSION_DIR="$(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)" && \
-	PACKAGE_FILE="dist/$(EXTENSION_UUID).zip" && \
-	echo "   Target directory: $$GNOME_EXTENSION_DIR" && \
-	rm -rf "$$GNOME_EXTENSION_DIR" && \
-	mkdir -p "$$GNOME_EXTENSION_DIR" && \
-	cd "$$GNOME_EXTENSION_DIR" && \
-	unzip -q "$(CURDIR)/$$PACKAGE_FILE" && \
-	echo "   ✅ Extension extracted to GNOME extension directory" && \
-	echo "" && \
-	echo "   Step 2: Verify extension structure..." && \
-	echo "   📋 Installed files:" && \
-	ls -la && \
-	echo "" && \
-	echo "   Step 3: Check if extension is recognized by GNOME Shell..." && \
-	if [ -f "metadata.json" ] && [ -f "extension.js" ]; then \
-		echo "   ✅ Extension files present"; \
-		echo "   📋 Extension metadata:" && \
-		cat metadata.json | head -10; \
-	else \
-		echo "   ❌ Missing required extension files"; \
-		exit 1; \
-	fi && \
-	echo "" && \
-	echo "   Step 4: Service is now separate (not bundled with extension)..." && \
-	echo "" && \
-	echo "   Step 5: Verify schemas..." && \
-	if [ -f "schemas/org.shell.extensions.speech2text.gschema.xml" ] && [ -f "schemas/gschemas.compiled" ]; then \
-		echo "   ✅ Schema files present (including compiled schema)"; \
-	else \
-		echo "   ❌ Missing schema files"; \
-		exit 1; \
-	fi && \
-	echo "" && \
-	echo "   Step 6: Test service installation..." && \
-	echo "   🔍 Checking if install.sh is executable..." && \
-	if [ -x "speech2text-service/install.sh" ]; then \
-		echo "   ✅ install.sh is executable"; \
-	else \
-		echo "   ⚠️  install.sh is not executable, making it executable..."; \
-		chmod +x speech2text-service/install.sh; \
-	fi && \
-	echo "" && \
-	echo "   📝 GNOME Extensions store installation test completed!" && \
-	echo "   The extension is now installed exactly as it would be from extensions.gnome.org" && \
-	echo "" && \
-	echo "   Next steps for full testing:" && \
-	echo "   1. Install service separately: cd service && ./install.sh" && \
-	echo "   2. Restart GNOME Shell (Alt+F2 → r → Enter)" && \
-	echo "   3. Enable the extension in GNOME Extensions app" && \
-	echo "" && \
-	echo "   To clean up test installation:" && \
-	echo "   make clean"
 
-# Clean distribution packages
-clean-dist:
-	@echo "🧹 Cleaning distribution packages..."
-	@if [ -d "dist" ]; then \
-		rm -rf dist; \
-		echo "✅ Distribution packages removed"; \
-	else \
-		echo "ℹ️  No distribution packages found"; \
-	fi
+
+
 
 # Check if extension is enabled
 status:
@@ -280,6 +202,49 @@ status:
 		echo "   ❌ Schemas not compiled"; \
 	fi
 	@echo "   Session: $(XDG_SESSION_TYPE)"
+	@echo ""
+	@echo "🔧 D-Bus Service Status:"
+	@SERVICE_DIR="$(HOME)/.local/share/gnome-speech2text-service" && \
+	echo "   Directory: $$SERVICE_DIR" && \
+	if [ -d "$$SERVICE_DIR" ]; then \
+		echo "   ✅ Service installed"; \
+		if [ -f "$$SERVICE_DIR/gnome-speech2text-service" ]; then \
+			echo "   ✅ Service executable found"; \
+		else \
+			echo "   ❌ Service executable missing"; \
+		fi; \
+		if [ -d "$$SERVICE_DIR/venv" ]; then \
+			echo "   ✅ Virtual environment found"; \
+		else \
+			echo "   ❌ Virtual environment missing"; \
+		fi; \
+	else \
+		echo "   ❌ Service not installed"; \
+	fi
+	@DBUS_SERVICE_FILE="$(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service" && \
+	echo "   D-Bus service file: $$DBUS_SERVICE_FILE" && \
+	if [ -f "$$DBUS_SERVICE_FILE" ]; then \
+		echo "   ✅ D-Bus service file registered"; \
+		echo "   📋 Service file contents:" && \
+		cat "$$DBUS_SERVICE_FILE" | sed 's/^/      /'; \
+	else \
+		echo "   ❌ D-Bus service file not registered"; \
+	fi
+	@echo "   Process status:" && \
+	PID=$$(ps aux | grep "gnome-speech2text-service" | grep -v grep | awk '{print $$2}' | head -1); \
+	if [ ! -z "$$PID" ]; then \
+		echo "   ✅ Service running (PID: $$PID)"; \
+		echo "   📋 Process details:" && \
+		ps -p $$PID -o pid,ppid,cmd,etime | sed 's/^/      /'; \
+		echo "   🔍 D-Bus service test:" && \
+		if dbus-send --session --dest=org.gnome.Speech2Text --print-reply /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus >/dev/null 2>&1; then \
+			echo "   ✅ D-Bus service responding correctly"; \
+		else \
+			echo "   ❌ D-Bus service not responding"; \
+		fi; \
+	else \
+		echo "   ❌ Service not running"; \
+	fi
 
 # Verify schema installation
 verify-schema:
