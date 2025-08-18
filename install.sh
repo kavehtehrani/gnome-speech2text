@@ -140,7 +140,7 @@ check_project_structure() {
     fi
     
     # Check if service directory exists (full repo) or not (GNOME store download)
-    if [ -d "$SCRIPT_DIR/service" ] && [ -f "$SCRIPT_DIR/service/pyproject.toml" ]; then
+    if [ -d "$SCRIPT_DIR/service" ] && [ -f "$SCRIPT_DIR/service/src/pyproject.toml" ]; then
         INSTALL_MODE="full_repo"
         print_status "Full repository detected - will install service from local source"
     else
