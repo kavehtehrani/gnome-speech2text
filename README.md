@@ -2,6 +2,8 @@
 
 A GNOME Shell extension that adds speech-to-text functionality using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words automatically typed wherever your cursor is.
 
+Note: This extension requires an external background service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/). The extension communicates with the service over D-Bus and does not bundle it. The installer in this repo or the setup dialog will install the service for you.
+
 This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing, making it lightweight and suitable for the GNOME Extensions store. The service is packaged separately and can be installed via pip.
 
 ![recording-modal](./images/recording-modal.png)
@@ -20,7 +22,7 @@ This separation ensures the extension follows GNOME's best practices and securit
 - 🎤 **Speech Recognition** using OpenAI Whisper
 - ⌨️ **Automatic Text Insertion** at cursor location (only on X11)
 - 🖱️ **Click to Record** from top panel microphone icon
-- ⌨️ **Keyboard Shortcut** support (default: Alt++Super+R)
+- ⌨️ **Keyboard Shortcut** support (default: Alt+Super+R)
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - ⚙️ **Easy Configuration** through settings panel
 - 🔒 **Privacy-First** - All processing happens locally
@@ -77,9 +79,9 @@ On GNOME 48 with Wayland, the extension automatically disables cursor hover effe
 
 ### GNOME Extensions Store
 
-🎉 **Available Now!** This extension is available on the GNOME Extensions website for easy installation. [WIP - Under ]
+⌛ **Pending Approval**: This extension is planned for the GNOME Extensions website. Once available, follow these steps:
 
-**Installation from GNOME Extensions Store:**
+**Installation from GNOME Extensions Store (when available):**
 
 1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/XXXX/gnome-speech2text/) (link will be available after approval)
 2. Click "Install" to add the extension
@@ -236,11 +238,8 @@ This script will analyze system logs and generate a detailed crash report. Choos
 # Extension logs
 journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text)"
 
-# Service logs
-journalctl --user -u speech2text-service -f
-
-# Or check service output directly
-systemctl --user status speech2text-service
+# Service is D-Bus activated; run it directly to view output
+~/.local/share/gnome-speech2text-service/gnome-speech2text-service
 
 # Generate comprehensive crash report
 ./debug-crash.sh
