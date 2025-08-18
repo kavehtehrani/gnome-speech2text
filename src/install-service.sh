@@ -101,28 +101,30 @@ ask_user() {
 
 # Detect installation mode
 detect_install_mode() {
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # .../gnome-speech2text/src
+    REPO_ROOT="$(dirname "$SCRIPT_DIR")"                           # .../gnome-speech2text
+    SERVICE_SRC_DIR="$REPO_ROOT/service"                            # .../gnome-speech2text/service
 
     if [ "$FORCE_MODE" = true ]; then
         echo "🔧 Installation mode forced: $INSTALL_MODE"
+        if [ "$INSTALL_MODE" = "local" ]; then
+            if [ -f "$SERVICE_SRC_DIR/pyproject.toml" ]; then
+                LOCAL_SOURCE_DIR="$SERVICE_SRC_DIR"
+                echo "📦 Using local service source: $LOCAL_SOURCE_DIR"
+            else
+                echo "❌ Local source not found at $SERVICE_SRC_DIR"
+                echo "   Tip: Run this from the repository root or omit --local to install from PyPI."
+                exit 1
+            fi
+        fi
         return
     fi
 
-    # Auto-detect based on available files
-    if [ -f "$SCRIPT_DIR/pyproject.toml" ]; then
+    # Prefer local service source when present in repo root
+    if [ -f "$SERVICE_SRC_DIR/pyproject.toml" ]; then
         INSTALL_MODE="local"
-        LOCAL_SOURCE_DIR="$SCRIPT_DIR"
-        echo "📦 Local repository detected - using local installation"
-        echo "   Found: $SCRIPT_DIR/pyproject.toml"
-        return
-    fi
-
-    # If running from the extension src/ directory inside the repo, check ../service
-    PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-    if [ -f "$PARENT_DIR/service/pyproject.toml" ]; then
-        INSTALL_MODE="local"
-        LOCAL_SOURCE_DIR="$PARENT_DIR/service"
-        echo "📦 Local service source detected at: $LOCAL_SOURCE_DIR"
+        LOCAL_SOURCE_DIR="$SERVICE_SRC_DIR"
+        echo "📦 Local service source detected: $LOCAL_SOURCE_DIR"
         return
     fi
 
@@ -388,13 +390,8 @@ install_service_package() {
         "local")
             print_status "Installing gnome-speech2text-service from local source..."
             SRC_DIR="$LOCAL_SOURCE_DIR"
-
-            if [ -z "$SRC_DIR" ]; then
-                SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            fi
-
-            if [ ! -f "$SRC_DIR/pyproject.toml" ]; then
-                error_exit "Local installation requested but pyproject.toml not found in $SRC_DIR"
+            if [ -z "$SRC_DIR" ] || [ ! -f "$SRC_DIR/pyproject.toml" ]; then
+                error_exit "Local installation requested but pyproject.toml not found in $SRC_DIR. Run from repo root or use --pypi."
             fi
             
             "$VENV_DIR/bin/pip" install "$SRC_DIR" || error_exit "Failed to install local gnome-speech2text-service package"
@@ -412,8 +409,8 @@ install_service_package() {
                 echo -e "${YELLOW}⚠️  PyPI installation failed!${NC}"
                 
                 # Offer local fallback if available
-                FALLBACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-                if [ -f "$FALLBACK_DIR/pyproject.toml" ]; then
+                FALLBACK_DIR="$LOCAL_SOURCE_DIR"
+                if [ -n "$FALLBACK_DIR" ] && [ -f "$FALLBACK_DIR/pyproject.toml" ]; then
                     echo "Local source code is available as fallback."
                     local fallback
                     fallback=$(ask_user "Try installing from local source instead? [Y/n]: " "Y")
