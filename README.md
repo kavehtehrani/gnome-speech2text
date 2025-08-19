@@ -6,6 +6,14 @@ Note: This extension requires an external background service [gnome-speech2text-
 
 This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing, making it lightweight and suitable for the GNOME Extensions store. The service is packaged separately and can be installed via pip.
 
+![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=black)
+![GNOME](https://img.shields.io/badge/GNOME-4A90D9?style=flat&logo=gnome&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
+![D-Bus](https://img.shields.io/badge/D--Bus-000000?style=flat&logo=dbus&logoColor=white)
+![Whisper](https://img.shields.io/badge/Whisper-412991?style=flat&logo=openai&logoColor=white)
+
 ![recording-modal](./images/recording-modal.png)
 
 ## Architecture
