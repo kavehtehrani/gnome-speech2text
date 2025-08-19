@@ -529,8 +529,6 @@ export default class Speech2TextExtension extends Extension {
           return;
         }
 
-        // RecordingStateManager reference will be updated by the simple fix before use
-
         // After successful D-Bus reinit, refresh event handlers too
         console.log("D-Bus connection restored, refreshing event handlers");
         this.refreshEventHandlers();
