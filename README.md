@@ -14,7 +14,6 @@ Note: This extension requires an external background service [gnome-speech2text-
 
 This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing, making it lightweight and suitable for the GNOME Extensions store. The service is packaged separately and can be installed via pip.
 
-
 ![recording-modal](./images/recording-modal.png)
 
 ## Architecture
