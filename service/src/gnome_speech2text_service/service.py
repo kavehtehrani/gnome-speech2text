@@ -23,8 +23,8 @@ class Speech2TextService(dbus.service.Object):
         # Set up D-Bus
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         bus = dbus.SessionBus()
-        bus_name = dbus.service.BusName("org.gnome.Speech2Text", bus)
-        super().__init__(bus_name, "/org/gnome/Speech2Text")
+        bus_name = dbus.service.BusName("org.gnome.Shell.Extensions.Speech2Text", bus)
+        super().__init__(bus_name, "/org/gnome/Shell/Extensions/Speech2Text")
         
         # Service state
         self.active_recordings = {}  # recording_id -> recording_info
@@ -441,7 +441,7 @@ class Speech2TextService(dbus.service.Object):
             self._cleanup_recording(recording_id)
 
     # D-Bus Methods
-    @dbus.service.method("org.gnome.Speech2Text", in_signature='ibb', out_signature='s')
+    @dbus.service.method("org.gnome.Shell.Extensions.Speech2Text", in_signature='ibb', out_signature='s')
     def StartRecording(self, duration, copy_to_clipboard, preview_mode):
         """Start a new recording session"""
         try:
@@ -483,7 +483,7 @@ class Speech2TextService(dbus.service.Object):
             self.RecordingError(dummy_id, error_msg)
             return dummy_id
     
-    @dbus.service.method("org.gnome.Speech2Text", in_signature='s', out_signature='b')
+    @dbus.service.method("org.gnome.Shell.Extensions.Speech2Text", in_signature='s', out_signature='b')
     def StopRecording(self, recording_id):
         """Stop an active recording"""
         try:
@@ -507,7 +507,7 @@ class Speech2TextService(dbus.service.Object):
             print(f"StopRecording error: {e}")
             return False
     
-    @dbus.service.method("org.gnome.Speech2Text", in_signature='s', out_signature='b')
+    @dbus.service.method("org.gnome.Shell.Extensions.Speech2Text", in_signature='s', out_signature='b')
     def CancelRecording(self, recording_id):
         """Cancel an active recording without processing"""
         try:
@@ -533,7 +533,7 @@ class Speech2TextService(dbus.service.Object):
             print(f"CancelRecording error: {e}")
             return False
     
-    @dbus.service.method("org.gnome.Speech2Text", in_signature='sb', out_signature='b')
+    @dbus.service.method("org.gnome.Shell.Extensions.Speech2Text", in_signature='sb', out_signature='b')
     def TypeText(self, text, copy_to_clipboard):
         """Type provided text directly"""
         try:
@@ -557,7 +557,7 @@ class Speech2TextService(dbus.service.Object):
             self.TextTyped(text, False)
             return False
     
-    @dbus.service.method("org.gnome.Speech2Text", out_signature='s')
+    @dbus.service.method("org.gnome.Shell.Extensions.Speech2Text", out_signature='s')
     def GetServiceStatus(self):
         """Get current service status"""
         try:
@@ -573,7 +573,7 @@ class Speech2TextService(dbus.service.Object):
         except Exception as e:
             return f"error:{str(e)}"
     
-    @dbus.service.method("org.gnome.Speech2Text", out_signature='bas')
+    @dbus.service.method("org.gnome.Shell.Extensions.Speech2Text", out_signature='bas')
     def CheckDependencies(self):
         """Check if all dependencies are available"""
         try:
@@ -583,23 +583,23 @@ class Speech2TextService(dbus.service.Object):
             return False, [f"Error checking dependencies: {str(e)}"]
 
     # D-Bus Signals
-    @dbus.service.signal("org.gnome.Speech2Text", signature='s')
+    @dbus.service.signal("org.gnome.Shell.Extensions.Speech2Text", signature='s')
     def RecordingStarted(self, recording_id):
         pass
     
-    @dbus.service.signal("org.gnome.Speech2Text", signature='ss')
+    @dbus.service.signal("org.gnome.Shell.Extensions.Speech2Text", signature='ss')
     def RecordingStopped(self, recording_id, reason):
         pass
     
-    @dbus.service.signal("org.gnome.Speech2Text", signature='ss')
+    @dbus.service.signal("org.gnome.Shell.Extensions.Speech2Text", signature='ss')
     def TranscriptionReady(self, recording_id, text):
         pass
     
-    @dbus.service.signal("org.gnome.Speech2Text", signature='ss')
+    @dbus.service.signal("org.gnome.Shell.Extensions.Speech2Text", signature='ss')
     def RecordingError(self, recording_id, error_message):
         pass
     
-    @dbus.service.signal("org.gnome.Speech2Text", signature='sb')
+    @dbus.service.signal("org.gnome.Shell.Extensions.Speech2Text", signature='sb')
     def TextTyped(self, text, success):
         pass
 

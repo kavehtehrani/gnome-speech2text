@@ -462,15 +462,15 @@ install_dbus_service_file() {
             if [ -z "$SRC_DIR" ]; then
                 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
             fi
-            if [ -f "$SRC_DIR/data/org.gnome.Speech2Text.service" ]; then
+            if [ -f "$SRC_DIR/data/org.gnome.Shell.Extensions.Speech2Text.service" ]; then
                 sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/gnome-speech2text-service|g" \
-                    "$SRC_DIR/data/org.gnome.Speech2Text.service" > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+                    "$SRC_DIR/data/org.gnome.Shell.Extensions.Speech2Text.service" > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service"
                 echo "✅ D-Bus service file installed from local data"
             else
                 # Fallback: create directly if data file isn't present
-                cat > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service" << EOF
+                cat > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service" << EOF
 [D-BUS Service]
-Name=org.gnome.Speech2Text
+Name=org.gnome.Shell.Extensions.Speech2Text
 Exec=$SERVICE_DIR/gnome-speech2text-service
 User=session
 EOF
@@ -480,9 +480,9 @@ EOF
             
         "pypi")
             # Create D-Bus service file directly (since data files aren't included in PyPI package for GNOME compliance)
-            cat > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service" << EOF
+            cat > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service" << EOF
 [D-BUS Service]
-Name=org.gnome.Speech2Text
+Name=org.gnome.Shell.Extensions.Speech2Text
 Exec=$SERVICE_DIR/gnome-speech2text-service
 User=session
 EOF
@@ -527,11 +527,11 @@ echo -e "${YELLOW}To manually test the service:${NC}"
 echo "  $SERVICE_DIR/gnome-speech2text-service"
 echo ""
 echo -e "${YELLOW}To verify D-Bus registration:${NC}"
-echo "  dbus-send --session --dest=org.gnome.Speech2Text --print-reply /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus"
+echo "  dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2Text --print-reply /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus"
 echo ""
 echo -e "${YELLOW}To uninstall the service:${NC}"
 echo "  rm -rf $SERVICE_DIR"
-echo "  rm $DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+echo "  rm $DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service"
 echo "  rm $DESKTOP_DIR/gnome-speech2text-service.desktop"
 echo ""
 echo -e "${GREEN}🎉 Service installation completed successfully!${NC}"

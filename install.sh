@@ -536,9 +536,9 @@ DBUS_SERVICE_DIR="$HOME/.local/share/dbus-1/services"
 mkdir -p "$DBUS_SERVICE_DIR"
 
 # Create D-Bus service file directly (PyPI mode)
-cat > "$DBUS_SERVICE_DIR/org.gnome.Speech2Text.service" << SERVICE_EOF
+cat > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service" << SERVICE_EOF
 [D-BUS Service]
-Name=org.gnome.Speech2Text
+Name=org.gnome.Shell.Extensions.Speech2Text
 Exec=$SERVICE_DIR/gnome-speech2text-service
 User=session
 SERVICE_EOF
@@ -574,11 +574,11 @@ echo -e "${YELLOW}To manually test the service:${NC}"
 echo "  $SERVICE_DIR/gnome-speech2text-service"
 echo ""
 echo -e "${YELLOW}To verify D-Bus registration:${NC}"
-echo "  dbus-send --session --dest=org.gnome.Speech2Text --print-reply /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus"
+echo "  dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2Text --print-reply /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus"
 echo ""
 echo -e "${YELLOW}To uninstall the service:${NC}"
 echo "  rm -rf $SERVICE_DIR"
-echo "  rm $DBUS_SERVICE_DIR/org.gnome.Speech2Text.service"
+echo "  rm $DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service"
 echo "  rm $DESKTOP_DIR/gnome-speech2text-service.desktop"
 echo ""
 echo -e "${GREEN}🎉 Service installation completed successfully!${NC}"

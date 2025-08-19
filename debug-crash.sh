@@ -31,7 +31,7 @@ find_crash_details() {
     # 4. Look for our extension's activity before crash
     echo ">>> Speech2Text Extension Activity Before Crash:"
     # Check both journalctl and local log file
-    journalctl --since "$time_range" | grep -i "speech2text\|org.gnome.Speech2Text" | tail -20
+    journalctl --since "$time_range" | grep -i "speech2text\|org.gnome.Shell.Extensions.Speech2Text" | tail -20
     
     # Also check local log file if it exists
     LOCAL_LOG="$HOME/.local/share/gnome-speech2text-service/logs/speech2text-service.log"

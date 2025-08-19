@@ -65,7 +65,7 @@ The installer will:
 
 - Create a per-user virtual environment under `~/.local/share/gnome-speech2text-service/venv`
 - Install the `gnome-speech2text-service` package
-- Register the D-Bus service at `~/.local/share/dbus-1/services/org.gnome.Speech2Text.service`
+- Register the D-Bus service at `~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service`
 - Create a desktop entry at `~/.local/share/applications/gnome-speech2text-service.desktop`
 
 ## Usage

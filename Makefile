@@ -106,8 +106,8 @@ clean:
 	else \
 		echo "ℹ️  Service directory not found"; \
 	fi
-	@if [ -f "$(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service" ]; then \
-		rm $(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service; \
+	@if [ -f "$(HOME)/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service" ]; then \
+		rm $(HOME)/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service; \
 		echo "✅ D-Bus service file removed"; \
 	else \
 		echo "ℹ️  D-Bus service file not found"; \
@@ -169,8 +169,8 @@ clean-service:
 	else \
 		echo "ℹ️  Service directory not found"; \
 	fi
-	@if [ -f "$(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service" ]; then \
-		rm $(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service; \
+	@if [ -f "$(HOME)/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service" ]; then \
+		rm $(HOME)/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service; \
 		echo "✅ D-Bus service file removed"; \
 	else \
 		echo "ℹ️  D-Bus service file not found"; \
@@ -221,7 +221,7 @@ status:
 	else \
 		echo "   ❌ Service not installed"; \
 	fi
-	@DBUS_SERVICE_FILE="$(HOME)/.local/share/dbus-1/services/org.gnome.Speech2Text.service" && \
+	@DBUS_SERVICE_FILE="$(HOME)/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service" && \
 	echo "   D-Bus service file: $$DBUS_SERVICE_FILE" && \
 	if [ -f "$$DBUS_SERVICE_FILE" ]; then \
 		echo "   ✅ D-Bus service file registered"; \
@@ -237,7 +237,7 @@ status:
 		echo "   📋 Process details:" && \
 		ps -p $$PID -o pid,ppid,cmd,etime | sed 's/^/      /'; \
 		echo "   🔍 D-Bus service test:" && \
-		if dbus-send --session --dest=org.gnome.Speech2Text --print-reply /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus >/dev/null 2>&1; then \
+		if dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2Text --print-reply /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus >/dev/null 2>&1; then \
 			echo "   ✅ D-Bus service responding correctly"; \
 		else \
 			echo "   ❌ D-Bus service not responding"; \

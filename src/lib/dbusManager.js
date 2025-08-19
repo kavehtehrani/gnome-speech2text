@@ -4,7 +4,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 // D-Bus interface XML for the speech2text service
 const Speech2TextInterface = `
 <node>
-  <interface name="org.gnome.Speech2Text">
+  <interface name="org.gnome.Shell.Extensions.Speech2Text">
     <method name="StartRecording">
       <arg direction="in" type="i" name="duration" />
       <arg direction="in" type="b" name="copy_to_clipboard" />
@@ -69,8 +69,8 @@ export class DBusManager {
 
       this.dbusProxy = new Speech2TextProxy(
         Gio.DBus.session,
-        "org.gnome.Speech2Text",
-        "/org/gnome/Speech2Text"
+        "org.gnome.Shell.Extensions.Speech2Text",
+        "/org/gnome/Shell/Extensions/Speech2Text"
       );
 
       // Test if the service is actually reachable

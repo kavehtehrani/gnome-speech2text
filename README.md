@@ -10,9 +10,9 @@
 
 A GNOME Shell extension that adds speech-to-text functionality using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words automatically typed wherever your cursor is.
 
-Note: This extension requires an external background service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/). The extension communicates with the service over D-Bus and does not bundle it. The installer in this repo or the setup dialog will install the service for you.
+**Important for GNOME Extensions Store**: This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension and must be installed separately as a dependency. The first time you run the extension you will get a popup to guide you through this setup.
 
-This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing, making it lightweight and suitable for the GNOME Extensions store. The service is packaged separately and can be installed via pip.
+**Dependency Requirement**: This extension requires the external background service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/) to be installed. The extension communicates with the service over D-Bus and does not bundle it. The installer in this repo or the setup dialog will install the service for you.
 
 ![recording-modal](./images/recording-modal.png)
 
@@ -189,13 +189,13 @@ If the D-Bus service isn't working:
 
 ```bash
 # Check if service is running
-dbus-send --session --print-reply --dest=org.gnome.Speech2Text /org/gnome/Speech2Text org.gnome.Speech2Text.GetServiceStatus
+dbus-send --session --print-reply --dest=org.gnome.Shell.Extensions.Speech2Text /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
 
 # Start the service manually
 ~/.local/share/gnome-speech2text-service/gnome-speech2text-service
 
 # Check D-Bus service file
-ls ~/.local/share/dbus-1/services/org.gnome.Speech2Text.service
+ls ~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service
 ```
 
 You can read more about the D-Bus service here: [D-Bus Service Documentation](./service/README.md).
@@ -275,7 +275,7 @@ make clean
 ### Building from Source
 
 ```bash
-# Complete development setup (install + compile schemas + restart)
+# Complete development setup (install extension + service + compile schemas)
 make setup
 
 # Check installation status
