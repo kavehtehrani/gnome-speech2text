@@ -191,131 +191,7 @@ This service is installed separately from the extension (following GNOME guideli
       autoInstallSection = autoInstallButtonWidget;
     }
 
-    // Manual installation separator
-    const separatorLine = new St.Label({
-      text: "─".repeat(50),
-      style: `
-        color: ${COLORS.SECONDARY};
-        font-size: 12px;
-        margin: 20px 0;
-        text-align: center;
-      `,
-    });
-
-    const orLabel = new St.Label({
-      text: "OR install manually:",
-      style: `
-        font-size: 16px;
-        color: ${COLORS.SECONDARY};
-        margin: 10px 0;
-        text-align: center;
-      `,
-    });
-
-    // Installation instructions
-    const instructionsTitle = new St.Label({
-      text: "Manual Installation Instructions:",
-      style: `
-        font-size: 18px;
-        font-weight: bold;
-        color: ${COLORS.PRIMARY};
-        margin: 10px 0 10px 0;
-      `,
-    });
-
-    const step1 = new St.Label({
-      text: "1. Open a terminal",
-      style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
-    });
-
-    const step2 = new St.Label({
-      text: "2. Download and install the service (automatically handles dependencies):",
-      style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
-    });
-
-    const REMOTE_INSTALL_CMD =
-      "curl -sSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/src/install-service.sh | bash -s -- --pypi";
-
-    const installCommandBox = new St.Label({
-      text: REMOTE_INSTALL_CMD,
-      style: `
-        background-color: ${COLORS.DARK_GRAY};
-        border: 1px solid ${COLORS.SECONDARY};
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-family: monospace;
-        font-size: 12px;
-        padding: 10px;
-        margin: 5px 0 10px 20px;
-        width: 500px;
-      `,
-    });
-
-    // Copy button for install command
-    const copyInstallInlineButton = new St.Button({
-      label: "📋 Copy",
-      style: `
-        background-color: ${COLORS.SUCCESS};
-        border: 1px solid ${COLORS.SUCCESS};
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-size: 11px;
-        padding: 8px 12px;
-        margin: 5px 0 10px 10px;
-        min-width: 70px;
-        transition-duration: 150ms;
-      `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-
-    // Add hover effects with inline styles preserved
-    copyInstallInlineButton.connect("enter-event", () => {
-      copyInstallInlineButton.set_style(`
-        background-color: #34ce57;
-        border: 1px solid #34ce57;
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-size: 11px;
-        padding: 8px 12px;
-        margin: 5px 0 10px 10px;
-        min-width: 70px;
-        transition-duration: 150ms;
-        transform: scale(1.05);
-      `);
-    });
-
-    copyInstallInlineButton.connect("leave-event", () => {
-      copyInstallInlineButton.set_style(`
-        background-color: ${COLORS.SUCCESS};
-        border: 1px solid ${COLORS.SUCCESS};
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-size: 11px;
-        padding: 8px 12px;
-        margin: 5px 0 10px 10px;
-        min-width: 70px;
-        transition-duration: 150ms;
-      `);
-    });
-
-    copyInstallInlineButton.connect("clicked", () => {
-      this._copyToClipboard(REMOTE_INSTALL_CMD);
-      Main.notify("Speech2Text", "Install command copied to clipboard!");
-    });
-
-    // Container for install command + copy button
-    const installContainer = createHorizontalBox();
-    installContainer.add_child(installCommandBox);
-    installContainer.add_child(copyInstallInlineButton);
-
-    const step3 = new St.Label({
-      text: "3. Restart GNOME Shell:\n   • X11: Press Alt+F2, type 'r', press Enter\n   • Wayland: Log out and log back in",
-      style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
-    });
-
-    // Alternative manual installation
+    // Link to manual instructions on GitHub
     const manualTitle = new St.Label({
       text: "Manual Installation:",
       style: `
@@ -327,14 +203,14 @@ This service is installed separately from the extension (following GNOME guideli
     });
 
     const manualText = new St.Label({
-      text: "For detailed instructions, visit the GitHub repository:",
+      text: "For manual instructions, visit the GitHub repository:",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
     const repoLinkBox = new St.Button({
       label: "https://github.com/kavehtehrani/gnome-speech2text",
       style: `
-        background-color: ${COLORS.DARK_GRAY};
+        background-color: ${COLORS.LIGHT_GRAY};
         border: 1px solid ${COLORS.INFO};
         border-radius: 5px;
         color: ${COLORS.INFO};
@@ -392,13 +268,7 @@ This service is installed separately from the extension (following GNOME guideli
     this.dialogContainer.add_child(autoInstallTitle);
     this.dialogContainer.add_child(autoInstallDescription);
     this.dialogContainer.add_child(autoInstallSection);
-    this.dialogContainer.add_child(separatorLine);
-    this.dialogContainer.add_child(orLabel);
-    this.dialogContainer.add_child(instructionsTitle);
-    this.dialogContainer.add_child(step1);
-    this.dialogContainer.add_child(step2);
-    this.dialogContainer.add_child(installContainer);
-    this.dialogContainer.add_child(step3);
+    // Keep only the GitHub link for manual instructions
     this.dialogContainer.add_child(manualTitle);
     this.dialogContainer.add_child(manualText);
     this.dialogContainer.add_child(repoLinkBox);

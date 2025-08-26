@@ -136,8 +136,10 @@ export class SettingsDialog {
       "min-width: 80px;"
     );
 
+    const shortcuts = this.settings.get_strv("toggle-recording");
+    const currentShortcut = shortcuts.length > 0 ? shortcuts[0] : null;
     this.currentShortcutDisplay = createStyledLabel(
-      this.extension.currentKeybinding || "No shortcut set",
+      currentShortcut || "No shortcut set",
       "normal",
       `
         font-size: 14px;
@@ -334,10 +336,9 @@ export class SettingsDialog {
     this.changeShortcutButton.connect("clicked", () => {
       this.extension.captureNewShortcut((newShortcut) => {
         if (newShortcut) {
-          this.extension.currentKeybinding = newShortcut;
           this.settings.set_strv("toggle-recording", [newShortcut]);
           this.currentShortcutDisplay.set_text(newShortcut);
-          this.extension.setupKeybinding();
+          this.extension.keybindingManager?.setupKeybinding();
           Main.notify("Speech2Text", `Shortcut changed to: ${newShortcut}`);
         }
       });
@@ -345,10 +346,9 @@ export class SettingsDialog {
 
     this.resetToDefaultButton.connect("clicked", () => {
       const defaultShortcut = "<Super><Alt>r";
-      this.extension.currentKeybinding = defaultShortcut;
       this.settings.set_strv("toggle-recording", [defaultShortcut]);
       this.currentShortcutDisplay.set_text(defaultShortcut);
-      this.extension.setupKeybinding();
+      this.extension.keybindingManager?.setupKeybinding();
       Main.notify(
         "Speech2Text",
         `Shortcut reset to default: ${defaultShortcut}`
@@ -357,7 +357,6 @@ export class SettingsDialog {
 
     this.removeShortcutButton.connect("clicked", () => {
       Main.wm.removeKeybinding("toggle-recording");
-      this.extension.currentKeybinding = null;
       this.settings.set_strv("toggle-recording", []);
       this.currentShortcutDisplay.set_text("No shortcut set");
       Main.notify("Speech2Text", "Keyboard shortcut removed");

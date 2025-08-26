@@ -63,18 +63,24 @@ This separation ensures the extension follows GNOME's best practices and securit
 
 ### Installation of System Dependencies
 
-Before installing the extension, make sure you have the required system packages:
+Before installing the extension, make sure you have the required system packages installed on your distribution.
 
-#### Ubuntu/Debian
+Important:
+
+- The bundled installer `src/install-service.sh` is distro-agnostic. It only checks for required packages and will not install system packages for you.
+- You should install the system packages using your distribution's package manager.
+- We provide Ubuntu/Debian commands below as an example only.
+
+#### Ubuntu/Debian (example)
 
 ```bash
 # For X11 sessions
 sudo apt update
-sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip
+sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip python3-dbus python3-gi
 
 # For Wayland sessions
 sudo apt update
-sudo apt install python3 python3-pip python3-venv ffmpeg wl-clipboard
+sudo apt install python3 python3-pip python3-venv ffmpeg wl-clipboard python3-dbus python3-gi
 ```
 
 **Note:** This extension has been tested extensively on Ubuntu 24.04 / GNOME 46 / X11+Wayland and Ubuntu 25.04 / GNOME 48 / X11+Wayland. It should work on other GNOME Shell 46+ distributions with the above packages installed, but hasn't been tested on other platforms yet.
@@ -101,7 +107,7 @@ On GNOME 48 with Wayland, the extension automatically disables cursor hover effe
 
 ### Quick Installation (Recommended)
 
-For the easiest installation experience, use the installation script:
+For the easiest installation experience on Ubuntu/Debian, use the repository installer script:
 
 ```bash
 # Clone the repository
@@ -112,7 +118,7 @@ cd gnome-speech2text
 ./install.sh
 ```
 
-This script will:
+This script will (on Ubuntu/Debian):
 
 - Check system dependencies and guide you through installing any missing ones
 - Install the D-Bus service automatically (from local source or PyPI)
@@ -124,6 +130,12 @@ This script will:
 ### First Time Setup
 
 The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with automatic or manual installation options.
+
+Notes about installers and distributions:
+
+- The extension bundle includes `src/install-service.sh`, a distro-agnostic service installer that only verifies system dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
+- You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing packages.
+- The top-level `install.sh` script in this repository provides Ubuntu/Debian-specific guidance and commands as an example to help install required packages and set up the extension end-to-end.
 
 **For Full Repository Installation:**
 
