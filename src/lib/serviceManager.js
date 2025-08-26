@@ -118,32 +118,6 @@ export class ServiceManager {
     return this.dbusManager.isRecording();
   }
 
-  // Signal handlers - these will be overridden by the extension core
-  _handleRecordingStopped(recordingId, reason) {
-    console.log(
-      `ServiceManager: Recording stopped - ID: ${recordingId}, reason: ${reason}`
-    );
-    // This will be handled by the recording controller
-  }
-
-  _handleTranscriptionReady(recordingId, text) {
-    console.log(
-      `ServiceManager: Transcription ready - ID: ${recordingId}, text: "${text}"`
-    );
-    // This will be handled by the recording controller
-  }
-
-  _handleRecordingError(recordingId, errorMessage) {
-    console.log(
-      `ServiceManager: Recording error - ID: ${recordingId}, error: ${errorMessage}`
-    );
-    // This will be handled by the recording controller
-  }
-
-  getDBusManager() {
-    return this.dbusManager;
-  }
-
   destroy() {
     if (this.dbusManager) {
       console.log("Destroying D-Bus manager");

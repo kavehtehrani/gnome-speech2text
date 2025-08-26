@@ -13,7 +13,7 @@ export class RecordingController {
     // Initialize recording state manager
     this.recordingStateManager = new RecordingStateManager(
       this.uiManager.getIcon(),
-      this.serviceManager.getDBusManager()
+      this.serviceManager.dbusManager
     );
   }
 
@@ -39,9 +39,8 @@ export class RecordingController {
 
       // Check service status
       console.log("Checking service status for first-time usage");
-      const serviceStatus = await this.serviceManager
-        .getDBusManager()
-        .checkServiceStatus();
+      const serviceStatus =
+        await this.serviceManager.dbusManager.checkServiceStatus();
       if (!serviceStatus.available) {
         console.log(
           "Service not available for first-time usage:",
@@ -86,9 +85,8 @@ export class RecordingController {
         return;
       }
 
-      const serviceStatus = await this.serviceManager
-        .getDBusManager()
-        .checkServiceStatus();
+      const serviceStatus =
+        await this.serviceManager.dbusManager.checkServiceStatus();
       if (!serviceStatus.available) {
         console.log(
           "Service not available for non-first-run usage:",
@@ -111,12 +109,12 @@ export class RecordingController {
       // Ensure RecordingStateManager has current service manager reference
       if (
         this.recordingStateManager &&
-        this.serviceManager.getDBusManager() &&
+        this.serviceManager.dbusManager &&
         this.recordingStateManager.dbusManager !==
-          this.serviceManager.getDBusManager()
+          this.serviceManager.dbusManager
       ) {
         this.recordingStateManager.updateDbusManager(
-          this.serviceManager.getDBusManager()
+          this.serviceManager.dbusManager
         );
       }
 
