@@ -150,7 +150,7 @@ This service is installed separately from the extension (following GNOME guideli
       text: this.isFirstRun
         ? "The easiest way is to use automatic installation - just one click!"
         : this.isManualRequest
-        ? "Even if the service is already installed, you can reinstall or help others:"
+        ? "Even if the service is already installed, you can reinstall."
         : "Click the button below to automatically install the service in a terminal:",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0 15px 0;`,
     });
