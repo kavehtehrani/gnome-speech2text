@@ -70,7 +70,7 @@ find_crash_details() {
     # 10. Get the most recent crash context (around the time of crash)
     echo ">>> Complete Log Context Around Most Recent Session End:"
     LAST_LOGOUT=$(journalctl --since "$time_range" | grep -E "(session.*closed|user.*logged out)" | tail -1 | awk '{print $1" "$2" "$3}')
-    if [ ! -z "$LAST_LOGOUT" ]; then
+    if [ -n "$LAST_LOGOUT" ]; then
         echo "Last logout detected at: $LAST_LOGOUT"
         echo "Context (5 minutes before logout):"
         journalctl --since "$LAST_LOGOUT - 5 minutes" --until "$LAST_LOGOUT + 1 minute" | grep -E "(gnome-shell|speech2text|error|crash|modal)" | tail -30
@@ -88,7 +88,7 @@ analyze_coredump() {
     # Check if we have any recent coredumps
     RECENT_COREDUMP=$(coredumpctl list --since "2 hours ago" --no-pager 2>/dev/null | grep gnome-shell | tail -1)
     
-    if [ ! -z "$RECENT_COREDUMP" ]; then
+    if [ -n "$RECENT_COREDUMP" ]; then
         echo "Found recent GNOME Shell coredump:"
         echo "$RECENT_COREDUMP"
         echo ""
@@ -96,13 +96,13 @@ analyze_coredump() {
         # Get the PID from the coredump line
         COREDUMP_PID=$(echo "$RECENT_COREDUMP" | awk '{print $5}')
         
-        if [ ! -z "$COREDUMP_PID" ]; then
+        if [ -n "$COREDUMP_PID" ]; then
             echo "Coredump details for PID $COREDUMP_PID:"
-            coredumpctl info $COREDUMP_PID 2>/dev/null | head -20
+            coredumpctl info "$COREDUMP_PID" 2>/dev/null | head -20
             echo ""
             
             echo "Stack trace (if available):"
-            coredumpctl debug $COREDUMP_PID --no-pager 2>/dev/null | head -30 || echo "Stack trace not available (gdb not installed or insufficient permissions)"
+            coredumpctl debug "$COREDUMP_PID" --no-pager 2>/dev/null | head -30 || echo "Stack trace not available (gdb not installed or insufficient permissions)"
         fi
     else
         echo "No recent GNOME Shell coredumps found"
@@ -206,7 +206,7 @@ echo "3. Last 6 hours"
 echo "4. Custom timeframe"
 echo "5. Full analysis with coredump check"
 echo ""
-read -p "Enter choice (1-5): " choice
+read -r -p "Enter choice (1-5): " choice
 
 case $choice in
     1)
@@ -220,7 +220,7 @@ case $choice in
         ;;
     4)
         echo "Enter timeframe (e.g., '1 hour ago', '45 minutes ago'):"
-        read timeframe
+        read -r timeframe
         run_analysis "$timeframe" "false"
         ;;
     5)

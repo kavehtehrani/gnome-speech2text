@@ -13,18 +13,16 @@ export class KeybindingManager {
     Main.wm.removeKeybinding("toggle-recording");
 
     // Get shortcut from settings
-    let shortcuts = this.extensionCore
-      .getSettingsObject()
-      .get_strv("toggle-recording");
+    let shortcuts = this.extensionCore.settings.get_strv("toggle-recording");
     if (shortcuts.length > 0) {
       this.currentKeybinding = shortcuts[0];
     } else {
       // Use a much safer shortcut that doesn't conflict with system shortcuts
       // Avoid Ctrl+C (SIGINT), Ctrl+Z (SIGTSTP), and workspace navigation shortcuts
       this.currentKeybinding = "<Super><Alt>r";
-      this.extensionCore
-        .getSettingsObject()
-        .set_strv("toggle-recording", [this.currentKeybinding]);
+      this.extensionCore.settings.set_strv("toggle-recording", [
+        this.currentKeybinding,
+      ]);
     }
 
     // Register keybinding
@@ -32,7 +30,7 @@ export class KeybindingManager {
     const self = this;
     Main.wm.addKeybinding(
       "toggle-recording",
-      this.extensionCore.getSettingsObject(),
+      this.extensionCore.settings,
       Meta.KeyBindingFlags.NONE,
       Shell.ActionMode.NORMAL,
       () => {
@@ -45,10 +43,6 @@ export class KeybindingManager {
       }
     );
     console.log(`Keybinding registered: ${this.currentKeybinding}`);
-  }
-
-  getCurrentKeybinding() {
-    return this.currentKeybinding;
   }
 
   cleanup() {

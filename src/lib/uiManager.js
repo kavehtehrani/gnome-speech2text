@@ -90,48 +90,6 @@ export class UIManager {
     Main.panel.addToStatusArea("speech2text-indicator", this.icon);
   }
 
-  refreshEventHandlers() {
-    if (!this.icon) {
-      console.error("Icon not available for refreshing event handlers");
-      return;
-    }
-
-    console.log("Refreshing UI event handlers after session change");
-
-    try {
-      // Disconnect any existing click handlers
-      this.icon.disconnect_all();
-
-      // Recreate the click handler
-      this.icon.connect("button-press-event", (actor, event) => {
-        const buttonPressed = event.get_button();
-
-        if (buttonPressed === 1) {
-          // Left click - toggle recording
-          this.icon.menu.close(true);
-          // Use robust reference to avoid 'this' context issues
-          if (this.extensionCore) {
-            this.extensionCore.toggleRecording();
-          } else {
-            console.error(
-              "Extension core not available for refreshed click handler"
-            );
-          }
-          return Clutter.EVENT_STOP;
-        } else if (buttonPressed === 3) {
-          // Right click - show menu
-          return Clutter.EVENT_PROPAGATE;
-        }
-
-        return Clutter.EVENT_STOP;
-      });
-
-      console.log("UI click handlers refreshed");
-    } catch (error) {
-      console.error("Error refreshing UI click handlers:", error);
-    }
-  }
-
   showSettingsWindow() {
     if (!this.extensionCore.isEnabled || !this.extensionCore.settings) {
       console.error("Extension not properly enabled, cannot show settings");

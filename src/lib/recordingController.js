@@ -188,7 +188,7 @@ export class RecordingController {
     const result = this.recordingStateManager.handleTranscriptionReady(
       recordingId,
       text,
-      this.uiManager.extensionCore.getSettingsObject()
+      this.uiManager.extensionCore.settings
     );
 
     console.log(
@@ -244,9 +244,7 @@ export class RecordingController {
     try {
       await this.serviceManager.typeText(
         text,
-        this.uiManager.extensionCore
-          .getSettingsObject()
-          .get_boolean("copy-to-clipboard")
+        this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard")
       );
     } catch (e) {
       console.error(`Error typing text: ${e}`);
@@ -255,10 +253,6 @@ export class RecordingController {
         "Failed to insert text."
       );
     }
-  }
-
-  getRecordingStateManager() {
-    return this.recordingStateManager;
   }
 
   cleanup() {

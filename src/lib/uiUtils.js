@@ -100,51 +100,6 @@ export function createHoverButton(label, baseColor, hoverColor) {
   return button;
 }
 
-// Create a simple text button with hover effects (no background style)
-export function createTextButton(label, normalColor, hoverColor, options = {}) {
-  const baseStyle = `
-    font-size: ${options.fontSize || "14px"};
-    padding: ${options.padding || "8px"};
-    border-radius: 4px;
-    transition: all 0.2s ease;
-  `;
-
-  let button = new St.Button({
-    label: label,
-    style: `
-      color: ${normalColor};
-      ${baseStyle}
-      ${options.extraStyle || ""}
-    `,
-    reactive: true,
-    can_focus: true,
-    track_hover: true,
-    ...(options.buttonProps || {}),
-  });
-
-  // Add hover effects
-  button.connect("enter-event", () => {
-    button.set_style(`
-      color: ${hoverColor};
-      ${baseStyle}
-      ${options.hoverExtraStyle || options.extraStyle || ""}
-    `);
-  });
-
-  button.connect("leave-event", () => {
-    button.set_style(`
-      color: ${normalColor};
-      ${baseStyle}
-      ${options.extraStyle || ""}
-    `);
-  });
-
-  // Add hand cursor effect
-  addHandCursorToButton(button);
-
-  return button;
-}
-
 // Create a label with predefined styles
 export function createStyledLabel(text, style = "normal", customStyle = "") {
   const styles = {

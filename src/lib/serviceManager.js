@@ -10,12 +10,7 @@ export class ServiceManager {
     // Check if D-Bus manager exists and is initialized
     if (!this.dbusManager) {
       console.log("D-Bus manager is null, creating new instance");
-      try {
-        this.dbusManager = new DBusManager();
-      } catch (error) {
-        console.error("Failed to create D-Bus manager:", error);
-        return false;
-      }
+      this.dbusManager = new DBusManager();
     }
 
     // Double-check that dbusManager wasn't nullified during creation
@@ -26,14 +21,9 @@ export class ServiceManager {
 
     if (!this.dbusManager.isInitialized) {
       console.log("D-Bus manager not initialized, initializing...");
-      try {
-        const initialized = await this.dbusManager.initialize();
-        if (!initialized) {
-          console.log("Failed to initialize D-Bus manager");
-          return false;
-        }
-      } catch (error) {
-        console.error("Error during D-Bus manager initialization:", error);
+      const initialized = await this.dbusManager.initialize();
+      if (!initialized) {
+        console.log("Failed to initialize D-Bus manager");
         return false;
       }
     }
@@ -56,50 +46,26 @@ export class ServiceManager {
       return false;
     }
 
-    try {
-      // Connect signals with handlers
-      this.dbusManager.connectSignals({
-        onRecordingStopped: (recordingId, reason) => {
-          this._handleRecordingStopped(recordingId, reason);
-        },
-        onTranscriptionReady: (recordingId, text) => {
-          this._handleTranscriptionReady(recordingId, text);
-        },
-        onRecordingError: (recordingId, errorMessage) => {
-          this._handleRecordingError(recordingId, errorMessage);
-        },
-      });
+    // Connect signals with handlers
+    this.dbusManager.connectSignals({
+      onRecordingStopped: (recordingId, reason) => {
+        this._handleRecordingStopped(recordingId, reason);
+      },
+      onTranscriptionReady: (recordingId, text) => {
+        this._handleTranscriptionReady(recordingId, text);
+      },
+      onRecordingError: (recordingId, errorMessage) => {
+        this._handleRecordingError(recordingId, errorMessage);
+      },
+    });
 
-      // Check service status
-      const serviceStatus = await this.dbusManager.checkServiceStatus();
-      if (!serviceStatus.available) {
-        console.log("Service not available:", serviceStatus.error);
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error("Error ensuring service availability:", error);
+    // Check service status
+    const serviceStatus = await this.dbusManager.checkServiceStatus();
+    if (!serviceStatus.available) {
+      console.log("Service not available:", serviceStatus.error);
       return false;
     }
-  }
 
-  async validateAndReinitializeConnection() {
-    // Validate and potentially reinitialize D-Bus connection after session changes
-    if (this.dbusManager && !(await this.dbusManager.ensureConnection())) {
-      console.log("D-Bus connection lost, attempting to reinitialize");
-      // Try to completely reinitialize the D-Bus connection
-      this.dbusManager.destroy();
-      this.dbusManager = new DBusManager();
-      const dbusInitialized = await this.initialize();
-      if (!dbusInitialized) {
-        console.error(
-          "Failed to reinitialize D-Bus connection after session change"
-        );
-        return false;
-      }
-      return true;
-    }
     return true;
   }
 
@@ -118,23 +84,16 @@ export class ServiceManager {
       return;
     }
 
-    try {
-      // Ensure D-Bus manager is available
-      const dbusReady = await this.initialize();
-      if (!dbusReady || !this.dbusManager) {
-        console.error(
-          "Failed to ensure D-Bus manager is ready for text typing"
-        );
-        throw new Error("Failed to connect to service.");
-      }
-
-      console.log(`Typing text via D-Bus: "${text}"`);
-
-      await this.dbusManager.typeText(text.trim(), copyToClipboard);
-    } catch (e) {
-      console.error(`Error typing text: ${e}`);
-      throw e;
+    // Ensure D-Bus manager is available
+    const dbusReady = await this.initialize();
+    if (!dbusReady || !this.dbusManager) {
+      console.error("Failed to ensure D-Bus manager is ready for text typing");
+      throw new Error("Failed to connect to service.");
     }
+
+    console.log(`Typing text via D-Bus: "${text}"`);
+
+    await this.dbusManager.typeText(text.trim(), copyToClipboard);
   }
 
   async startRecording(settings) {

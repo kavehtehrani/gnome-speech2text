@@ -180,10 +180,6 @@ export class RecordingStateManager {
     this.recordingDialog = dialog;
   }
 
-  getCurrentRecordingId() {
-    return this.currentRecordingId;
-  }
-
   isRecording() {
     return this.currentRecordingId !== null;
   }

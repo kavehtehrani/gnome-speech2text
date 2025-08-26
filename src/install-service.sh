@@ -99,7 +99,7 @@ ask_user() {
     local response=""
     
     if [ "$INTERACTIVE" = true ]; then
-        read -p "$prompt" response
+        read -r -p "$prompt" response
     else
         echo "$prompt$default (non-interactive default)"
         response="$default"

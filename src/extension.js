@@ -175,23 +175,6 @@ export default class Speech2TextExtension extends Extension {
     }
   }
 
-  refreshEventHandlers() {
-    if (!this.isEnabled || !this.uiManager || !this.settings) {
-      console.error(
-        "Extension not properly enabled, cannot refresh event handlers"
-      );
-      return;
-    }
-
-    console.log("Refreshing event handlers after session change");
-
-    // Re-setup keybinding
-    this.keybindingManager?.setupKeybinding();
-
-    // Refresh UI event handlers
-    this.uiManager.refreshEventHandlers();
-  }
-
   disable() {
     console.log("Disabling Speech2Text extension (D-Bus version)");
 
@@ -230,40 +213,5 @@ export default class Speech2TextExtension extends Extension {
 
     // Clear settings reference
     this.settings = null;
-  }
-
-  // Getters for components
-  getUIManager() {
-    return this.uiManager;
-  }
-
-  getRecordingController() {
-    return this.recordingController;
-  }
-
-  getServiceManager() {
-    return this.serviceManager;
-  }
-
-  getSettingsObject() {
-    return this.settings;
-  }
-
-  // Static method to get the global instance
-  static getInstance() {
-    return extensionInstance;
-  }
-
-  // Delegate methods to UI manager
-  captureNewShortcut(callback) {
-    return this.uiManager?.captureNewShortcut(callback);
-  }
-
-  showSettingsWindow() {
-    return this.uiManager?.showSettingsWindow();
-  }
-
-  showServiceSetupDialog(errorMessage, isFirstRun = false) {
-    return this.uiManager?.showServiceSetupDialog(errorMessage, isFirstRun);
   }
 }
