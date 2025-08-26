@@ -334,7 +334,7 @@ export class SettingsDialog {
 
     // Keyboard shortcuts
     this.changeShortcutButton.connect("clicked", () => {
-      this.extension.captureNewShortcut((newShortcut) => {
+      this.extension.uiManager.captureNewShortcut((newShortcut) => {
         if (newShortcut) {
           this.settings.set_strv("toggle-recording", [newShortcut]);
           this.currentShortcutDisplay.set_text(newShortcut);
