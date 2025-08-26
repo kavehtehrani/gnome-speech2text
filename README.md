@@ -113,11 +113,12 @@ For the easiest installation experience on Ubuntu/Debian, use the repository ins
 # Clone the repository
 git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
-
-# Run the installation script
-./install.sh
 ```
 
+```
+``# Run the installation script (On Ubuntu/Debian)
+./install.sh
+```
 This script will (on Ubuntu/Debian):
 
 - Check system dependencies and guide you through installing any missing ones
@@ -126,6 +127,11 @@ This script will (on Ubuntu/Debian):
 - Apply compatibility fixes for GNOME 48/Wayland automatically
 - Provide instructions for restarting GNOME Shell
 - Give you clear next steps to start using the extension
+
+```# Other linux distros
+make install
+```
+This will install the extension, but you have to manually install the dependencies listed above for your linux distro. After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
 
 ### First Time Setup
 
@@ -158,12 +164,10 @@ If you only want to install the D-Bus service (for development or advanced users
 
 ```bash
 # Install just the service from local source
-cd service/
-./install.sh --local
+./src/install-service.sh --local
 
 # Or install from PyPI
-cd service/
-./install.sh --pypi
+./src/install-service.sh --pypi
 ```
 
 The service is available as a Python package on PyPI: `gnome-speech2text-service`
