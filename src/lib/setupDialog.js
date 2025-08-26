@@ -358,39 +358,42 @@ This service is installed separately from the extension (following GNOME guideli
   _runAutomaticInstall() {
     try {
       const workingDir = GLib.get_home_dir();
-      // Prefer bundled installer script from the extension package
       const scriptPath = `${this.extension.path}/install-service.sh`;
       const command = `bash -c "'${scriptPath}' --pypi --non-interactive; echo; echo 'Press Enter to close...'; read"`;
 
-      try {
-        Gio.Subprocess.new(
-          [
-            "gnome-terminal",
-            `--working-directory=${workingDir}`,
-            "--",
-            "bash",
-            "-c",
-            command,
-          ],
-          Gio.SubprocessFlags.NONE
-        );
+      // Detect available terminal emulator
+      const terminal = this._detectTerminal();
 
+      if (terminal) {
+        try {
+          const terminalArgs = this._getTerminalArgs(
+            terminal,
+            workingDir,
+            command
+          );
+          Gio.Subprocess.new(
+            [terminal, ...terminalArgs],
+            Gio.SubprocessFlags.NONE
+          );
+
+          Main.notify(
+            "Speech2Text",
+            this.isFirstRun
+              ? "🚀 Setting up Speech2Text for you! Follow the terminal instructions."
+              : "🔧 Opening service installation in terminal..."
+          );
+          this.close();
+        } catch (terminalError) {
+          console.error(`Could not open ${terminal}: ${terminalError}`);
+          this._fallbackToClipboard(scriptPath);
+        }
+      } else {
+        console.error("No terminal emulator found");
         Main.notify(
-          "Speech2Text",
-          this.isFirstRun
-            ? "🚀 Setting up Speech2Text for you! Follow the terminal instructions."
-            : "🔧 Opening service installation in terminal..."
+          "Speech2Text Error",
+          "No terminal emulator found. Please install a terminal like gnome-terminal, ptyxis, terminator, or xterm."
         );
-        this.close();
-      } catch (terminalError) {
-        // Fallback to remote installer if terminal fails
-        console.error(`Could not open gnome-terminal: ${terminalError}`);
-        const remoteNonInteractive = `${REMOTE_INSTALL_CMD} --non-interactive`;
-        this._copyToClipboard(remoteNonInteractive);
-        Main.notify(
-          "Speech2Text",
-          "Could not open terminal. Installation command copied to clipboard - please paste in your terminal."
-        );
+        this._fallbackToClipboard(scriptPath);
       }
     } catch (e) {
       console.error(`Error running automatic install: ${e}`);
@@ -399,6 +402,176 @@ This service is installed separately from the extension (following GNOME guideli
         "Automatic installation failed. Please use manual method."
       );
     }
+  }
+
+  _detectTerminal() {
+    // Check for terminal emulators in order of preference
+    const terminals = [
+      "ptyxis", // Fedora GNOME default
+      "gnome-terminal", // Traditional GNOME terminal
+      "terminator", // Popular alternative
+      "xterm", // Universal fallback
+    ];
+
+    for (const terminal of terminals) {
+      try {
+        // Check if the terminal is available by trying to get its version or help
+        const subprocess = Gio.Subprocess.new(
+          [terminal, "--help"],
+          Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
+        );
+        subprocess.wait(null);
+        if (subprocess.get_successful()) {
+          console.log(`Found terminal: ${terminal}`);
+          return terminal;
+        }
+      } catch (e) {
+        // Try alternative check for terminals that don't support --help
+        try {
+          const subprocess = Gio.Subprocess.new(
+            [terminal, "--version"],
+            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
+          );
+          subprocess.wait(null);
+          if (subprocess.get_successful()) {
+            console.log(`Found terminal: ${terminal}`);
+            return terminal;
+          }
+        } catch (e2) {
+          // Try simple existence check
+          try {
+            const subprocess = Gio.Subprocess.new(
+              ["which", terminal],
+              Gio.SubprocessFlags.STDOUT_PIPE
+            );
+            subprocess.wait(null);
+            if (subprocess.get_successful()) {
+              console.log(`Found terminal: ${terminal}`);
+              return terminal;
+            }
+          } catch (e3) {
+            continue;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  _getTerminalArgs(terminal, workingDir, command) {
+    // Return appropriate arguments for each terminal type
+    switch (terminal) {
+      case "ptyxis":
+        return ["--working-directory", workingDir, "--", "bash", "-c", command];
+      case "gnome-terminal":
+        return [
+          `--working-directory=${workingDir}`,
+          "--",
+          "bash",
+          "-c",
+          command,
+        ];
+      case "terminator":
+        return ["--working-directory", workingDir, "-e", "bash", "-c", command];
+      case "xterm":
+        return ["-e", "bash", "-c", `cd "${workingDir}" && ${command}`];
+      default:
+        // Generic fallback
+        return ["-e", "bash", "-c", `cd "${workingDir}" && ${command}`];
+    }
+  }
+
+  _fallbackToClipboard(scriptPath) {
+    // Copy the local installation command to clipboard
+    const localInstallCmd = `bash "${scriptPath}" --pypi --non-interactive`;
+    this._copyToClipboard(localInstallCmd);
+
+    Main.notify(
+      "Speech2Text",
+      "Could not open terminal. Installation command copied to clipboard - please open a terminal manually and paste the command."
+    );
+
+    // Show additional help dialog
+    this._showTerminalHelpDialog();
+  }
+
+  _showTerminalHelpDialog() {
+    const helpText = `No supported terminal emulator was found on your system.
+
+To install the Speech2Text service, you need to:
+
+1. Open a terminal manually (Ctrl+Alt+T or search for "Terminal" in your applications)
+2. Paste the command that was copied to your clipboard
+3. Press Enter and follow the installation instructions
+
+Common ways to open a terminal:
+• Press Ctrl+Alt+T (works on most Linux distributions)
+• Search for "Terminal" in your application menu
+• Right-click on desktop and select "Open Terminal" (if available)
+• Use Alt+F2, type "gnome-terminal" and press Enter
+
+Supported terminal emulators:
+• ptyxis (Fedora GNOME default)
+• gnome-terminal (traditional GNOME terminal)
+• terminator (popular alternative)
+• xterm (universal fallback)
+
+If you're still having trouble, you can also:
+• Visit the GitHub repository for manual instructions
+• Install one of the supported terminal emulators`;
+
+    const helpDialog = new St.Modal({
+      style: `
+        background-color: rgba(20, 20, 20, 0.95);
+        border-radius: 12px;
+        padding: 24px;
+        min-width: 500px;
+        max-width: 600px;
+        border: ${STYLES.DIALOG_BORDER};
+      `,
+    });
+
+    const helpContainer = new St.BoxLayout({
+      vertical: true,
+      style: "spacing: 15px;",
+    });
+
+    // Header
+    const headerBox = new St.BoxLayout({
+      style: "spacing: 10px;",
+    });
+    const headerIcon = createStyledLabel("💻", "icon", "font-size: 24px;");
+    const headerText = createStyledLabel(
+      "Terminal Not Found",
+      "title",
+      `color: ${COLORS.WARNING};`
+    );
+    headerBox.add_child(headerIcon);
+    headerBox.add_child(headerText);
+
+    // Help text
+    const helpLabel = new St.Label({
+      text: helpText,
+      style: `
+        font-size: 14px;
+        color: ${COLORS.WHITE};
+        line-height: 1.4;
+      `,
+    });
+
+    // Close button
+    const closeButton = createHoverButton("Got it!", COLORS.PRIMARY, "#ff8c00");
+    closeButton.connect("clicked", () => {
+      helpDialog.close();
+    });
+
+    helpContainer.add_child(headerBox);
+    helpContainer.add_child(helpLabel);
+    helpContainer.add_child(closeButton);
+
+    helpDialog.set_content(helpContainer);
+    helpDialog.open();
   }
 
   show() {
