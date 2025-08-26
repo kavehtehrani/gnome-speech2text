@@ -490,7 +490,7 @@ This service is installed separately from the extension (following GNOME guideli
       const workingDir = GLib.get_home_dir();
       // Prefer bundled installer script from the extension package
       const scriptPath = `${this.extension.path}/install-service.sh`;
-      const command = `bash -c "chmod +x '${scriptPath}' && '${scriptPath}' --pypi --non-interactive; echo; echo 'Press Enter to close...'; read"`;
+      const command = `bash -c "'${scriptPath}' --pypi --non-interactive; echo; echo 'Press Enter to close...'; read"`;
 
       try {
         Gio.Subprocess.new(

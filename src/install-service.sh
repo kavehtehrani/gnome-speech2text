@@ -64,14 +64,23 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 print_status() {
     echo -e "${GREEN}==>${NC} $1"
 }
 
-error_exit() {
+print_warning() {
+    echo -e "${YELLOW}Warning:${NC} $1"
+}
+
+print_error() {
     echo -e "${RED}Error:${NC} $1"
+}
+
+error_exit() {
+    print_error "$1"
     exit 1
 }
 
@@ -98,6 +107,8 @@ ask_user() {
     
     echo "$response"
 }
+
+
 
 # Detect installation mode
 detect_install_mode() {
@@ -137,221 +148,120 @@ print_status "Installing GNOME Speech2Text D-Bus Service"
 # Detect installation mode early
 detect_install_mode
 
-echo ""
-echo -e "${BLUE}This script will install all required dependencies for Ubuntu.${NC}"
-echo ""
-if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, wl-clipboard"
-    echo "We need to run the following command to install all dependencies:"
-    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard"
-else
-    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, xclip"
-    echo "We need to run the following command to install all dependencies:"
-    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip"
-fi
-echo ""
-install_all=$(ask_user "Would you like to install all dependencies at once? [Y/n]: " "Y")
-case "$install_all" in
-    [Nn]* ) 
-        echo "Checking dependencies individually..."
-        ;;
-    * ) 
-        print_status "Installing all dependencies..."
-        if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard
-        else
-            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip
-        fi
-        if [ $? -eq 0 ]; then
-            print_status "All dependencies installed successfully!"
-        else
-            echo -e "${YELLOW}Warning:${NC} Some packages may have failed to install. Checking individually..."
-        fi
-        ;;
-esac
-
-echo ""
-
 # Check for required system dependencies
-print_status "Checking system dependencies..."
+check_system_dependencies() {
+    local missing_deps=()
+    local missing_python_version=false
 
-# Check for Python 3.8+
-if ! command_exists python3; then
-    echo -e "${RED}Error:${NC} Python 3 is not installed."
-    echo ""
-    echo "Please run the following command to install Python 3:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3${NC}"
-    echo ""
-    install_python=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_python" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y python3 || error_exit "Failed to install Python 3"
-            ;;
-        * ) 
-            error_exit "Python 3 is required. Please install it and run this script again."
-            ;;
-    esac
-fi
-
-PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-if ! version_ge "$PYTHON_VERSION" "3.8"; then
-    echo -e "${RED}Error:${NC} Python 3.8 or higher is required. Found version $PYTHON_VERSION"
-    echo ""
-    echo "Please run the following command to install a newer Python version:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3.8${NC}"
-    error_exit "Python version too old"
-fi
-
-print_status "Python version $PYTHON_VERSION detected ✓"
-
-# Check for pip
-if ! command_exists pip3; then
-    echo -e "${RED}Error:${NC} pip3 is not installed."
-    echo ""
-    echo "Please run the following command to install pip3:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-pip${NC}"
-    echo ""
-    install_pip=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_pip" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y python3-pip || error_exit "Failed to install pip3"
-            ;;
-        * ) 
-            error_exit "pip3 is required. Please install it and run this script again."
-            ;;
-    esac
-fi
-
-# Check for required system packages
-print_status "Checking system packages..."
-
-# Check for ffmpeg
-if ! command_exists ffmpeg; then
-    echo -e "${RED}Error:${NC} ffmpeg is not installed."
-    echo ""
-    echo "Please run the following command to install it:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y ffmpeg${NC}"
-    echo ""
-    install_ffmpeg=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_ffmpeg" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y ffmpeg || error_exit "Failed to install ffmpeg"
-            ;;
-        * ) 
-            error_exit "ffmpeg is required. Please install it and run this script again."
-            ;;
-    esac
-fi
-
-# Check for xdotool (only required for X11 sessions)
-if [ "${XDG_SESSION_TYPE:-}" != "wayland" ]; then
-    if ! command_exists xdotool; then
-        echo -e "${RED}Error:${NC} xdotool is not installed."
-        echo ""
-        echo "Please run the following command to install it:"
-        echo -e "${YELLOW}sudo apt update && sudo apt install -y xdotool${NC}"
-        echo ""
-        install_xdotool=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-        case "$install_xdotool" in
-            [Yy]* ) 
-                sudo apt update && sudo apt install -y xdotool || error_exit "Failed to install xdotool"
-                ;;
-            * ) 
-                error_exit "xdotool is required for X11 sessions. Please install it and run this script again."
-                ;;
-        esac
-    fi
-else
-    print_status "Skipping xdotool check (not needed for Wayland sessions)"
-fi
-
-# Check for clipboard tools (session-type specific)
-CLIPBOARD_AVAILABLE=false
-if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-    if command_exists wl-copy; then
-        CLIPBOARD_AVAILABLE=true
-    fi
-else
-    # X11 or unknown - check for xclip/xsel
-    for tool in xclip xsel; do
-        if command_exists "$tool"; then
-            CLIPBOARD_AVAILABLE=true
-            break
-        fi
-    done
-fi
-
-if [ "$CLIPBOARD_AVAILABLE" = false ]; then
-    echo -e "${YELLOW}Warning:${NC} No clipboard tools found."
-    echo ""
-    
-    if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-        echo "Please run the following command to install wl-clipboard (for Wayland):"
-        echo -e "${YELLOW}sudo apt update && sudo apt install -y wl-clipboard${NC}"
-        echo ""
-        install_clipboard=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-        case "$install_clipboard" in
-            [Yy]* ) 
-                sudo apt update && sudo apt install -y wl-clipboard || echo -e "${YELLOW}Warning:${NC} Failed to install wl-clipboard, continuing without clipboard support"
-                ;;
-            * ) 
-                echo -e "${YELLOW}Warning:${NC} Continuing without clipboard support on Wayland"
-                ;;
-        esac
+    # Check for Python 3.8+
+    if ! command_exists python3; then
+        print_error "Python 3 is not installed."
+        missing_deps+=("python3")
     else
-        echo "Please run the following command to install xclip (for X11):"
-        echo -e "${YELLOW}sudo apt update && sudo apt install -y xclip${NC}"
-        echo ""
-        install_clipboard=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-        case "$install_clipboard" in
-            [Yy]* ) 
-                sudo apt update && sudo apt install -y xclip || echo -e "${YELLOW}Warning:${NC} Failed to install xclip, continuing without clipboard support"
-                ;;
-            * ) 
-                echo -e "${YELLOW}Warning:${NC} Continuing without clipboard support on X11"
-                ;;
-        esac
+        local python_version
+        python_version=$(python3 --version | grep -oE '[0-9]+\.[0-9]+' | head -1)
+        if ! version_ge "$python_version" "3.8"; then
+            print_warning "Python $python_version detected. Python 3.8+ recommended"
+            missing_python_version=true
+        else
+            print_status "Python $python_version (compatible)"
+        fi
     fi
-fi
 
-# Check for D-Bus development files
-print_status "Checking D-Bus development packages..."
+    # Check for pip
+    if ! command_exists pip3 && ! command_exists pip; then
+        print_error "Python pip not found"
+        missing_deps+=("python3-pip")
+    else
+        print_status "Python pip found"
+    fi
 
-if ! python3 -c "import dbus" 2>/dev/null; then
-    echo -e "${RED}Error:${NC} python3-dbus is not installed."
-    echo ""
-    echo "Please run the following command to install it:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-dbus${NC}"
-    echo ""
-    install_dbus=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_dbus" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y python3-dbus || error_exit "Failed to install python3-dbus"
-            ;;
-        * ) 
-            error_exit "python3-dbus is required. Please install it and run this script again."
-            ;;
-    esac
-fi
+    # Check for FFmpeg
+    if ! command_exists ffmpeg; then
+        print_error "FFmpeg not found (required for audio recording)"
+        missing_deps+=("ffmpeg")
+    else
+        print_status "FFmpeg found"
+    fi
 
-if ! python3 -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
-    echo -e "${RED}Error:${NC} PyGObject is not installed."
-    echo ""
-    echo "Please run the following command to install it:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-gi${NC}"
-    echo ""
-    install_gi=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_gi" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y python3-gi || error_exit "Failed to install python3-gi"
-            ;;
-        * ) 
-            error_exit "PyGObject is required. Please install it and run this script again."
-            ;;
-    esac
-fi
+    # Check for xdotool (for text insertion on X11 only)
+    if [ "${XDG_SESSION_TYPE:-}" != "wayland" ]; then
+        if ! command_exists xdotool; then
+            print_warning "xdotool not found (text insertion on X11 will not work)"
+            missing_deps+=("xdotool")
+        else
+            print_status "xdotool found (text insertion support)"
+        fi
+    else
+        print_status "Skipping xdotool check (not needed for Wayland sessions)"
+    fi
 
-print_status "All system dependencies found ✓"
+    # Check for clipboard tools (session-type specific)
+    local clipboard_found=false
+    if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+        if command_exists wl-copy; then
+            print_status "wl-copy found (clipboard support for Wayland)"
+            clipboard_found=true
+        else
+            print_warning "wl-copy not found (required for Wayland clipboard)"
+            missing_deps+=("wl-clipboard")
+        fi
+    else
+        # X11 or unknown - check for xclip/xsel
+        for cmd in xclip xsel; do
+            if command_exists "$cmd"; then
+                print_status "$cmd found (clipboard support for X11)"
+                clipboard_found=true
+                break
+            fi
+        done
+        
+        if [ "$clipboard_found" = false ]; then
+            print_warning "No clipboard tool found (xclip recommended for X11)"
+            missing_deps+=("xclip")
+        fi
+    fi
+
+    # Check for D-Bus development files
+    if ! python3 -c "import dbus" 2>/dev/null; then
+        print_error "python3-dbus is not installed"
+        missing_deps+=("python3-dbus")
+    else
+        print_status "python3-dbus found"
+    fi
+
+    if ! python3 -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
+        print_error "PyGObject is not installed"
+        missing_deps+=("python3-gi")
+    else
+        print_status "PyGObject found"
+    fi
+
+    # If there are missing dependencies, provide guidance
+    if [ ${#missing_deps[@]} -gt 0 ] || [ "$missing_python_version" = true ]; then
+        echo
+        print_warning "Some dependencies are missing or outdated"
+        echo
+        
+        echo -e "${CYAN}Required dependencies:${NC}"
+        printf '%s\n' "${missing_deps[@]}"
+        echo
+        
+        echo -e "${CYAN}Please install these packages using your distribution's package manager.${NC}"
+        echo
+        
+        local install_anyway
+        install_anyway=$(ask_user "Continue installation anyway? (y/N): " "n")
+        if [[ ! "$install_anyway" =~ ^[Yy]$ ]]; then
+            error_exit "Please install the required dependencies first"
+        fi
+    else
+        print_status "All system dependencies found"
+    fi
+}
+
+print_status "Checking system dependencies..."
+check_system_dependencies
 
 # Create virtual environment for the service
 SERVICE_DIR="$HOME/.local/share/gnome-speech2text-service"
@@ -362,21 +272,10 @@ mkdir -p "$SERVICE_DIR"
 
 print_status "Creating Python virtual environment..."
 if ! python3 -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
-    echo -e "${RED}Error:${NC} Failed to create virtual environment. python3-venv may not be installed."
+    print_error "Failed to create virtual environment. python3-venv may not be installed."
     echo ""
-    echo "Please run the following command to install python3-venv:"
-    echo -e "${YELLOW}sudo apt update && sudo apt install -y python3-venv${NC}"
-    echo ""
-    install_venv=$(ask_user "Would you like to run this command now? [y/N]: " "y")
-    case "$install_venv" in
-        [Yy]* ) 
-            sudo apt update && sudo apt install -y python3-venv || error_exit "Failed to install python3-venv"
-            python3 -m venv "$VENV_DIR" --system-site-packages || error_exit "Failed to create virtual environment"
-            ;;
-        * ) 
-            error_exit "python3-venv is required. Please install it and run this script again."
-            ;;
-    esac
+    echo "Please install python3-venv using your distribution's package manager."
+    error_exit "python3-venv is required. Please install it and run this script again."
 fi
 
 print_status "Upgrading pip..."
@@ -406,7 +305,7 @@ install_service_package() {
                 echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
             else
                 echo ""
-                echo -e "${YELLOW}⚠️  PyPI installation failed!${NC}"
+                print_warning "PyPI installation failed!"
                 
                 # Offer local fallback if available
                 FALLBACK_DIR="$LOCAL_SOURCE_DIR"
