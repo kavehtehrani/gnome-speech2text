@@ -124,10 +124,6 @@ export class UIManager {
     shortcutCapture.capture(callback);
   }
 
-  getIcon() {
-    return this.icon;
-  }
-
   cleanup() {
     // Close settings dialog
     if (this.settingsDialog) {
