@@ -1,0 +1,271 @@
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
+
+import { RecordingStateManager } from "./recordingStateManager.js";
+import { RecordingDialog } from "./recordingDialog.js";
+
+export class RecordingController {
+  constructor(uiManager, serviceManager) {
+    this.uiManager = uiManager;
+    this.serviceManager = serviceManager;
+    this.recordingStateManager = null;
+  }
+
+  initialize() {
+    // Initialize recording state manager
+    this.recordingStateManager = new RecordingStateManager(
+      this.uiManager.getIcon(),
+      this.serviceManager.getDBusManager()
+    );
+  }
+
+  async toggleRecording(settings) {
+    // Check if this is the first time the user is trying to use the extension
+    const isFirstRun = settings.get_boolean("first-run");
+
+    if (isFirstRun) {
+      console.log("First-time usage detected - checking service status");
+
+      // Initialize D-Bus manager if not already done
+      if (!this.serviceManager.isInitialized) {
+        console.log("Initializing service manager for first-time usage");
+        const serviceAvailable =
+          await this.serviceManager.ensureServiceAvailable();
+        if (!serviceAvailable) {
+          console.log("Service initialization failed for first-time usage");
+          // Don't set first-run to false yet - user should get another chance
+          this.uiManager.showServiceSetupDialog("Let's get started!", true);
+          return;
+        }
+      }
+
+      // Check service status
+      console.log("Checking service status for first-time usage");
+      const serviceStatus = await this.serviceManager
+        .getDBusManager()
+        .checkServiceStatus();
+      if (!serviceStatus.available) {
+        console.log(
+          "Service not available for first-time usage:",
+          serviceStatus.error
+        );
+        // Don't set first-run to false yet - user should get another chance
+        this.uiManager.showServiceSetupDialog(
+          "Ready to set up speech-to-text!",
+          true
+        );
+        return;
+      }
+
+      console.log("Service is available - completing first-time setup");
+      // Service is working! Mark first run as complete and show welcome
+      settings.set_boolean("first-run", false);
+      this.uiManager.showSuccessNotification(
+        "Speech2Text",
+        "🎉 Welcome! Extension is ready to use. Right-click the microphone icon for settings."
+      );
+
+      // Initialize recording state manager if not already done
+      if (!this.recordingStateManager) {
+        console.log(
+          "Initializing recording state manager for first-time usage"
+        );
+        this.initialize();
+      }
+    }
+
+    // For non-first-run usage, check if service is available
+    if (!this.recordingStateManager || !this.serviceManager.isInitialized) {
+      console.log("Non-first-run: Checking service manager and service status");
+      // Try to initialize if not already done
+      const serviceAvailable =
+        await this.serviceManager.ensureServiceAvailable();
+      if (!serviceAvailable) {
+        console.log("Service initialization failed for non-first-run usage");
+        this.uiManager.showServiceSetupDialog(
+          "Failed to connect to speech-to-text service"
+        );
+        return;
+      }
+
+      const serviceStatus = await this.serviceManager
+        .getDBusManager()
+        .checkServiceStatus();
+      if (!serviceStatus.available) {
+        console.log(
+          "Service not available for non-first-run usage:",
+          serviceStatus.error
+        );
+        this.uiManager.showServiceSetupDialog(
+          "Speech-to-text service is not available"
+        );
+        return;
+      }
+    }
+
+    // Now handle the actual recording toggle
+    if (this.recordingStateManager.isRecording()) {
+      console.log("Stopping recording");
+      this.recordingStateManager.stopRecording();
+    } else {
+      console.log("Starting recording");
+
+      // Ensure RecordingStateManager has current service manager reference
+      if (
+        this.recordingStateManager &&
+        this.serviceManager.getDBusManager() &&
+        this.recordingStateManager.dbusManager !==
+          this.serviceManager.getDBusManager()
+      ) {
+        this.recordingStateManager.updateDbusManager(
+          this.serviceManager.getDBusManager()
+        );
+      }
+
+      const success = await this.recordingStateManager.startRecording(settings);
+
+      if (success) {
+        // Create and show recording dialog
+        const recordingDialog = new RecordingDialog(
+          () => {
+            // Cancel callback
+            this.recordingStateManager.cancelRecording();
+            this.recordingStateManager.setRecordingDialog(null);
+          },
+          (text) => {
+            // Insert callback
+            console.log(`Inserting text: ${text}`);
+            this._typeText(text);
+            this.recordingStateManager.setRecordingDialog(null);
+          },
+          () => {
+            // Stop callback
+            console.log("Stop recording button clicked");
+            this.recordingStateManager.stopRecording();
+          },
+          settings.get_int("recording-duration")
+        );
+
+        this.recordingStateManager.setRecordingDialog(recordingDialog);
+        console.log(
+          "RecordingController: Created and set recording dialog, opening now"
+        );
+        recordingDialog.open();
+      } else {
+        this.uiManager.showErrorNotification(
+          "Speech2Text Error",
+          "Failed to start recording. Please try again."
+        );
+      }
+    }
+  }
+
+  handleRecordingStopped(recordingId, reason) {
+    if (!this.recordingStateManager) {
+      console.log("Recording state manager not initialized");
+      return;
+    }
+
+    console.log(
+      `RecordingController: Recording stopped - ID: ${recordingId}, reason: ${reason}`
+    );
+    if (reason === "completed") {
+      // Recording completed automatically - don't close dialog yet
+      this.recordingStateManager.handleRecordingCompleted(recordingId);
+    }
+    // For manual stops (reason === "stopped"), the dialog is already closed
+    // in the stopRecording method
+  }
+
+  handleTranscriptionReady(recordingId, text) {
+    if (!this.recordingStateManager) {
+      console.log("Recording state manager not initialized");
+      return;
+    }
+
+    console.log(
+      `RecordingController: Transcription ready - ID: ${recordingId}, text: "${text}"`
+    );
+    const result = this.recordingStateManager.handleTranscriptionReady(
+      recordingId,
+      text,
+      this.uiManager.extensionCore.getSettingsObject()
+    );
+
+    console.log(
+      `RecordingController: Transcription result - action: ${result?.action}`
+    );
+    if (result && result.action === "insert") {
+      this._typeText(result.text);
+    } else if (result && result.action === "createPreview") {
+      console.log("Creating new preview dialog for transcribed text");
+      this._showPreviewDialog(result.text);
+    } else if (result && result.action === "ignored") {
+      console.log("Transcription ignored - recording was cancelled");
+      // Nothing to do - recording was cancelled
+    }
+  }
+
+  handleRecordingError(recordingId, errorMessage) {
+    if (!this.recordingStateManager) {
+      console.log("Recording state manager not initialized");
+      return;
+    }
+
+    this.recordingStateManager.handleRecordingError(recordingId, errorMessage);
+  }
+
+  _showPreviewDialog(text) {
+    console.log("Creating preview dialog for text:", text);
+
+    // Create a new preview-only dialog
+    const previewDialog = new RecordingDialog(
+      () => {
+        // Cancel callback - just close
+        previewDialog.close();
+      },
+      (finalText) => {
+        // Insert callback
+        console.log(`Inserting text from preview: ${finalText}`);
+        this._typeText(finalText);
+        previewDialog.close();
+      },
+      null, // No stop callback needed for preview-only
+      0 // No duration for preview-only
+    );
+
+    // First open the dialog, then show preview
+    console.log("Opening preview dialog");
+    previewDialog.open();
+    console.log("Showing preview in opened dialog");
+    previewDialog.showPreview(text);
+  }
+
+  async _typeText(text) {
+    try {
+      await this.serviceManager.typeText(
+        text,
+        this.uiManager.extensionCore
+          .getSettingsObject()
+          .get_boolean("copy-to-clipboard")
+      );
+    } catch (e) {
+      console.error(`Error typing text: ${e}`);
+      this.uiManager.showErrorNotification(
+        "Speech2Text Error",
+        "Failed to insert text."
+      );
+    }
+  }
+
+  getRecordingStateManager() {
+    return this.recordingStateManager;
+  }
+
+  cleanup() {
+    if (this.recordingStateManager) {
+      console.log("Cleaning up recording state manager");
+      this.recordingStateManager.cleanup();
+      this.recordingStateManager = null;
+    }
+  }
+}
