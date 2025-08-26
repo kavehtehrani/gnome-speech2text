@@ -124,7 +124,7 @@ This is a one-time setup that handles audio recording and speech processing.
 The service is installed separately from the extension (following GNOME guidelines).`
         : this.isManualRequest
         ? `Instructions for installing and troubleshooting the Speech2Text service.
-Use this if you need to reinstall the service or help someone else set it up.`
+Use this if you need to reinstall the d-bus service.`
         : `GNOME Speech2Text requires a background service for speech processing.
 This service is installed separately from the extension (following GNOME guidelines).`,
       style: `
