@@ -371,7 +371,6 @@ install_dbus_service_file() {
 [D-BUS Service]
 Name=org.gnome.Shell.Extensions.Speech2Text
 Exec=$SERVICE_DIR/gnome-speech2text-service
-User=session
 EOF
                 echo "✅ D-Bus service file created (fallback)"
             fi
@@ -383,7 +382,6 @@ EOF
 [D-BUS Service]
 Name=org.gnome.Shell.Extensions.Speech2Text
 Exec=$SERVICE_DIR/gnome-speech2text-service
-User=session
 EOF
             echo "✅ D-Bus service file created for PyPI installation"
             ;;
