@@ -335,17 +335,14 @@ export class DBusManager {
   async ensureConnection() {
     const isValid = await this.validateConnection();
     if (!isValid) {
-      console.log("Reinitializing D-Bus connection after validation failure");
+      console.log("Reinitializing D-Bus connection...");
       const initialized = await this.initialize();
 
       // If initialization failed, try to start the service
       if (!initialized) {
-        console.log(
-          "D-Bus initialization failed, attempting to start service..."
-        );
+        console.log("Service not available, attempting to start...");
         const serviceStarted = await this._startService();
         if (serviceStarted) {
-          console.log("Service started, retrying D-Bus initialization...");
           return await this.initialize();
         }
       }
@@ -357,13 +354,11 @@ export class DBusManager {
 
   async _startService() {
     try {
-      console.log("Attempting to start Speech2Text service...");
+      console.log("Starting Speech2Text service...");
 
       // Get the user's home directory
       const homeDir = GLib.get_home_dir();
       const servicePath = `${homeDir}/.local/share/gnome-speech2text-service/gnome-speech2text-service`;
-
-      console.log(`Service path: ${servicePath}`);
 
       // Check if the service file exists
       const serviceFile = Gio.File.new_for_path(servicePath);
@@ -372,66 +367,39 @@ export class DBusManager {
         return false;
       }
 
-      // Try to start the service in background with proper environment
-      const env = GLib.get_environ();
-      env = GLib.environ_setenv(
-        env,
-        "PYTHONPATH",
-        `${homeDir}/.local/share/gnome-speech2text-service/venv/lib/python3.*/site-packages`,
-        true
-      );
-
+      // Start the service
       const subprocess = Gio.Subprocess.new(
         [servicePath],
         Gio.SubprocessFlags.NONE
       );
 
-      console.log(
-        "Service subprocess started, waiting for it to initialize..."
-      );
+      // Wait for service to start and register with D-Bus
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      // Try multiple times to check if service becomes available
-      for (let attempt = 1; attempt <= 6; attempt++) {
-        console.log(`Checking service availability (attempt ${attempt}/6)...`);
+      // Verify service is available
+      try {
+        const testProxy = Gio.DBusProxy.new_sync(
+          Gio.DBus.session,
+          Gio.DBusProxyFlags.NONE,
+          null,
+          "org.gnome.Shell.Extensions.Speech2Text",
+          "/org/gnome/Shell/Extensions/Speech2Text",
+          "org.gnome.Shell.Extensions.Speech2Text",
+          null
+        );
 
-        // Wait progressively longer
-        await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
-
-        // Try to check if the service is now available
-        try {
-          const testProxy = Gio.DBusProxy.new_sync(
-            Gio.DBus.session,
-            Gio.DBusProxyFlags.NONE,
-            null,
-            "org.gnome.Shell.Extensions.Speech2Text",
-            "/org/gnome/Shell/Extensions/Speech2Text",
-            "org.gnome.Shell.Extensions.Speech2Text",
-            null
-          );
-
-          const [status] = testProxy.GetServiceStatusSync();
-          console.log(`Service status after start: ${status}`);
-
-          if (status.startsWith("ready:")) {
-            console.log("Service started successfully and is ready");
-            return true;
-          } else if (status.startsWith("error:")) {
-            console.log(`Service started but has error: ${status}`);
-            return false;
-          } else {
-            console.log(`Service started but not ready yet: ${status}`);
-            // Continue waiting
-          }
-        } catch (testError) {
-          console.log(
-            `Service not available yet (attempt ${attempt}): ${testError.message}`
-          );
-          // Continue waiting
+        const [status] = testProxy.GetServiceStatusSync();
+        if (status.startsWith("ready:")) {
+          console.log("Service started successfully");
+          return true;
+        } else {
+          console.log(`Service started but not ready: ${status}`);
+          return false;
         }
+      } catch (testError) {
+        console.log("Service not available after start attempt");
+        return false;
       }
-
-      console.log("Service failed to become available after all attempts");
-      return false;
     } catch (e) {
       console.error(`Failed to start service: ${e}`);
       return false;
