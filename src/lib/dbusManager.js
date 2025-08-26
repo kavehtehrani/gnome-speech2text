@@ -363,17 +363,75 @@ export class DBusManager {
       const homeDir = GLib.get_home_dir();
       const servicePath = `${homeDir}/.local/share/gnome-speech2text-service/gnome-speech2text-service`;
 
-      // Try to start the service
+      console.log(`Service path: ${servicePath}`);
+
+      // Check if the service file exists
+      const serviceFile = Gio.File.new_for_path(servicePath);
+      if (!serviceFile.query_exists(null)) {
+        console.error(`Service file not found: ${servicePath}`);
+        return false;
+      }
+
+      // Try to start the service in background with proper environment
+      const env = GLib.get_environ();
+      env = GLib.environ_setenv(
+        env,
+        "PYTHONPATH",
+        `${homeDir}/.local/share/gnome-speech2text-service/venv/lib/python3.*/site-packages`,
+        true
+      );
+
       const subprocess = Gio.Subprocess.new(
         [servicePath],
         Gio.SubprocessFlags.NONE
       );
 
-      // Wait a moment for the service to start
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log(
+        "Service subprocess started, waiting for it to initialize..."
+      );
 
-      console.log("Service start attempt completed");
-      return true;
+      // Try multiple times to check if service becomes available
+      for (let attempt = 1; attempt <= 6; attempt++) {
+        console.log(`Checking service availability (attempt ${attempt}/6)...`);
+
+        // Wait progressively longer
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+
+        // Try to check if the service is now available
+        try {
+          const testProxy = Gio.DBusProxy.new_sync(
+            Gio.DBus.session,
+            Gio.DBusProxyFlags.NONE,
+            null,
+            "org.gnome.Shell.Extensions.Speech2Text",
+            "/org/gnome/Shell/Extensions/Speech2Text",
+            "org.gnome.Shell.Extensions.Speech2Text",
+            null
+          );
+
+          const [status] = testProxy.GetServiceStatusSync();
+          console.log(`Service status after start: ${status}`);
+
+          if (status.startsWith("ready:")) {
+            console.log("Service started successfully and is ready");
+            return true;
+          } else if (status.startsWith("error:")) {
+            console.log(`Service started but has error: ${status}`);
+            return false;
+          } else {
+            console.log(`Service started but not ready yet: ${status}`);
+            // Continue waiting
+          }
+        } catch (testError) {
+          console.log(
+            `Service not available yet (attempt ${attempt}): ${testError.message}`
+          );
+          // Continue waiting
+        }
+      }
+
+      console.log("Service failed to become available after all attempts");
+      return false;
     } catch (e) {
       console.error(`Failed to start service: ${e}`);
       return false;
