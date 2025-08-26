@@ -336,9 +336,48 @@ export class DBusManager {
     const isValid = await this.validateConnection();
     if (!isValid) {
       console.log("Reinitializing D-Bus connection after validation failure");
-      return await this.initialize();
+      const initialized = await this.initialize();
+
+      // If initialization failed, try to start the service
+      if (!initialized) {
+        console.log(
+          "D-Bus initialization failed, attempting to start service..."
+        );
+        const serviceStarted = await this._startService();
+        if (serviceStarted) {
+          console.log("Service started, retrying D-Bus initialization...");
+          return await this.initialize();
+        }
+      }
+
+      return initialized;
     }
     return true;
+  }
+
+  async _startService() {
+    try {
+      console.log("Attempting to start Speech2Text service...");
+
+      // Get the user's home directory
+      const homeDir = GLib.get_home_dir();
+      const servicePath = `${homeDir}/.local/share/gnome-speech2text-service/gnome-speech2text-service`;
+
+      // Try to start the service
+      const subprocess = Gio.Subprocess.new(
+        [servicePath],
+        Gio.SubprocessFlags.NONE
+      );
+
+      // Wait a moment for the service to start
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      console.log("Service start attempt completed");
+      return true;
+    } catch (e) {
+      console.error(`Failed to start service: ${e}`);
+      return false;
+    }
   }
 
   destroy() {
