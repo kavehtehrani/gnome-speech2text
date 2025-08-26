@@ -405,7 +405,7 @@ This service is installed separately from the extension (following GNOME guideli
   }
 
   _detectTerminal() {
-    // Check for terminal emulators in order of preference
+    // Non-blocking detection using PATH lookup to avoid freezing GNOME Shell
     const terminals = [
       "ptyxis", // Fedora GNOME default
       "gnome-terminal", // Traditional GNOME terminal
@@ -415,44 +415,13 @@ This service is installed separately from the extension (following GNOME guideli
 
     for (const terminal of terminals) {
       try {
-        // Check if the terminal is available by trying to get its version or help
-        const subprocess = Gio.Subprocess.new(
-          [terminal, "--help"],
-          Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
-        );
-        subprocess.wait(null);
-        if (subprocess.get_successful()) {
-          console.log(`Found terminal: ${terminal}`);
+        const foundPath = GLib.find_program_in_path(terminal);
+        if (foundPath && foundPath.length > 0) {
+          console.log(`Found terminal: ${terminal} at ${foundPath}`);
           return terminal;
         }
-      } catch (e) {
-        // Try alternative check for terminals that don't support --help
-        try {
-          const subprocess = Gio.Subprocess.new(
-            [terminal, "--version"],
-            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
-          );
-          subprocess.wait(null);
-          if (subprocess.get_successful()) {
-            console.log(`Found terminal: ${terminal}`);
-            return terminal;
-          }
-        } catch (e2) {
-          // Try simple existence check
-          try {
-            const subprocess = Gio.Subprocess.new(
-              ["which", terminal],
-              Gio.SubprocessFlags.STDOUT_PIPE
-            );
-            subprocess.wait(null);
-            if (subprocess.get_successful()) {
-              console.log(`Found terminal: ${terminal}`);
-              return terminal;
-            }
-          } catch (e3) {
-            continue;
-          }
-        }
+      } catch (_e) {
+        // Ignore and continue
       }
     }
 
