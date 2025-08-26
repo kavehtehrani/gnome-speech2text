@@ -46,19 +46,6 @@ export class ServiceManager {
       return false;
     }
 
-    // Connect signals with handlers
-    this.dbusManager.connectSignals({
-      onRecordingStopped: (recordingId, reason) => {
-        this._handleRecordingStopped(recordingId, reason);
-      },
-      onTranscriptionReady: (recordingId, text) => {
-        this._handleTranscriptionReady(recordingId, text);
-      },
-      onRecordingError: (recordingId, errorMessage) => {
-        this._handleRecordingError(recordingId, errorMessage);
-      },
-    });
-
     // Check service status
     const serviceStatus = await this.dbusManager.checkServiceStatus();
     if (!serviceStatus.available) {
