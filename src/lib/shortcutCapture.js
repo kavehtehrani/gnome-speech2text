@@ -54,6 +54,9 @@ export class ShortcutCapture {
     this.overlay.set_position(monitor.x, monitor.y);
 
     // Center the capture window
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+    }
     this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [windowWidth, windowHeight] = this.captureWindow.get_size();
       if (windowWidth === 0) windowWidth = 400;

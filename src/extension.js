@@ -158,12 +158,6 @@ export default class Speech2TextExtension extends Extension {
     console.log("Creating new DBusManager instance");
     this.dbusManager = new DBusManager();
 
-    // Prevent multiple enables
-    if (this.isEnabled) {
-      console.log("Extension already enabled, skipping");
-      return;
-    }
-
     try {
       // Initialize settings
       this.settings = this.getSettings("org.shell.extensions.speech2text");
@@ -239,7 +233,6 @@ export default class Speech2TextExtension extends Extension {
     } catch (error) {
       console.error("Error enabling extension:", error);
       // Clean up any partially initialized resources
-      this.isEnabled = false;
       this.disable();
       throw error; // Re-throw to let GNOME Shell handle it
     }
@@ -769,10 +762,7 @@ export default class Speech2TextExtension extends Extension {
     // Mark as disabled immediately to prevent race conditions
     this.isEnabled = false;
 
-    // Clear singleton instance reference
-    if (extensionInstance === this) {
-      extensionInstance = null;
-    }
+    extensionInstance = null;
 
     // Clean up recording state manager
     if (this.recordingStateManager) {

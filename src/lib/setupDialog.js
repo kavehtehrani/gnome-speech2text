@@ -541,6 +541,9 @@ This service is installed separately from the extension (following GNOME guideli
     this.overlay.set_size(monitor.width, monitor.height);
 
     // Center the dialog
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+    }
     this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [dialogWidth, dialogHeight] = this.dialogContainer.get_size();
       if (dialogWidth === 0) dialogWidth = 700;

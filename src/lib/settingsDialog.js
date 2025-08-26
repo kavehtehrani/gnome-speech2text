@@ -443,6 +443,9 @@ export class SettingsDialog {
     this.overlay.set_position(monitor.x, monitor.y);
 
     // Center the settings window
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+    }
     this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [windowWidth, windowHeight] = this.settingsWindow.get_size();
       if (windowWidth === 0) windowWidth = 450;

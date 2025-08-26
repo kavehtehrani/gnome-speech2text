@@ -426,6 +426,9 @@ export class RecordingDialog {
     this.container.add_child(textEntry);
 
     // Focus the text entry after a short delay and select all text
+    if (this.focusTimeoutId) {
+      GLib.Source.remove(this.focusTimeoutId);
+    }
     this.focusTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
       clutterText.set_selection(0, text.length);
       this.focusTimeoutId = null;
@@ -475,6 +478,9 @@ export class RecordingDialog {
     });
 
     // Set focus on copy button so Enter key works
+    if (this.buttonFocusTimeoutId) {
+      GLib.Source.remove(this.buttonFocusTimeoutId);
+    }
     this.buttonFocusTimeoutId = GLib.timeout_add(
       GLib.PRIORITY_DEFAULT,
       150,
@@ -732,6 +738,9 @@ export class RecordingDialog {
         // Schedule cleanup with appropriate delay for the GNOME version
         import("gi://GLib")
           .then(({ default: GLib }) => {
+            if (this.cleanupTimeoutId) {
+              GLib.Source.remove(this.cleanupTimeoutId);
+            }
             this.cleanupTimeoutId = GLib.timeout_add(
               GLib.PRIORITY_DEFAULT,
               cleanupDelay,
