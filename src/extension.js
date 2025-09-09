@@ -48,7 +48,32 @@ export default class Speech2TextExtension extends Extension {
       console.log("Extension enabled successfully");
     } catch (error) {
       console.error("Error enabling extension:", error);
-      this.disable();
+
+      // Clean up partially initialized components
+      if (this.keybindingManager) {
+        this.keybindingManager.cleanup();
+        this.keybindingManager = null;
+      }
+
+      if (this.recordingController) {
+        this.recordingController.cleanup();
+        this.recordingController = null;
+      }
+
+      if (this.uiManager) {
+        this.uiManager.cleanup();
+        this.uiManager = null;
+      }
+
+      if (this.serviceManager) {
+        this.serviceManager.destroy();
+        this.serviceManager = null;
+      }
+
+      this.settings = null;
+      this.isEnabled = false;
+      extensionInstance = null;
+
       throw error;
     }
   }
