@@ -22,7 +22,7 @@ export default class Speech2TextExtension extends Extension {
     console.log("Enabling Speech2Text extension (D-Bus version)");
 
     try {
-      this.settings = super.getSettings(
+      this.settings = this.getSettings(
         "org.gnome.shell.extensions.speech2text"
       );
 
@@ -110,7 +110,7 @@ export default class Speech2TextExtension extends Extension {
       console.log("Attempting full extension state recovery");
 
       if (!this.settings) {
-        this.settings = super.getSettings(
+        this.settings = this.getSettings(
           "org.gnome.shell.extensions.speech2text"
         );
       }
