@@ -15,7 +15,6 @@ export default class Speech2TextExtension extends Extension {
     this.recordingController = null;
     this.serviceManager = null;
     this.keybindingManager = null;
-    this.isEnabled = false;
   }
 
   async enable() {
@@ -43,7 +42,6 @@ export default class Speech2TextExtension extends Extension {
 
       this._setupSignalHandlers();
 
-      this.isEnabled = true;
       extensionInstance = this;
       console.log("Extension enabled successfully");
     } catch (error) {
@@ -71,7 +69,6 @@ export default class Speech2TextExtension extends Extension {
       }
 
       this.settings = null;
-      this.isEnabled = false;
       extensionInstance = null;
 
       throw error;
@@ -99,7 +96,7 @@ export default class Speech2TextExtension extends Extension {
     try {
       console.log("=== TOGGLE RECORDING (D-Bus) ===");
 
-      if (!this.isEnabled || !this.settings || !this.uiManager) {
+      if (!this.settings || !this.uiManager) {
         console.log(
           "Extension state inconsistent, attempting comprehensive auto-recovery"
         );
@@ -163,7 +160,6 @@ export default class Speech2TextExtension extends Extension {
       }
 
       if (this.settings && this.uiManager) {
-        this.isEnabled = true;
         extensionInstance = this;
         this._setupSignalHandlers();
       }
@@ -180,8 +176,6 @@ export default class Speech2TextExtension extends Extension {
   disable() {
     console.log("Disabling Speech2Text extension (D-Bus version)");
 
-    // Mark as disabled immediately to prevent race conditions
-    this.isEnabled = false;
     extensionInstance = null;
 
     // Clean up components in reverse order of initialization

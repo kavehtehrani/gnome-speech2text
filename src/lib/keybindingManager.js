@@ -34,10 +34,7 @@ export class KeybindingManager {
       Meta.KeyBindingFlags.NONE,
       Shell.ActionMode.NORMAL,
       () => {
-        console.log(
-          "Keyboard shortcut triggered, extension enabled:",
-          self.extensionCore.isEnabled
-        );
+        console.log("Keyboard shortcut triggered");
         // Use direct reference to this extension instance
         self.extensionCore.toggleRecording();
       }

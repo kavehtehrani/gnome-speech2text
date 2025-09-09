@@ -61,10 +61,7 @@ export class UIManager {
       if (buttonPressed === 1) {
         // Left click - toggle recording
         self.icon.menu.close(true);
-        console.log(
-          "Click handler triggered, extension enabled:",
-          self.extensionCore.isEnabled
-        );
+        console.log("Click handler triggered");
 
         // Use direct reference to this extension instance
         self.extensionCore.toggleRecording();
@@ -91,7 +88,7 @@ export class UIManager {
   }
 
   showSettingsWindow() {
-    if (!this.extensionCore.isEnabled || !this.extensionCore.settings) {
+    if (!this.extensionCore.settings) {
       console.error("Extension not properly enabled, cannot show settings");
       return;
     }
