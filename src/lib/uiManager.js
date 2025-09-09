@@ -99,11 +99,10 @@ export class UIManager {
     this.settingsDialog.show();
   }
 
-  showServiceSetupDialog(errorMessage, isFirstRun = false) {
+  showServiceSetupDialog(errorMessage) {
     const setupDialog = new ServiceSetupDialog(
       this.extensionCore,
-      errorMessage,
-      isFirstRun
+      errorMessage
     );
     setupDialog.show();
   }

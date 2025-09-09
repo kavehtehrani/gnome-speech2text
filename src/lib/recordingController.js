@@ -18,84 +18,32 @@ export class RecordingController {
   }
 
   async toggleRecording(settings) {
-    // Check if this is the first time the user is trying to use the extension
-    const isFirstRun = settings.get_boolean("first-run");
-
-    if (isFirstRun) {
-      console.log("First-time usage detected - checking service status");
-
-      // Initialize D-Bus manager if not already done
-      if (!this.serviceManager.isInitialized) {
-        console.log("Initializing service manager for first-time usage");
-        const serviceAvailable =
-          await this.serviceManager.ensureServiceAvailable();
-        if (!serviceAvailable) {
-          console.log("Service initialization failed for first-time usage");
-          // Don't set first-run to false yet - user should get another chance
-          this.uiManager.showServiceSetupDialog("Let's get started!", true);
-          return;
-        }
-      }
-
-      // Check service status
-      console.log("Checking service status for first-time usage");
-      const serviceStatus =
-        await this.serviceManager.dbusManager.checkServiceStatus();
-      if (!serviceStatus.available) {
-        console.log(
-          "Service not available for first-time usage:",
-          serviceStatus.error
-        );
-        // Don't set first-run to false yet - user should get another chance
-        this.uiManager.showServiceSetupDialog(
-          "Ready to set up speech-to-text!",
-          true
-        );
-        return;
-      }
-
-      console.log("Service is available - completing first-time setup");
-      // Service is working! Mark first run as complete and show welcome
-      settings.set_boolean("first-run", false);
-      this.uiManager.showSuccessNotification(
-        "Speech2Text",
-        "🎉 Welcome! Extension is ready to use. Right-click the microphone icon for settings."
-      );
-
-      // Initialize recording state manager if not already done
-      if (!this.recordingStateManager) {
-        console.log(
-          "Initializing recording state manager for first-time usage"
-        );
-        this.initialize();
-      }
-    }
-
-    // For non-first-run usage, check if service is available
+    // Check if service is available and initialize if needed
     if (!this.recordingStateManager || !this.serviceManager.isInitialized) {
-      console.log("Non-first-run: Checking service manager and service status");
-      // Try to initialize if not already done
+      console.log("Checking service manager and service status");
+
       const serviceAvailable =
         await this.serviceManager.ensureServiceAvailable();
       if (!serviceAvailable) {
-        console.log("Service initialization failed for non-first-run usage");
-        this.uiManager.showServiceSetupDialog(
-          "Failed to connect to speech-to-text service"
-        );
-        return;
-      }
-
-      const serviceStatus =
-        await this.serviceManager.dbusManager.checkServiceStatus();
-      if (!serviceStatus.available) {
-        console.log(
-          "Service not available for non-first-run usage:",
-          serviceStatus.error
-        );
+        console.log("Service initialization failed");
         this.uiManager.showServiceSetupDialog(
           "Speech-to-text service is not available"
         );
         return;
+      }
+
+      const serviceStatus =
+        await this.serviceManager.dbusManager.checkServiceStatus();
+      if (!serviceStatus.available) {
+        console.log("Service not available:", serviceStatus.error);
+        this.uiManager.showServiceSetupDialog(serviceStatus.error);
+        return;
+      }
+
+      // Initialize recording state manager if not already done
+      if (!this.recordingStateManager) {
+        console.log("Initializing recording state manager");
+        this.initialize();
       }
     }
 

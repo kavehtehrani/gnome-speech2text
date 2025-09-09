@@ -22,10 +22,5 @@
             <summary>Skip preview dialog on X11</summary>
             <description>If enabled (X11 only), the extension will insert the transcribed text immediately after recording, without showing the preview dialog. Has no effect on Wayland.</description>
         </key>
-        <key name="first-run" type="b">
-            <default>true</default>
-            <summary>First run flag</summary>
-            <description>Indicates if this is the first time the extension is being run</description>
-        </key>
     </schema>
 </schemalist>

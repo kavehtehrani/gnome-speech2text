@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 import Meta from "gi://Meta";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import * as Config from "resource:///org/gnome/shell/misc/config.js";
 
 import { COLORS, STYLES } from "./constants.js";
 import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
@@ -310,6 +311,12 @@ export class RecordingDialog {
     // Update immediately
     this.updateTimeDisplay();
 
+    // Clean up existing timer before creating new one
+    if (this.timerInterval) {
+      GLib.Source.remove(this.timerInterval);
+      this.timerInterval = null;
+    }
+
     // Start interval timer to update every second
     this.timerInterval = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
       if (this.startTime) {
@@ -595,6 +602,12 @@ export class RecordingDialog {
       this.startTimer();
 
       // Focus solution with improved Wayland compatibility
+      // Clean up existing focus timeout before creating new one
+      if (this.openFocusTimeoutId) {
+        GLib.Source.remove(this.openFocusTimeoutId);
+        this.openFocusTimeoutId = null;
+      }
+
       this.openFocusTimeoutId = GLib.timeout_add(
         GLib.PRIORITY_DEFAULT,
         100,
@@ -709,7 +722,7 @@ export class RecordingDialog {
         // Detect GNOME version for compatibility adjustments
         const isGNOME48Plus = (() => {
           try {
-            const version = imports.misc.config.PACKAGE_VERSION;
+            const version = Config.PACKAGE_VERSION;
             const major = parseInt(version.split(".")[0], 10);
             return major >= 48;
           } catch {
@@ -717,79 +730,58 @@ export class RecordingDialog {
           }
         })();
 
-        // Use longer delay for GNOME 48+ on Wayland for better stability
-        const cleanupDelay = isGNOME48Plus ? 200 : 100;
+        // Cleanup will be done immediately to avoid timeout issues
 
-        // Schedule cleanup with appropriate delay for the GNOME version
+        // Do immediate cleanup instead of delayed to avoid timeout issues on disable
         import("gi://GLib")
           .then(({ default: GLib }) => {
             if (this.cleanupTimeoutId) {
               GLib.Source.remove(this.cleanupTimeoutId);
             }
-            this.cleanupTimeoutId = GLib.timeout_add(
-              GLib.PRIORITY_DEFAULT,
-              cleanupDelay,
-              () => {
-                try {
-                  // Remove from chrome if it has a parent
-                  if (modal.get_parent) {
-                    const parent = modal.get_parent();
-                    if (parent) {
-                      // Try the official method first
-                      try {
-                        Main.layoutManager.removeChrome(modal);
-                        console.log("Modal removed from chrome successfully");
-                      } catch (chromeError) {
-                        console.log(
-                          "Chrome removal failed, trying direct parent removal:",
-                          chromeError.message
-                        );
-                        // For GNOME 48+, try a gentler approach first
-                        if (isGNOME48Plus) {
-                          try {
-                            // Try to hide first, then remove with delay
-                            if (modal.hide) modal.hide();
-                            this.delayedCleanupTimeoutId = GLib.timeout_add(
-                              GLib.PRIORITY_DEFAULT,
-                              50,
-                              () => {
-                                try {
-                                  parent.remove_child(modal);
-                                  console.log(
-                                    "Modal removed from parent with delay (GNOME 48+)"
-                                  );
-                                } catch (delayedError) {
-                                  console.log(
-                                    "Delayed parent removal also failed:",
-                                    delayedError.message
-                                  );
-                                }
-                                return false;
-                              }
-                            );
-                          } catch (gnome48Error) {
-                            console.log(
-                              "GNOME 48+ specific removal failed:",
-                              gnome48Error.message
-                            );
-                            // Fallback to direct removal
-                            try {
-                              parent.remove_child(modal);
-                              console.log(
-                                "Modal removed from parent directly (fallback)"
-                              );
-                            } catch (parentError) {
-                              console.log(
-                                "Direct parent removal also failed:",
-                                parentError.message
-                              );
-                            }
-                          }
-                        } else {
-                          // Standard fallback for older GNOME versions
+            // Execute cleanup immediately instead of creating a timeout
+            (() => {
+              try {
+                // Remove from chrome if it has a parent
+                if (modal.get_parent) {
+                  const parent = modal.get_parent();
+                  if (parent) {
+                    // Try the official method first
+                    try {
+                      Main.layoutManager.removeChrome(modal);
+                      console.log("Modal removed from chrome successfully");
+                    } catch (chromeError) {
+                      console.log(
+                        "Chrome removal failed, trying direct parent removal:",
+                        chromeError.message
+                      );
+                      // For GNOME 48+, try a gentler approach first
+                      if (isGNOME48Plus) {
+                        try {
+                          // Try to hide first, then remove with delay
+                          if (modal.hide) modal.hide();
+                          // Do immediate removal instead of delayed
                           try {
                             parent.remove_child(modal);
-                            console.log("Modal removed from parent directly");
+                            console.log(
+                              "Modal removed from parent immediately (GNOME 48+)"
+                            );
+                          } catch (delayedError) {
+                            console.log(
+                              "Immediate parent removal failed:",
+                              delayedError.message
+                            );
+                          }
+                        } catch (gnome48Error) {
+                          console.log(
+                            "GNOME 48+ specific removal failed:",
+                            gnome48Error.message
+                          );
+                          // Fallback to direct removal
+                          try {
+                            parent.remove_child(modal);
+                            console.log(
+                              "Modal removed from parent directly (fallback)"
+                            );
                           } catch (parentError) {
                             console.log(
                               "Direct parent removal also failed:",
@@ -797,28 +789,38 @@ export class RecordingDialog {
                             );
                           }
                         }
+                      } else {
+                        // Standard fallback for older GNOME versions
+                        try {
+                          parent.remove_child(modal);
+                          console.log("Modal removed from parent directly");
+                        } catch (parentError) {
+                          console.log(
+                            "Direct parent removal also failed:",
+                            parentError.message
+                          );
+                        }
                       }
                     }
                   }
-
-                  // Finally, destroy the modal
-                  if (modal.destroy) {
-                    try {
-                      modal.destroy();
-                      console.log("Modal destroyed successfully");
-                    } catch (destroyError) {
-                      console.log(
-                        "Modal destruction failed:",
-                        destroyError.message
-                      );
-                    }
-                  }
-                } catch (cleanupError) {
-                  console.log("Delayed cleanup failed:", cleanupError.message);
                 }
-                return false; // Don't repeat
+
+                // Finally, destroy the modal
+                if (modal.destroy) {
+                  try {
+                    modal.destroy();
+                    console.log("Modal destroyed successfully");
+                  } catch (destroyError) {
+                    console.log(
+                      "Modal destruction failed:",
+                      destroyError.message
+                    );
+                  }
+                }
+              } catch (cleanupError) {
+                console.log("Delayed cleanup failed:", cleanupError.message);
               }
-            );
+            })();
           })
           .catch(() => {
             // Fallback if GLib import fails - try immediate cleanup

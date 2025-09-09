@@ -1,5 +1,6 @@
 import Meta from "gi://Meta";
 import St from "gi://St";
+import * as Config from "resource:///org/gnome/shell/misc/config.js";
 import { COLORS, STYLES } from "./constants.js";
 
 // Helper function to create button styles
@@ -22,7 +23,7 @@ export function addHandCursorToButton(button) {
   // Check if we're on a problematic GNOME version/platform
   const isGNOME48Plus = (() => {
     try {
-      const version = imports.misc.config.PACKAGE_VERSION;
+      const version = Config.PACKAGE_VERSION;
       const major = parseInt(version.split(".")[0], 10);
       return major >= 48;
     } catch {

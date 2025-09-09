@@ -1,4 +1,5 @@
 import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 // D-Bus interface XML for the speech2text service
@@ -60,6 +61,7 @@ export class DBusManager {
     this.isInitialized = false;
     this.lastConnectionCheck = 0;
     this.connectionCheckInterval = 10000; // Check every 10 seconds
+    this.serviceStartTimeoutId = null;
   }
 
   async initialize() {
@@ -374,7 +376,17 @@ export class DBusManager {
       );
 
       // Wait for service to start and register with D-Bus
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => {
+        this.serviceStartTimeoutId = GLib.timeout_add(
+          GLib.PRIORITY_DEFAULT,
+          3000,
+          () => {
+            this.serviceStartTimeoutId = null;
+            resolve();
+            return false;
+          }
+        );
+      });
 
       // Verify service is available
       try {
@@ -408,6 +420,13 @@ export class DBusManager {
 
   destroy() {
     this.disconnectSignals();
+
+    // Clean up any pending timeout
+    if (this.serviceStartTimeoutId) {
+      GLib.Source.remove(this.serviceStartTimeoutId);
+      this.serviceStartTimeoutId = null;
+    }
+
     this.dbusProxy = null;
     this.isInitialized = false;
     this.lastConnectionCheck = 0;

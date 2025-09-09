@@ -19,10 +19,9 @@ import {
 import { cleanupModal } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
-  constructor(extension, errorMessage, isFirstRun = false) {
+  constructor(extension, errorMessage) {
     this.extension = extension;
     this.errorMessage = errorMessage;
-    this.isFirstRun = isFirstRun;
     this.isManualRequest = errorMessage === "Manual setup guide requested";
     this.overlay = null;
     this.centerTimeoutId = null;
@@ -60,24 +59,16 @@ export class ServiceSetupDialog {
     titleContainer.set_x_expand(true);
 
     const headerIcon = createStyledLabel(
-      this.isFirstRun ? "🎉" : this.isManualRequest ? "📚" : "⚠️",
+      this.isManualRequest ? "📚" : "⚠️",
       "icon",
       "font-size: 36px;"
     );
     const headerText = createStyledLabel(
-      this.isFirstRun
-        ? "Welcome to GNOME Speech2Text!"
-        : this.isManualRequest
+      this.isManualRequest
         ? "GNOME Speech2Text Setup Guide"
-        : "Service Installation Required (Initial Setup)",
+        : "Service Installation Required",
       "title",
-      `color: ${
-        this.isFirstRun
-          ? COLORS.SUCCESS
-          : this.isManualRequest
-          ? COLORS.INFO
-          : COLORS.PRIMARY
-      };`
+      `color: ${this.isManualRequest ? COLORS.INFO : COLORS.PRIMARY};`
     );
 
     titleContainer.add_child(headerIcon);
@@ -89,26 +80,16 @@ export class ServiceSetupDialog {
 
     // Status message
     const statusLabel = new St.Label({
-      text: this.isFirstRun
-        ? "Let's set up speech-to-text functionality for you!"
-        : this.isManualRequest
+      text: this.isManualRequest
         ? "Complete setup instructions and troubleshooting guide"
         : `Service Status: ${this.errorMessage}`,
       style: `
         font-size: 14px;
-        color: ${
-          this.isFirstRun
-            ? COLORS.SUCCESS
-            : this.isManualRequest
-            ? COLORS.INFO
-            : COLORS.DANGER
-        };
+        color: ${this.isManualRequest ? COLORS.INFO : COLORS.DANGER};
         margin: 10px 0;
         padding: 10px;
         background-color: ${
-          this.isFirstRun
-            ? "rgba(40, 167, 69, 0.1)"
-            : this.isManualRequest
+          this.isManualRequest
             ? "rgba(23, 162, 184, 0.1)"
             : "rgba(255, 0, 0, 0.1)"
         };
@@ -118,11 +99,7 @@ export class ServiceSetupDialog {
 
     // Main explanation
     const explanationText = new St.Label({
-      text: this.isFirstRun
-        ? `To enable speech-to-text functionality, we need to install a background service.
-This is a one-time setup that handles audio recording and speech processing.
-The service is installed separately from the extension (following GNOME guidelines).`
-        : this.isManualRequest
+      text: this.isManualRequest
         ? `Instructions for installing and troubleshooting the Speech2Text service.
 Use this if you need to reinstall the d-bus service.`
         : `GNOME Speech2Text requires a background service for speech processing.
@@ -147,9 +124,7 @@ This service is installed separately from the extension (following GNOME guideli
     });
 
     const autoInstallDescription = new St.Label({
-      text: this.isFirstRun
-        ? "The easiest way is to use automatic installation - just one click!"
-        : this.isManualRequest
+      text: this.isManualRequest
         ? "Even if the service is already installed, you can reinstall."
         : "Click the button below to automatically install the service in a terminal:",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0 15px 0;`,
@@ -167,29 +142,8 @@ This service is installed separately from the extension (following GNOME guideli
       this._runAutomaticInstall();
     });
 
-    // Create container for auto install section
-    let autoInstallSection;
-    if (this.isFirstRun) {
-      // For first-run, add extra encouragement
-      const firstRunNote = new St.Label({
-        text: "💡 Tip: The automatic installation is the easiest option for new users!",
-        style: `
-          font-size: 13px;
-          color: ${COLORS.WARNING};
-          margin: 5px 0;
-          padding: 8px;
-          background-color: rgba(255, 193, 7, 0.1);
-          border-radius: 5px;
-          border-left: 3px solid ${COLORS.WARNING};
-        `,
-      });
-
-      autoInstallSection = createVerticalBox();
-      autoInstallSection.add_child(autoInstallButtonWidget);
-      autoInstallSection.add_child(firstRunNote);
-    } else {
-      autoInstallSection = autoInstallButtonWidget;
-    }
+    // Use the button as the install section
+    const autoInstallSection = autoInstallButtonWidget;
 
     // Link to manual instructions on GitHub
     const manualTitle = new St.Label({
@@ -378,9 +332,7 @@ This service is installed separately from the extension (following GNOME guideli
 
           Main.notify(
             "Speech2Text",
-            this.isFirstRun
-              ? "🚀 Setting up Speech2Text for you! Follow the terminal instructions."
-              : "🔧 Opening service installation in terminal..."
+            "🔧 Opening service installation in terminal..."
           );
           this.close();
         } catch (terminalError) {
