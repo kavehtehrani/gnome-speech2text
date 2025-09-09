@@ -324,18 +324,8 @@ export class RecordingDialog {
 
   stopTimer() {
     if (this.timerInterval) {
-      try {
-        // Check if the timer source is still valid before removing
-        if (GLib.source_remove(this.timerInterval)) {
-          console.log("Timer stopped successfully");
-        } else {
-          console.log("Timer was already stopped or invalid");
-        }
-      } catch (error) {
-        console.log("Error stopping timer:", error.message);
-      } finally {
-        this.timerInterval = null;
-      }
+      GLib.source_remove(this.timerInterval);
+      this.timerInterval = null;
     }
     this.startTime = null;
   }
@@ -642,15 +632,10 @@ export class RecordingDialog {
       );
     } catch (error) {
       console.error("Error opening recording dialog:", error);
-      // Try to clean up if opening fails
-      try {
-        if (this.modalBarrier) {
-          Main.layoutManager.removeChrome(this.modalBarrier);
-        }
-      } catch (cleanupError) {
-        console.error("Error during cleanup:", cleanupError);
+      if (this.modalBarrier) {
+        Main.layoutManager.removeChrome(this.modalBarrier);
       }
-      throw error; // Re-throw to let the extension handle it
+      throw error;
     }
   }
 

@@ -22,32 +22,27 @@ export default class Speech2TextExtension extends Extension {
     console.log("Enabling Speech2Text extension (D-Bus version)");
 
     try {
-      // Initialize settings
-      this.settings = super.getSettings("org.shell.extensions.speech2text");
+      this.settings = super.getSettings(
+        "org.gnome.shell.extensions.speech2text"
+      );
 
-      // Initialize service manager first
       this.serviceManager = new ServiceManager();
       await this.serviceManager.initialize();
 
-      // Initialize UI manager
       this.uiManager = new UIManager(this);
       this.uiManager.initialize();
 
-      // Initialize recording controller
       this.recordingController = new RecordingController(
         this.uiManager,
         this.serviceManager
       );
       this.recordingController.initialize();
 
-      // Initialize keybinding manager
       this.keybindingManager = new KeybindingManager(this);
       this.keybindingManager.setupKeybinding();
 
-      // Set up signal handlers
       this._setupSignalHandlers();
 
-      // Mark as enabled and ensure global reference is correct
       this.isEnabled = true;
       extensionInstance = this;
       console.log("Extension enabled successfully");
@@ -59,7 +54,6 @@ export default class Speech2TextExtension extends Extension {
   }
 
   _setupSignalHandlers() {
-    // Connect service manager signals to recording controller
     this.serviceManager.connectSignals({
       onTranscriptionReady: (recordingId, text) => {
         this.recordingController.handleTranscriptionReady(recordingId, text);
@@ -80,7 +74,6 @@ export default class Speech2TextExtension extends Extension {
     try {
       console.log("=== TOGGLE RECORDING (D-Bus) ===");
 
-      // Auto-recovery: if extension state is inconsistent, try to fix it
       if (!this.isEnabled || !this.settings || !this.uiManager) {
         console.log(
           "Extension state inconsistent, attempting comprehensive auto-recovery"
@@ -88,13 +81,11 @@ export default class Speech2TextExtension extends Extension {
         await this._performAutoRecovery();
       }
 
-      // Final safety check after auto-recovery attempt
       if (!this.settings || !this.uiManager) {
         console.error("Required components still missing after auto-recovery");
         return;
       }
 
-      // Ensure service is available
       const serviceAvailable =
         await this.serviceManager.ensureServiceAvailable();
       if (!serviceAvailable) {
@@ -104,7 +95,6 @@ export default class Speech2TextExtension extends Extension {
         return;
       }
 
-      // Handle the actual recording toggle
       await this.recordingController.toggleRecording(this.settings);
     } catch (error) {
       console.error("Error in toggleRecording:", error);
@@ -119,50 +109,37 @@ export default class Speech2TextExtension extends Extension {
     try {
       console.log("Attempting full extension state recovery");
 
-      // Step 1: Reinitialize settings if missing
       if (!this.settings) {
-        console.log("Recovering settings");
-        this.settings = super.getSettings("org.shell.extensions.speech2text");
+        this.settings = super.getSettings(
+          "org.gnome.shell.extensions.speech2text"
+        );
       }
 
-      // Step 2: Recreate UI manager if missing
       if (!this.uiManager) {
-        console.log("Recovering UI manager");
         this.uiManager = new UIManager(this);
       }
 
-      // Step 3: Reinitialize service manager if needed
       if (!this.serviceManager) {
-        console.log("Recovering service manager");
         this.serviceManager = new ServiceManager();
       }
 
-      // Step 4: Reinitialize recording controller
       if (this.uiManager && this.serviceManager) {
         if (this.recordingController) {
-          console.log("Cleaning up old recording controller before recreating");
           this.recordingController.cleanup();
         }
-        console.log("Recovering recording controller");
         this.recordingController = new RecordingController(
           this.uiManager,
           this.serviceManager
         );
       }
 
-      // Step 5: Re-establish keybindings if needed
       if (this.settings && !this.keybindingManager) {
-        console.log("Recovering keybinding manager");
         this.keybindingManager = new KeybindingManager(this);
       }
 
-      // Step 6: Mark as enabled if we have all core components
       if (this.settings && this.uiManager) {
         this.isEnabled = true;
         extensionInstance = this;
-        console.log("Full extension state recovered successfully");
-
-        // Re-setup signal handlers
         this._setupSignalHandlers();
       }
     } catch (recoveryError) {
@@ -201,14 +178,8 @@ export default class Speech2TextExtension extends Extension {
     }
 
     if (this.serviceManager) {
-      console.log("Destroying service manager");
-      try {
-        this.serviceManager.destroy();
-      } catch (error) {
-        console.log("Error destroying service manager:", error.message);
-      } finally {
-        this.serviceManager = null;
-      }
+      this.serviceManager.destroy();
+      this.serviceManager = null;
     }
 
     // Clear settings reference
