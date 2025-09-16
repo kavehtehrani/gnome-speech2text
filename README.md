@@ -95,8 +95,6 @@ Notes about installers and distributions:
   dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
 - You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
   packages.
-- The top-level `install.sh` script in this repository provides Ubuntu/Debian-specific guidance and commands as an
-  example to help install required packages and set up the extension end-to-end.
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 
@@ -129,6 +127,8 @@ PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-ser
 #### Troubleshooting Installation
 
 If the extension doesn't appear in GNOME Extensions:
+
+First make sure 1- it is enabled in the Extensions, and 2- you have restarted your shell already. Otherwise, proceed to: 
 
 ```bash
 # View extension logs
