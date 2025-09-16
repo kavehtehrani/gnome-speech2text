@@ -65,25 +65,13 @@ If you are missing any of the required dependencies the installation script will
 
 ### Manual Installation
 
-#### Ubuntu/Debian: Run the installation script
-
-For the easiest installation experience on Ubuntu/Debian, use the repository installer script:
-
-```bash
-# Clone the repository
-git clone https://github.com/kavehtehrani/gnome-speech2text.git
-cd gnome-speech2text
-./install.sh
-```
-
-#### Other linux distros
+For the manual installation experience, use the repository installer script:
 
 ```bash
 git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
 make install
 ```
-
 ### First Time Setup
 
 The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with
@@ -128,7 +116,7 @@ PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-ser
 
 If the extension doesn't appear in GNOME Extensions:
 
-First make sure 1- it is enabled in the Extensions, and 2- you have restarted your shell already. Otherwise, proceed to: 
+First make sure 1- it is enabled in the Extensions, and 2- you have restarted your shell already. Otherwise, proceed to:
 
 ```bash
 # View extension logs
@@ -172,10 +160,10 @@ You can read more about the D-Bus service here: [D-Bus Service Documentation](./
 Right-click the microphone icon to access:
 
 - **Settings**: Configure extension preferences
-    - **Keyboard Shortcuts**: Customize the recording hotkey
-    - **Recording Duration**: Set maximum recording time (10-300 seconds)
-    - **Copy to Clipboard**: Automatically copy transcribed text
-    - **Skip Preview (X11 only)**: Instantly insert text without preview
+  - **Keyboard Shortcuts**: Customize the recording hotkey
+  - **Recording Duration**: Set maximum recording time (10-300 seconds)
+  - **Copy to Clipboard**: Automatically copy transcribed text
+  - **Skip Preview (X11 only)**: Instantly insert text without preview
 - **Setup Guide**: View service installation instructions anytime
 
 ## Troubleshooting
