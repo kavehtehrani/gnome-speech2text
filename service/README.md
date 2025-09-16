@@ -19,22 +19,17 @@ This service handles the actual speech recognition processing using OpenAI's Whi
 
 ### System Dependencies
 
-This service requires several system packages to be installed:
-
-```bash
-# Ubuntu/Debian
-sudo apt update && sudo apt install -y \
-    python3 python3-pip python3-venv python3-dbus python3-gi \
-    ffmpeg xdotool xclip wl-clipboard
-```
+This service requires several system packages to be installed. The installation script will guide you through what packages you need.
 
 ### Service Installation
 
-The service can be installed via pip:
+The service is available on PyPI and can be installed via pip:
 
 ```bash
 pip install gnome-speech2text-service
 ```
+
+**PyPI Package**: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/)
 
 Or from the source repository:
 
