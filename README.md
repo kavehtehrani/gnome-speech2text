@@ -116,7 +116,7 @@ PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-ser
 
 If the extension doesn't appear in GNOME Extensions:
 
-First make sure 1- it is enabled in the Extensions, and 2- you have restarted your shell already. Otherwise, proceed to:
+First make sure 1- extension is enabled in the GNOME Extensions, and 2- you have restarted your shell already. Otherwise, proceed to troubleshoot:
 
 ```bash
 # View extension logs
@@ -168,7 +168,7 @@ Right-click the microphone icon to access:
 
 ## Troubleshooting
 
-### GNOME Shell Crashes (GNOME 48/Wayland)
+### GNOME Shell Crashes
 
 If you experience GNOME Shell crashes when using the extension, use the crash analysis script:
 
