@@ -76,15 +76,11 @@ cd gnome-speech2text
 ./install.sh
 ```
 
-After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
-
 #### Other linux distros
 
 ```
 make install
 ```
-
-After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
 
 ### First Time Setup
 
@@ -174,10 +170,10 @@ You can read more about the D-Bus service here: [D-Bus Service Documentation](./
 Right-click the microphone icon to access:
 
 - **Settings**: Configure extension preferences
-  - **Keyboard Shortcuts**: Customize the recording hotkey
-  - **Recording Duration**: Set maximum recording time (10-300 seconds)
-  - **Copy to Clipboard**: Automatically copy transcribed text
-  - **Skip Preview (X11 only)**: Instantly insert text without preview
+    - **Keyboard Shortcuts**: Customize the recording hotkey
+    - **Recording Duration**: Set maximum recording time (10-300 seconds)
+    - **Copy to Clipboard**: Automatically copy transcribed text
+    - **Skip Preview (X11 only)**: Instantly insert text without preview
 - **Setup Guide**: View service installation instructions anytime
 
 ## Troubleshooting
