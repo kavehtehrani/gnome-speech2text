@@ -78,7 +78,9 @@ cd gnome-speech2text
 
 #### Other linux distros
 
-```
+```bash
+git clone https://github.com/kavehtehrani/gnome-speech2text.git
+cd gnome-speech2text
 make install
 ```
 
