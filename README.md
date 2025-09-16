@@ -76,13 +76,7 @@ cd gnome-speech2text
 ./install.sh
 ```
 
-This script will (on Ubuntu/Debian):
-
-- Check system dependencies and guide you through installing any missing ones
-- Install the D-Bus service automatically (from local source or PyPI)
-- Install the GNOME extension and compile schemas
-- Apply compatibility fixes for GNOME 48/Wayland automatically
-- Provide instructions for restarting GNOME Shell
+After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
 
 #### Other linux distros
 
@@ -90,7 +84,6 @@ This script will (on Ubuntu/Debian):
 make install
 ```
 
-This will install the extension, but you have to manually install the dependencies listed above for your linux distro.
 After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
 
 ### First Time Setup
