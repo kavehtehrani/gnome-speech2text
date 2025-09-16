@@ -19,60 +19,27 @@ export default class Speech2TextExtension extends Extension {
 
   async enable() {
     console.log("Enabling Speech2Text extension (D-Bus version)");
+    this.settings = this.getSettings("org.gnome.shell.extensions.speech2text");
 
-    try {
-      this.settings = this.getSettings(
-        "org.gnome.shell.extensions.speech2text"
-      );
+    this.serviceManager = new ServiceManager();
+    await this.serviceManager.initialize();
 
-      this.serviceManager = new ServiceManager();
-      await this.serviceManager.initialize();
+    this.uiManager = new UIManager(this);
+    this.uiManager.initialize();
 
-      this.uiManager = new UIManager(this);
-      this.uiManager.initialize();
+    this.recordingController = new RecordingController(
+      this.uiManager,
+      this.serviceManager
+    );
+    this.recordingController.initialize();
 
-      this.recordingController = new RecordingController(
-        this.uiManager,
-        this.serviceManager
-      );
-      this.recordingController.initialize();
+    this.keybindingManager = new KeybindingManager(this);
+    this.keybindingManager.setupKeybinding();
 
-      this.keybindingManager = new KeybindingManager(this);
-      this.keybindingManager.setupKeybinding();
+    this._setupSignalHandlers();
 
-      this._setupSignalHandlers();
-
-      extensionInstance = this;
-      console.log("Extension enabled successfully");
-    } catch (error) {
-      console.error("Error enabling extension:", error);
-
-      // Clean up partially initialized components
-      if (this.keybindingManager) {
-        this.keybindingManager.cleanup();
-        this.keybindingManager = null;
-      }
-
-      if (this.recordingController) {
-        this.recordingController.cleanup();
-        this.recordingController = null;
-      }
-
-      if (this.uiManager) {
-        this.uiManager.cleanup();
-        this.uiManager = null;
-      }
-
-      if (this.serviceManager) {
-        this.serviceManager.destroy();
-        this.serviceManager = null;
-      }
-
-      this.settings = null;
-      extensionInstance = null;
-
-      throw error;
-    }
+    extensionInstance = this;
+    console.log("Extension enabled successfully");
   }
 
   _setupSignalHandlers() {

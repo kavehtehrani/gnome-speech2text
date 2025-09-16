@@ -8,13 +8,11 @@
 ![D-Bus](https://img.shields.io/badge/D--Bus-000000?style=flat&logo=dbus&logoColor=white)
 ![Whisper](https://img.shields.io/badge/Whisper-412991?style=flat&logo=openai&logoColor=white)
 
-A GNOME Shell extension that adds speech-to-text functionality using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words automatically typed wherever your cursor is.
-
-**Important for GNOME Extensions Store**: This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension and must be installed separately as a dependency. The first time you run the extension you will get a popup to guide you through this setup.
-
-**Dependency Requirement**: This extension requires the external background service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/) to be installed. The extension communicates with the service over D-Bus and does not bundle it. The installer in this repo or the setup dialog will install the service for you.
+A GNOME Shell extension that adds speech-to-text functionality using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words transcribed with the option to automatically typed at your cursor (on X11 only).
 
 ![recording-modal](./images/recording-modal.png)
+
+**Important for GNOME Extensions Store**: This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension and must be installed separately as a dependency. This extension requires the external background service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/) to be installed. The first time you run the extension you will get a popup to guide you through this setup. 
 
 ## Architecture
 
@@ -83,29 +81,18 @@ sudo apt update
 sudo apt install python3 python3-pip python3-venv ffmpeg wl-clipboard python3-dbus python3-gi
 ```
 
-**Note:** This extension has been tested extensively on Ubuntu 24.04 / GNOME 46 / X11+Wayland and Ubuntu 25.04 / GNOME 48 / X11+Wayland. It should work on other GNOME Shell 46+ distributions with the above packages installed, but hasn't been tested on other platforms yet.
-
-### GNOME 48 Compatibility Notes
-
-On GNOME 48 with Wayland, the extension automatically disables cursor hover effects to prevent shell crashes. This is a known compatibility issue with cursor handling in this specific environment. All functionality remains intact - buttons simply won't show hand cursors on hover.
-
 ## Installation
 
 ### GNOME Extensions Store
 
-⌛ **Pending Approval**: This extension is planned for the GNOME Extensions website. Once available, follow these steps:
+**Installation from GNOME Extensions Store**
 
-**Installation from GNOME Extensions Store (when available):**
+1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/8238/gnome-speech2text/) and click "Install"
+2. The extension will automatically detect required system packages and let you know what you will need to install
+3. Follow the setup dialog to install the required D-Bus service (automatically downloads from PyPI)
+4. Restart GNOME Shell to complete the installation
 
-1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/XXXX/gnome-speech2text/) (link will be available after approval)
-2. Click "Install" to add the extension
-3. The extension will automatically detect that the D-Bus service is missing
-4. Follow the setup dialog to install the required service (automatically downloads from PyPI)
-5. Restart GNOME Shell to complete the installation
-
-**Note:** The extension package is lightweight and follows GNOME guidelines. The D-Bus service is installed separately as a Python package from PyPI.
-
-### Quick Installation (Recommended)
+### Quick Installation
 
 For the easiest installation experience on Ubuntu/Debian, use the repository installer script:
 
@@ -116,9 +103,11 @@ cd gnome-speech2text
 ```
 
 #### Ubuntu/Debian: Run the installation script
+
 ```
 ./install.sh
 ```
+
 This script will (on Ubuntu/Debian):
 
 - Check system dependencies and guide you through installing any missing ones
@@ -126,12 +115,13 @@ This script will (on Ubuntu/Debian):
 - Install the GNOME extension and compile schemas
 - Apply compatibility fixes for GNOME 48/Wayland automatically
 - Provide instructions for restarting GNOME Shell
-- Give you clear next steps to start using the extension
-
+-
 #### Other linux distros
+
 ```
 make install
 ```
+
 This will install the extension, but you have to manually install the dependencies listed above for your linux distro. After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
 
 ### First Time Setup
@@ -144,20 +134,6 @@ Notes about installers and distributions:
 - You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing packages.
 - The top-level `install.sh` script in this repository provides Ubuntu/Debian-specific guidance and commands as an example to help install required packages and set up the extension end-to-end.
 
-**For Full Repository Installation:**
-
-- Creates a Python virtual environment
-- Installs the `gnome-speech2text-service` package from local source
-- Installs required Python packages (OpenAI Whisper, etc.)
-- Sets up D-Bus service files
-
-**For GNOME Extensions Store Installation:**
-
-- Downloads the installation script from GitHub
-- Creates a Python virtual environment
-- Installs the `gnome-speech2text-service` package from PyPI
-- Installs required Python packages (OpenAI Whisper, etc.)
-- Sets up D-Bus service files
 
 ### Alternative: Service-Only Installation
 
@@ -170,8 +146,7 @@ If you only want to install the D-Bus service (for development or advanced users
 # Or install from PyPI
 ./src/install-service.sh --pypi
 ```
-
-The service is available as a Python package on PyPI: `gnome-speech2text-service`
+The service is available as a Python package on PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/)
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 
@@ -242,7 +217,7 @@ Right-click the microphone icon to access:
 
 ### GNOME Shell Crashes (GNOME 48/Wayland)
 
-If you experience GNOME Shell crashes when using the extension (particularly on Ubuntu 25 / GNOME 48 / Wayland), use the crash analysis script:
+If you experience GNOME Shell crashes when using the extension, use the crash analysis script:
 
 ```bash
 # After a crash, run the debug script
@@ -256,19 +231,6 @@ This script will analyze system logs and generate a detailed crash report. Choos
 1. **On X11**: Ensure xdotool is installed
 2. **On Wayland**: Text insertion is limited - use Copy to Clipboard instead
 3. Check if target application accepts simulated keyboard input
-
-### Viewing System Logs
-
-```bash
-# Extension logs
-journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text)"
-
-# Service is D-Bus activated; run it directly to view output
-~/.local/share/gnome-speech2text-service/gnome-speech2text-service
-
-# Generate comprehensive crash report
-./debug-crash.sh
-```
 
 ## Uninstallation
 
@@ -321,5 +283,3 @@ Please include:
 - Service logs (`journalctl --user -u speech2text-service`)
 - **For crashes**: Run `./debug-crash.sh` and include the generated report
 - Steps to reproduce the issue
-
-**Crash Reports**: If you experience GNOME Shell crashes, the `debug-crash.sh` script will generate a comprehensive report with all relevant system information, crash logs, and timeline analysis.
