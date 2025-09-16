@@ -19,7 +19,7 @@ This service handles the actual speech recognition processing using OpenAI's Whi
 
 ### System Dependencies
 
-This service requires several system packages to be installed. The installation script will guide you through what packages you need.
+This service requires several system packages to be installed. See the main [README.md](../README.md) for the complete list of system dependencies.
 
 ### Service Installation
 

@@ -43,11 +43,16 @@ you run the extension you will get a popup to guide you through this setup.
 
 ### System Dependencies
 
-- GNOME Shell 46 or later (tested up to GNOME 48)
-- Python 3.8 or later
-- FFmpeg (for audio recording)
-- xdotool (for text insertion on X11 only)
-- Clipboard tool: xclip/xsel (X11) or wl-clipboard (Wayland)
+- **GNOME Shell 46 or later** (tested up to GNOME 48)
+- **Python 3.8 or later** (with pip)
+- **python3-venv** (for virtual environment creation)
+- **python3-dbus** (for D-Bus integration)
+- **python3-gi** (PyGObject for GLib integration)
+- **FFmpeg** (for audio recording)
+- **xdotool** (for text insertion on X11 only)
+- **Clipboard tools**: xclip/xsel (X11) or wl-clipboard (Wayland)
+
+If you are missing any of the required dependencies the installation script will let you know.
 
 ## Installation
 
