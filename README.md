@@ -58,14 +58,12 @@ If you are missing any of the required dependencies the installation script will
 
 ### GNOME Extensions Store
 
-**Installation from GNOME Extensions Store**
-
 1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/8238/gnome-speech2text/) and click "Install"
 2. The extension will automatically detect required system packages and let you know what you will need to install
 3. Follow the setup dialog to install the required D-Bus service (automatically downloads from PyPI)
 4. Restart GNOME Shell to complete the installation
 
-### Quick Installation
+### Manual Installation
 
 #### Ubuntu/Debian: Run the installation script
 
