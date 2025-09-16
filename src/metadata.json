@@ -5,7 +5,7 @@
   "shell-version": ["46", "47", "48"],
   "url": "https://github.com/kavehtehrani/gnome-speech2text/",
   "author": "Kaveh Tehrani",
-  "version-name": "1.0.1",
+  "version-name": "1.0.4",
   "settings-schema": "org.gnome.shell.extensions.speech2text"
 }
 

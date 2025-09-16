@@ -8,11 +8,20 @@
 ![D-Bus](https://img.shields.io/badge/D--Bus-000000?style=flat&logo=dbus&logoColor=white)
 ![Whisper](https://img.shields.io/badge/Whisper-412991?style=flat&logo=openai&logoColor=white)
 
-A GNOME Shell extension that adds speech-to-text functionality using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words transcribed with the option to automatically insert at your cursor (on X11 only).
+A GNOME Shell extension that adds speech-to-text functionality
+using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words
+transcribed with the option to automatically insert at your cursor (on X11 only).
 
 ![recording-modal](./images/recording-modal.png)
 
-**Important for GNOME Extensions Store**: This extension follows GNOME's architectural guidelines by using a separate D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension and must be installed separately as a dependency. This extension requires the external background service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/) to be installed. The first time you run the extension you will get a popup to guide you through this setup. 
+## Features
+
+- 🎤 **Speech Recognition** using OpenAI Whisper
+- 🖱️ **Click to Record** from top panel microphone icon
+- ⌨️ **Keyboard Shortcut** support (default: Alt+Super+R)
+- 🌍 **Multi-language Support** (depending on Whisper model)
+- 🔒 **Privacy-First** - All processing happens locally
+- ⌨️ **Automatic Text Insertion** at cursor location (only on X11)
 
 ## Architecture
 
@@ -23,31 +32,12 @@ The extension consists of two components:
 
 This separation ensures the extension follows GNOME's best practices and security guidelines.
 
-## Features
-
-- 🎤 **Speech Recognition** using OpenAI Whisper
-- ⌨️ **Automatic Text Insertion** at cursor location (only on X11)
-- 🖱️ **Click to Record** from top panel microphone icon
-- ⌨️ **Keyboard Shortcut** support (default: Alt+Super+R)
-- 🌍 **Multi-language Support** (depending on Whisper model)
-- ⚙️ **Easy Configuration** through settings panel
-- 🔒 **Privacy-First** - All processing happens locally
-- 🖥️ **X11 and Wayland Support**
-
-## Display Server Compatibility
-
-### X11 (Full Support)
-
-- ✅ Text insertion works perfectly
-- ✅ Preview dialog with Insert/Copy options
-- ✅ Skip preview option for instant text insertion
-- ✅ Auto-skip preview option available for X11 sessions
-
-### Wayland (Limited Support)
-
-- ✅ Speech recognition works perfectly
-- ⚠️ Text insertion has limitations due to Wayland security restrictions
-- ✅ Copy to clipboard always works
+**Important for GNOME Extensions Store**: This extension follows GNOME's architectural guidelines by using a separate
+D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over
+D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension
+and must be installed separately as a dependency. This extension requires the external background
+service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/) to be installed. The first time
+you run the extension you will get a popup to guide you through this setup.
 
 ## Requirements
 
@@ -58,28 +48,6 @@ This separation ensures the extension follows GNOME's best practices and securit
 - FFmpeg (for audio recording)
 - xdotool (for text insertion on X11 only)
 - Clipboard tool: xclip/xsel (X11) or wl-clipboard (Wayland)
-
-### Installation of System Dependencies
-
-Before installing the extension, make sure you have the required system packages installed on your distribution.
-
-Important:
-
-- The bundled installer `src/install-service.sh` is distro-agnostic. It only checks for required packages and will not install system packages for you.
-- You should install the system packages using your distribution's package manager.
-- We provide Ubuntu/Debian commands below as an example only.
-
-#### Ubuntu/Debian (example)
-
-```bash
-# For X11 sessions
-sudo apt update
-sudo apt install python3 python3-pip python3-venv ffmpeg xdotool xclip python3-dbus python3-gi
-
-# For Wayland sessions
-sudo apt update
-sudo apt install python3 python3-pip python3-venv ffmpeg wl-clipboard python3-dbus python3-gi
-```
 
 ## Installation
 
@@ -115,38 +83,29 @@ This script will (on Ubuntu/Debian):
 - Install the GNOME extension and compile schemas
 - Apply compatibility fixes for GNOME 48/Wayland automatically
 - Provide instructions for restarting GNOME Shell
--
+
 #### Other linux distros
 
 ```
 make install
 ```
 
-This will install the extension, but you have to manually install the dependencies listed above for your linux distro. After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
+This will install the extension, but you have to manually install the dependencies listed above for your linux distro.
+After installation the first-time you use the extension you will get a pop-up how to install the d-bus service.
 
 ### First Time Setup
 
-The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with automatic or manual installation options.
+The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with
+automatic or manual installation options.
 
 Notes about installers and distributions:
 
-- The extension bundle includes `src/install-service.sh`, a distro-agnostic service installer that only verifies system dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
-- You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing packages.
-- The top-level `install.sh` script in this repository provides Ubuntu/Debian-specific guidance and commands as an example to help install required packages and set up the extension end-to-end.
-
-
-### Alternative: Service-Only Installation
-
-If you only want to install the D-Bus service (for development or advanced users):
-
-```bash
-# Install just the service from local source
-./src/install-service.sh --local
-
-# Or install from PyPI
-./src/install-service.sh --pypi
-```
-The service is available as a Python package on PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/)
+- The extension bundle includes `src/install-service.sh`, a distro-agnostic service installer that only verifies system
+  dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
+- You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
+  packages.
+- The top-level `install.sh` script in this repository provides Ubuntu/Debian-specific guidance and commands as an
+  example to help install required packages and set up the extension end-to-end.
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 
@@ -160,6 +119,21 @@ The service is available as a Python package on PyPI: [gnome-speech2text-service
 
 1. Log out of your current session
 2. Log back in
+
+### Alternative: Service-Only Installation
+
+If you only want to manually install the D-Bus service (for development or advanced users):
+
+```bash
+# Install just the service from local source
+./src/install-service.sh --local
+
+# Or install from PyPI
+./src/install-service.sh --pypi
+```
+
+The service is available as a Python package on
+PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/)
 
 #### Troubleshooting Installation
 
@@ -224,7 +198,8 @@ If you experience GNOME Shell crashes when using the extension, use the crash an
 ./debug-crash.sh
 ```
 
-This script will analyze system logs and generate a detailed crash report. Choose option 1 (last 30 minutes) after experiencing a crash. The script will create a timestamped file with all relevant crash information.
+This script will analyze system logs and generate a detailed crash report. Choose option 1 (last 30 minutes) after
+experiencing a crash. The script will create a timestamped file with all relevant crash information.
 
 ### Text Insertion Not Working
 
@@ -247,7 +222,8 @@ make clean
 
 ## Privacy & Security
 
-🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or external servers. The extension uses OpenAI's Whisper model locally, ensuring privacy of your voice data.
+🔒 **100% Local Processing** - All speech recognition happens on your local machine. Nothing is ever sent to the cloud or
+external servers. The extension uses OpenAI's Whisper model locally, ensuring privacy of your voice data.
 
 ## Development
 

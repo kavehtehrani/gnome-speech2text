@@ -4,7 +4,7 @@ A D-Bus service that provides speech-to-text functionality for the GNOME Shell S
 
 ## Overview
 
-This service handles the actual speech recognition processing using OpenAI's Whisper API. It runs as a D-Bus service and communicates with the GNOME Shell extension to provide seamless speech-to-text functionality.
+This service handles the actual speech recognition processing using OpenAI's Whisper model locally. It runs as a D-Bus service and communicates with the GNOME Shell extension to provide seamless speech-to-text functionality.
 
 ## Features
 
@@ -84,10 +84,7 @@ gnome-speech2text-service
 
 ### Configuration
 
-The service uses OpenAI's API for speech recognition. You'll need to:
-
-1. Get an OpenAI API key from [OpenAI Platform](https://platform.openai.com/)
-2. Configure it through the GNOME Shell extension preferences
+The service uses OpenAI's Whisper model locally for speech recognition. No API key is required. All processing happens on your local machine for complete privacy.
 
 ### D-Bus Interface
 

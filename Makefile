@@ -5,7 +5,7 @@ EXTENSION_UUID = gnome-speech2text@kaveh.page
 EXTENSION_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas
-SCHEMA_ID = org.shell.extensions.speech2text
+SCHEMA_ID = org.gnome.shell.extensions.speech2text
 
 .PHONY: help install compile-schemas clean clean-service package status verify-schema
 
@@ -258,9 +258,7 @@ verify-schema:
 	fi
 	@if [ -f "$(SCHEMAS_DIR)/gschemas.compiled" ]; then \
 		echo "   ✅ Schema compiled successfully"; \
-		gsettings list-schemas | grep "$(SCHEMA_ID)" > /dev/null && \
-		echo "   ✅ Schema registered with GSettings" || \
-		echo "   ❌ Schema not registered with GSettings"; \
+		echo "   ℹ️  Schema will be loaded by GNOME Shell when extension is enabled"; \
 	else \
 		echo "   ❌ Schema not compiled"; \
 	fi 
