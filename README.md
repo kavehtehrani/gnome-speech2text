@@ -67,17 +67,14 @@ If you are missing any of the required dependencies the installation script will
 
 ### Quick Installation
 
+#### Ubuntu/Debian: Run the installation script
+
 For the easiest installation experience on Ubuntu/Debian, use the repository installer script:
 
 ```bash
 # Clone the repository
 git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
-```
-
-#### Ubuntu/Debian: Run the installation script
-
-```
 ./install.sh
 ```
 
