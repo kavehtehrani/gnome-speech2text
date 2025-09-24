@@ -7,10 +7,10 @@
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
 ![D-Bus](https://img.shields.io/badge/D--Bus-000000?style=flat&logo=dbus&logoColor=white)
 ![Whisper](https://img.shields.io/badge/Whisper-412991?style=flat&logo=openai&logoColor=white)
+[![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/gnome-speech2text/)
 
 A GNOME Shell extension that adds speech-to-text functionality
-using [OpenAI's Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words
-transcribed with the option to automatically insert at your cursor (on X11 only).
+using OpenAI's automated speech recognition [Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words transcribed with the option to automatically insert at your cursor (on X11 only).
 
 ![recording-modal](./images/recording-modal.png)
 
@@ -58,6 +58,8 @@ If you are missing any of the required dependencies the installation script will
 
 ### GNOME Extensions Store
 
+[![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/gnome-speech2text/)
+
 1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/8238/gnome-speech2text/) and click "Install"
 2. The extension will automatically detect required system packages and let you know what you will need to install
 3. Follow the setup dialog to install the required D-Bus service (automatically downloads from PyPI)
@@ -72,6 +74,7 @@ git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
 make install
 ```
+
 ### First Time Setup
 
 The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with
