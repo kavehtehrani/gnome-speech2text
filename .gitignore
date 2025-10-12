@@ -7,6 +7,6 @@
 /test-dbus.py
 /dist/
 /tmp/
-/service/build/
-/service/src/gnome_speech2text_service.egg-info/
-/service/dist/
+/service*/build/
+/service*/src/*.egg-info/
+/service*/dist/

@@ -1,0 +1,6 @@
+# Note: dbus-python and pygobject should be installed via system packages:
+#   sudo apt install python3-dbus python3-gi  (Debian/Ubuntu)
+#   sudo dnf install python3-dbus python3-gobject  (Fedora)
+# They require system libraries and should not be installed via pip
+
+openai>=1.0.0
