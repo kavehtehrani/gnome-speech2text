@@ -3,4 +3,4 @@
 #   sudo dnf install python3-dbus python3-gobject  (Fedora)
 # They require system libraries and should not be installed via pip
 
-openai>=1.0.0
+requests>=2.25.0

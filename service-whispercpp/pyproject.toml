@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gnome-speech2text-service-openai"
+name = "gnome-speech2text-service-whispercpp"
 version = "1.0.0"
-description = "OpenAI-based D-Bus service providing speech-to-text functionality for GNOME Shell"
+description = "whisper.cpp-based D-Bus service providing speech-to-text functionality for GNOME Shell"
 readme = "README.md"
 license = {text = "GPL-2.0-or-later"}
 authors = [
@@ -20,8 +20,8 @@ keywords = [
     "dbus",
     "voice-recognition",
     "accessibility",
-    "openai",
-    "whisper"
+    "whisper.cpp",
+    "whispercpp"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -29,7 +29,6 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -38,12 +37,12 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     # Note: dbus-python and pygobject should be installed via system packages
     # (python3-dbus and python3-gi) as they require system libraries.
     # They are listed here for documentation but excluded in uv.lock
-    "openai>=1.0.0",
+    "requests>=2.25.0",
 ]
 
 [project.urls]
@@ -53,13 +52,13 @@ Issues = "https://github.com/kavehtehrani/gnome-speech2text/issues"
 Documentation = "https://github.com/kavehtehrani/gnome-speech2text/blob/main/README.md"
 
 [project.scripts]
-gnome-speech2text-service-openai = "gnome_speech2text_service_openai.cli:main"
+gnome-speech2text-service-whispercpp = "gnome_speech2text_service_whispercpp.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-gnome_speech2text_service_openai = ["../data/*"]
+gnome_speech2text_service_whispercpp = ["../data/*"]
 
 # Development tools configuration
 [tool.black]
@@ -95,7 +94,7 @@ ignore = [
 ]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

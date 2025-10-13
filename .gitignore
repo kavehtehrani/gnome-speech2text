@@ -1,12 +1,52 @@
+# IDEs
 /.vscode/
 /.idea/
-/venv/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+
+# Python package builds
+build/
+dist/
+*.egg-info/
+/service*/build/
+/service*/dist/
+/service*/src/*.egg-info/
+
+# Python tools
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Project specific
 /archive/
 /test/
 /src/schemas/gschemas.compiled
 /test-dbus.py
-/dist/
 /tmp/
-/service*/build/
-/service*/src/*.egg-info/
-/service*/dist/

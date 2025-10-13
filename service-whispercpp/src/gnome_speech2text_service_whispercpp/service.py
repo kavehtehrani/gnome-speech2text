@@ -1,62 +1,87 @@
 #!/usr/bin/env python3
 """
-GNOME Speech2Text D-Bus Service - OpenAI Backend
+GNOME Speech2Text D-Bus Service - whisper.cpp Backend
 
-This service provides speech-to-text functionality via D-Bus using the OpenAI API
-(compatible with OpenAI cloud service and whisper.cpp local servers).
+This service provides speech-to-text functionality via D-Bus using a local
+whisper.cpp server with OpenAI-compatible API.
 """
 
-from typing import Dict, Optional, Any, List, Tuple
-import dbus  # type: ignore
-import dbus.service  # type: ignore
-import dbus.mainloop.glib  # type: ignore
-from gi.repository import GLib  # type: ignore
-import subprocess
-import tempfile
+import contextlib
 import os
-import sys
 import signal
-import time
-import threading
-import uuid
+import subprocess
+import sys
 import syslog
+import tempfile
+import threading
+import time
+import uuid
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-# TODO: Uncomment when implementing OpenAI integration
-# from openai import OpenAI
+import dbus
+import dbus.mainloop.glib
+import dbus.service
+from gi.repository import GLib
+
+from .whisper_cpp_client import WhisperCppClient
 
 
 class Speech2TextService(dbus.service.Object):  # type: ignore
-    """D-Bus service for speech-to-text functionality using OpenAI API"""
+    """D-Bus service for speech-to-text functionality using whisper.cpp
+
+    Note: D-Bus method names must use PascalCase per D-Bus specification,
+    hence ruff N802 warnings are suppressed for D-Bus methods/signals.
+    """
 
     def __init__(self) -> None:
         # Set up D-Bus
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         bus = dbus.SessionBus()
         bus_name = dbus.service.BusName(
-            "org.gnome.Shell.Extensions.Speech2Text", bus
+            "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", bus
         )
-        super().__init__(bus_name, "/org/gnome/Shell/Extensions/Speech2Text")
+        super().__init__(bus_name, "/org/gnome/Shell/Extensions/Speech2TextWhisperCpp")
 
         # Service state
         self.active_recordings: Dict[str, Dict[str, Any]] = {}
         self.dependencies_checked: bool = False
         self.missing_deps: List[str] = []
 
-        # TODO: Initialize OpenAI client
-        # Example:
-        # server_url = os.environ.get('WHISPER_SERVER_URL', 'http://localhost:8080/v1')
-        # self.client: OpenAI = OpenAI(base_url=server_url)
-        # self.model_name: str = os.environ.get('WHISPER_MODEL', 'base')
+        # Initialize whisper.cpp client
+        server_url = os.environ.get("WHISPER_SERVER_URL", "http://localhost:8080")
+        self.server_url = server_url
+
+        # Determine model file name for auto-start
+        # WHISPER_MODEL should be a whisper.cpp model name like: base, small, medium, large-v3-turbo, etc.
+        # Variants with .en, -q5_1, -q8_0 suffixes are also supported (e.g., base.en, small-q5_1)
+        model_file_name = os.environ.get("WHISPER_MODEL", "small")
+
+        # Determine language for auto-start
+        # WHISPER_LANGUAGE should be a language code like: en, es, fr, de, or "auto" for auto-detection
+        language = os.environ.get("WHISPER_LANGUAGE", "auto")
+
+        # Check if auto-start is enabled
+        auto_start = os.environ.get("WHISPER_AUTO_START", "true").lower()
+        auto_start_enabled = auto_start not in ("false", "0", "no", "off")
+
+        # Initialize client
+        self.client = WhisperCppClient(
+            base_url=server_url,
+            auto_start=auto_start_enabled,
+            model_file=model_file_name,
+            language=language,
+        )
 
         # Initialize syslog for proper journalctl logging
         syslog.openlog(
-            "gnome-speech2text-service-openai", syslog.LOG_PID, syslog.LOG_USER
+            "gnome-speech2text-service-whispercpp", syslog.LOG_PID, syslog.LOG_USER
         )
         syslog.syslog(
-            syslog.LOG_INFO, "Speech2Text D-Bus service started (OpenAI backend)"
+            syslog.LOG_INFO, "Speech2Text D-Bus service started (whisper.cpp backend)"
         )
-        print("Speech2Text D-Bus service started (OpenAI backend)")
+        print("Speech2Text D-Bus service started (whisper.cpp backend)")
 
     def _check_dependencies(self) -> Tuple[bool, List[str]]:
         """Check if all required dependencies are available"""
@@ -67,9 +92,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
 
         # Check for ffmpeg
         try:
-            subprocess.run(
-                ["ffmpeg", "-version"], capture_output=True, check=True
-            )
+            subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
         except (FileNotFoundError, subprocess.CalledProcessError):
             missing.append("ffmpeg")
 
@@ -89,9 +112,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
         if session_type == "wayland":
             # On Wayland, only wl-copy works
             try:
-                subprocess.run(
-                    ["which", "wl-copy"], capture_output=True, check=True
-                )
+                subprocess.run(["which", "wl-copy"], capture_output=True, check=True)
                 clipboard_available = True
             except (FileNotFoundError, subprocess.CalledProcessError):
                 pass
@@ -99,9 +120,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             # On X11 or unknown, check for xclip/xsel
             for tool in ["xclip", "xsel"]:
                 try:
-                    subprocess.run(
-                        ["which", tool], capture_output=True, check=True
-                    )
+                    subprocess.run(["which", tool], capture_output=True, check=True)
                     clipboard_available = True
                     break
                 except (FileNotFoundError, subprocess.CalledProcessError):
@@ -113,12 +132,10 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             else:
                 missing.append("clipboard-tools (xclip or xsel for X11)")
 
-        # TODO: Add check for OpenAI API connectivity
-        # Example:
-        # try:
-        #     self.client.models.list()
-        # except Exception as e:
-        #     missing.append(f"OpenAI API connection: {str(e)}")
+        # Check server connectivity
+        health = self.client.health_check()
+        if health["status"] != "ok":
+            missing.append(f"whisper.cpp server not responding at {self.server_url}")
 
         self.missing_deps = missing
         self.dependencies_checked = True
@@ -151,9 +168,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
         try:
             if display_server == "wayland":
                 try:
-                    subprocess.run(
-                        ["wl-copy"], input=text, text=True, check=True
-                    )
+                    subprocess.run(["wl-copy"], input=text, text=True, check=True)
                     return True
                 except (FileNotFoundError, subprocess.CalledProcessError):
                     # Fallback to xclip (XWayland)
@@ -199,9 +214,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
 
         try:
             # Use xdotool for typing (works on both X11 and XWayland)
-            subprocess.run(
-                ["xdotool", "type", "--delay", "10", text], check=True
-            )
+            subprocess.run(["xdotool", "type", "--delay", "10", text], check=True)
             return True
         except Exception as e:
             print(f"Error typing text: {e}")
@@ -213,9 +226,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             recording_info = self.active_recordings.get(recording_id)
             if recording_info:
                 # Stop any running process
-                process: Optional[subprocess.Popen[str]] = recording_info.get(
-                    "process"
-                )
+                process: Optional[subprocess.Popen[str]] = recording_info.get("process")
                 if process and process.poll() is None:
                     try:
                         print(
@@ -232,24 +243,24 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
 
                         # Final check with system kill
                         if process.poll() is None:
-                            try:
+                            with contextlib.suppress(Exception):
                                 subprocess.run(
                                     ["kill", "-9", str(process.pid)],
                                     check=False,
                                 )
-                            except Exception:
-                                pass
                     except Exception as e:
                         print(f"Error cleaning up process: {e}")
 
                 # Clean up audio file if it exists
                 audio_file: Optional[str] = recording_info.get("audio_file")
-                if audio_file and os.path.exists(audio_file):
-                    try:
-                        os.unlink(audio_file)
-                        print(f"Cleaned up audio file: {audio_file}")
-                    except Exception as e:
-                        print(f"Error cleaning up audio file: {e}")
+                if audio_file:
+                    audio_path = Path(audio_file)
+                    if audio_path.exists():
+                        try:
+                            audio_path.unlink()
+                            print(f"Cleaned up audio file: {audio_file}")
+                        except Exception as e:
+                            print(f"Error cleaning up audio file: {e}")
 
                 # Remove from active recordings
                 del self.active_recordings[recording_id]
@@ -326,9 +337,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             if process.poll() is not None:
                 # Process failed immediately
                 stderr_output = (
-                    process.stderr.read()
-                    if process.stderr
-                    else "No stderr available"
+                    process.stderr.read() if process.stderr else "No stderr available"
                 )
                 syslog.syslog(
                     syslog.LOG_ERR,
@@ -414,11 +423,9 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
                         syslog.LOG_ERR, f"Error stopping recording process: {e}"
                     )
                     # Ensure process is terminated even if error occurs
-                    try:
+                    with contextlib.suppress(Exception):
                         process.kill()
                         process.wait()
-                    except Exception:
-                        pass
 
             process.wait()
             syslog.syslog(
@@ -445,10 +452,11 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
 
             # Check if we have valid audio with retry logic
             audio_valid = False
+            audio_path = Path(audio_file)
             syslog.syslog(syslog.LOG_INFO, f"*** Checking audio file: {audio_file}")
             for attempt in range(5):  # Try up to 5 times
-                if os.path.exists(audio_file):
-                    file_size = os.path.getsize(audio_file)
+                if audio_path.exists():
+                    file_size = audio_path.stat().st_size
                     syslog.syslog(
                         syslog.LOG_INFO,
                         f"Attempt {attempt + 1}: File exists, size: {file_size} bytes",
@@ -483,10 +491,8 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
                 self._transcribe_audio(recording_id)
             else:
                 recording_info["status"] = "failed"
-                file_size = (
-                    os.path.getsize(audio_file) if os.path.exists(audio_file) else 0
-                )
-                error_msg = f"Audio validation failed: file_size={file_size} bytes, file_exists={os.path.exists(audio_file)}"
+                file_size = audio_path.stat().st_size if audio_path.exists() else 0
+                error_msg = f"Audio validation failed: file_size={file_size} bytes, file_exists={audio_path.exists()}"
                 syslog.syslog(syslog.LOG_ERR, f"DEBUG: {error_msg}")
                 self.RecordingError(
                     recording_id,
@@ -501,32 +507,35 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             self._cleanup_recording(recording_id)
 
     def _transcribe_audio(self, recording_id: str) -> None:
-        """Transcribe recorded audio using OpenAI API"""
+        """Transcribe recorded audio using whisper.cpp"""
         recording_info = self.active_recordings.get(recording_id)
         if not recording_info or recording_info["status"] != "recorded":
             return
 
         audio_file: Optional[str] = recording_info.get("audio_file")
-        if not audio_file or not os.path.exists(audio_file):
+        if not audio_file or not Path(audio_file).exists():
             self.RecordingError(recording_id, "Audio file not found")
             return
 
         try:
             recording_info["status"] = "transcribing"
 
-            # TODO: Replace with OpenAI API transcription
-            # Example implementation:
-            #
-            # with open(audio_file, "rb") as af:
-            #     response = self.client.audio.transcriptions.create(
-            #         model=self.model_name,
-            #         file=af,
-            #         response_format="text"
-            #     )
-            # text: str = response.strip() if isinstance(response, str) else response.text.strip()
+            # Transcribe using whisper.cpp server
+            # The model is determined by the server's -m flag at startup
+            with Path(audio_file).open("rb") as af:
+                response = self.client.audio.transcriptions.create(
+                    file=af, response_format="text"
+                )
+            text: str = (
+                response.strip() if isinstance(response, str) else response.text.strip()
+            )
 
-            # Placeholder - will be implemented in the next phase
-            text = "[TODO: OpenAI transcription not implemented yet]"
+            if not text:
+                syslog.syslog(
+                    syslog.LOG_WARNING,
+                    f"Transcription returned empty text for recording {recording_id}",
+                )
+                raise Exception("Transcription returned empty result")
 
             recording_info["text"] = text
             recording_info["status"] = "completed"
@@ -535,9 +544,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             self.TranscriptionReady(recording_id, text)
 
             # Handle post-processing based on recording options
-            copy_to_clipboard: bool = recording_info.get(
-                "copy_to_clipboard", False
-            )
+            copy_to_clipboard: bool = recording_info.get("copy_to_clipboard", False)
             preview_mode: bool = recording_info.get("preview_mode", False)
 
             if not preview_mode:
@@ -553,25 +560,39 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
 
         except Exception as e:
             recording_info["status"] = "failed"
-            self.RecordingError(recording_id, f"Transcription failed: {str(e)}")
+            error_msg = str(e)
+
+            # Provide more helpful error messages
+            if "Connection" in error_msg or "connection" in error_msg:
+                error_msg = f"Cannot connect to whisper.cpp server at {self.server_url}. Is it running?"
+            elif "timeout" in error_msg.lower():
+                error_msg = "Server timeout - transcription took too long or server is unresponsive"
+            elif "404" in error_msg or "Not Found" in error_msg:
+                error_msg = f"Transcription endpoint not found - check WHISPER_SERVER_URL is correct: {self.server_url}"
+
+            syslog.syslog(
+                syslog.LOG_ERR,
+                f"Transcription failed for recording {recording_id}: {error_msg}",
+            )
+            self.RecordingError(recording_id, f"Transcription failed: {error_msg}")
         finally:
             # Clean up audio file and recording state
-            try:
-                if audio_file and os.path.exists(audio_file):
-                    os.unlink(audio_file)
-            except Exception:
-                pass
+            if audio_file:
+                audio_path = Path(audio_file)
+                with contextlib.suppress(Exception):
+                    if audio_path.exists():
+                        audio_path.unlink()
 
             # Clean up the recording from active recordings
             self._cleanup_recording(recording_id)
 
     # D-Bus Methods
     @dbus.service.method(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text",
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp",
         in_signature="ibb",
         out_signature="s",
     )
-    def StartRecording(
+    def StartRecording(  # noqa: N802 - D-Bus method name must be PascalCase
         self, duration: int, copy_to_clipboard: bool, preview_mode: bool
     ) -> str:
         """Start a new recording session"""
@@ -616,11 +637,11 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             return dummy_id
 
     @dbus.service.method(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text",
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp",
         in_signature="s",
         out_signature="b",
     )
-    def StopRecording(self, recording_id: str) -> bool:
+    def StopRecording(self, recording_id: str) -> bool:  # noqa: N802
         """Stop an active recording"""
         try:
             recording_info = self.active_recordings.get(recording_id)
@@ -630,14 +651,10 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             recording_info["stop_requested"] = True
 
             # Stop the process if it's running
-            process: Optional[subprocess.Popen[str]] = recording_info.get(
-                "process"
-            )
+            process: Optional[subprocess.Popen[str]] = recording_info.get("process")
             if process and process.poll() is None:
-                try:
+                with contextlib.suppress(Exception):
                     process.send_signal(signal.SIGINT)
-                except Exception:
-                    pass
 
             return True
 
@@ -646,11 +663,11 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             return False
 
     @dbus.service.method(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text",
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp",
         in_signature="s",
         out_signature="b",
     )
-    def CancelRecording(self, recording_id: str) -> bool:
+    def CancelRecording(self, recording_id: str) -> bool:  # noqa: N802
         """Cancel an active recording without processing"""
         try:
             recording_info = self.active_recordings.get(recording_id)
@@ -676,11 +693,11 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             return False
 
     @dbus.service.method(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text",
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp",
         in_signature="sb",
         out_signature="b",
     )
-    def TypeText(self, text: str, copy_to_clipboard: bool) -> bool:
+    def TypeText(self, text: str, copy_to_clipboard: bool) -> bool:  # noqa: N802
         """Type provided text directly"""
         try:
             success = True
@@ -690,9 +707,8 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
                 success = False
 
             # Copy to clipboard if requested
-            if copy_to_clipboard:
-                if not self._copy_to_clipboard(text):
-                    print("Failed to copy to clipboard")
+            if copy_to_clipboard and not self._copy_to_clipboard(text):
+                print("Failed to copy to clipboard")
 
             # Emit signal
             self.TextTyped(text, success)
@@ -704,21 +720,19 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             return False
 
     @dbus.service.method(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text", out_signature="s"
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", out_signature="s"
     )
-    def GetServiceStatus(self) -> str:
+    def GetServiceStatus(self) -> str:  # noqa: N802
         """Get current service status"""
         try:
             deps_ok, missing = self._check_dependencies()
             if not deps_ok:
                 return f"dependencies_missing:{','.join(missing)}"
 
-            # TODO: Add OpenAI API connectivity check
-            # Example:
-            # try:
-            #     self.client.models.list()
-            # except Exception as e:
-            #     return f"api_error:{str(e)}"
+            # Check server connectivity
+            health = self.client.health_check()
+            if health["status"] != "ok":
+                return f"server_error:whisper.cpp server not responding at {self.server_url}"
 
             active_count = len(
                 [
@@ -734,9 +748,9 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             return f"error:{str(e)}"
 
     @dbus.service.method(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text", out_signature="bas"
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", out_signature="bas"
     )
-    def CheckDependencies(self) -> Tuple[bool, List[str]]:
+    def CheckDependencies(self) -> Tuple[bool, List[str]]:  # noqa: N802
         """Check if all dependencies are available"""
         try:
             deps_ok, missing = self._check_dependencies()
@@ -746,33 +760,35 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
 
     # D-Bus Signals
     @dbus.service.signal(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text", signature="s"
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", signature="s"
     )
-    def RecordingStarted(self, recording_id: str) -> None:
+    def RecordingStarted(self, recording_id: str) -> None:  # noqa: N802
         pass
 
     @dbus.service.signal(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text", signature="ss"
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", signature="ss"
     )
-    def RecordingStopped(self, recording_id: str, reason: str) -> None:
+    def RecordingStopped(self, recording_id: str, reason: str) -> None:  # noqa: N802
         pass
 
     @dbus.service.signal(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text", signature="ss"
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", signature="ss"
     )
-    def TranscriptionReady(self, recording_id: str, text: str) -> None:
+    def TranscriptionReady(self, recording_id: str, text: str) -> None:  # noqa: N802
         pass
 
     @dbus.service.signal(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text", signature="ss"
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", signature="ss"
     )
-    def RecordingError(self, recording_id: str, error_message: str) -> None:
+    def RecordingError(  # noqa: N802
+        self, recording_id: str, error_message: str
+    ) -> None:
         pass
 
     @dbus.service.signal(  # type: ignore
-        "org.gnome.Shell.Extensions.Speech2Text", signature="sb"
+        "org.gnome.Shell.Extensions.Speech2TextWhisperCpp", signature="sb"
     )
-    def TextTyped(self, text: str, success: bool) -> None:
+    def TextTyped(self, text: str, success: bool) -> None:  # noqa: N802
         pass
 
 
@@ -782,15 +798,11 @@ def main() -> int:
         service = Speech2TextService()
 
         # Set up signal handlers for graceful shutdown
-        def signal_handler(signum: int, frame: Any) -> None:
+        def signal_handler(signum: int, frame: Any) -> None:  # noqa: ARG001
             print(f"Received signal {signum}, shutting down...")
             # Clean up active recordings
-            for recording_id, recording_info in list(
-                service.active_recordings.items()
-            ):
-                process: Optional[subprocess.Popen[str]] = recording_info.get(
-                    "process"
-                )
+            for recording_id, recording_info in list(service.active_recordings.items()):
+                process: Optional[subprocess.Popen[str]] = recording_info.get("process")
                 if process and process.poll() is None:
                     try:
                         print(f"Terminating recording process {process.pid}")
@@ -807,13 +819,21 @@ def main() -> int:
                 # Clean up resources
                 service._cleanup_recording(recording_id)
 
+            # Stop whisper-server if we started it
+            try:
+                print("Stopping whisper-server...")
+                service.client.stop_server()
+                print("Whisper-server stopped")
+            except Exception as e:
+                print(f"Error stopping whisper-server: {e}")
+
             print("All recordings cleaned up, exiting...")
             sys.exit(0)
 
         signal.signal(signal.SIGTERM, signal_handler)
         signal.signal(signal.SIGINT, signal_handler)
 
-        print("Starting Speech2Text D-Bus service main loop (OpenAI backend)...")
+        print("Starting Speech2Text D-Bus service main loop (whisper.cpp backend)...")
 
         # Start the main loop
         loop = GLib.MainLoop()

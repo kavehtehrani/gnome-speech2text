@@ -1,0 +1,323 @@
+# GNOME Speech2Text Service - Whisper.cpp Backend
+
+An alternative D-Bus service for the GNOME Speech2Text extension that uses a local whisper.cpp server for speech recognition, eliminating the need for cloud APIs or loading large ML models in memory.
+
+## Overview
+
+This service provides the same D-Bus interface as the original `gnome-speech2text-service` but connects to a whisper.cpp server for transcription. It includes a custom `WhisperCppClient` that handles:
+- Automatic server health checking
+- Optional auto-start of whisper.cpp server
+- Audio transcription via HTTP API
+
+### Why whisper.cpp?
+
+The whisper.cpp server provides:
+- **Fast local inference** - C++ implementation of OpenAI's Whisper model
+- **Low memory usage** - Efficient GGML quantized models
+- **Privacy** - All processing happens locally, no cloud API needed
+- **No Python ML dependencies** - No need for PyTorch, CUDA, etc.
+
+### whisper.cpp API Support
+
+This service uses whisper.cpp's native HTTP server API:
+- ✅ `POST /inference` - Audio transcription
+- ✅ `GET /health` - Server health checking
+
+## Features
+
+- **Local Processing**: All transcription happens on your machine via whisper.cpp
+- **Auto-Start**: Automatically starts whisper.cpp server if not running
+- **Type-Safe**: Full type hints with mypy strict mode support
+- **Modern Development**: Uses uv for development, black/ruff/mypy for code quality
+- **Compatible**: Maintains 1:1 D-Bus interface compatibility with the original service
+- **Lightweight**: Minimal dependencies (only `requests` library needed)
+
+## Installation
+
+### For Development (with uv)
+
+```bash
+cd service-whispercpp
+
+# First, install system dependencies (required for D-Bus and GLib bindings)
+sudo apt install python3-dbus python3-gi  # Debian/Ubuntu
+# OR
+sudo dnf install python3-dbus python3-gobject  # Fedora
+
+# Initialize and sync dependencies (uses system packages for dbus/gi)
+uv venv --system-site-packages
+uv sync --group dev
+
+# Run development commands
+uv run black .              # Format code
+uv run ruff check .         # Lint code
+uv run mypy .               # Type check code
+
+# Run the service
+uv run gnome-speech2text-service-whispercpp
+```
+
+### For Production (with pip)
+
+```bash
+cd service-whispercpp
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Or install as package
+pip install .
+
+# Run the service
+gnome-speech2text-service-whispercpp
+```
+
+### System Dependencies
+
+Same as the original service:
+- `ffmpeg` - for audio recording
+- `xdotool` - for text insertion (X11)
+- `wl-clipboard` - for clipboard on Wayland
+- `xclip` or `xsel` - for clipboard on X11
+- `python3-dbus` and `python3-gi` - for D-Bus and GLib integration
+
+## Configuration
+
+The service is configured via environment variables:
+
+### WHISPER_SERVER_URL
+Base URL of your whisper.cpp server.
+
+**Default**: `http://localhost:8080`
+
+```bash
+export WHISPER_SERVER_URL="http://localhost:8080"      # Local server
+export WHISPER_SERVER_URL="http://192.168.1.100:8080"  # Remote server
+```
+
+### WHISPER_MODEL
+Model to use when auto-starting the server. Only applies if `WHISPER_AUTO_START=true`.
+
+**Default**: `base`
+
+**Available**: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, plus variants like `base.en`, `small-q5_1`, etc.
+
+```bash
+export WHISPER_MODEL="base"          # Good balance (recommended)
+export WHISPER_MODEL="small"         # Better accuracy
+export WHISPER_MODEL="large-v3-turbo"  # Best quality
+```
+
+### WHISPER_LANGUAGE
+Language for auto-started server. Only applies if `WHISPER_AUTO_START=true`.
+
+**Default**: `auto`
+
+```bash
+export WHISPER_LANGUAGE="auto"  # Auto-detect (default)
+export WHISPER_LANGUAGE="en"    # English only
+export WHISPER_LANGUAGE="es"    # Spanish only
+```
+
+### WHISPER_AUTO_START
+Auto-start whisper.cpp server if not running.
+
+**Default**: `true`
+
+```bash
+export WHISPER_AUTO_START="false"  # Connect to existing server only
+export WHISPER_AUTO_START="true"   # Auto-start if needed (default)
+```
+
+## Setting up whisper.cpp Server
+
+1. **Build whisper.cpp with server support**:
+   ```bash
+   git clone https://github.com/ggerganov/whisper.cpp
+   cd whisper.cpp
+   make server
+   ```
+
+2. **Download a model**:
+   ```bash
+   bash ./models/download-ggml-model.sh base
+   ```
+
+3. **Start the server**:
+   ```bash
+   ./server -m models/ggml-base.bin -l auto
+   ```
+
+4. **Test the connection**:
+   ```bash
+   curl http://localhost:8080/health
+   ```
+
+## Usage
+
+### Starting the Service
+
+The service will be automatically started by D-Bus when the GNOME extension makes a request:
+
+```bash
+# Check if service is registered
+dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2Text \
+  --print-reply /org/gnome/Shell/Extensions/Speech2Text \
+  org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
+
+# Manually start for debugging
+gnome-speech2text-service-whispercpp
+```
+
+### Development Commands
+
+```bash
+# Format code (black)
+uv run black .
+
+# Check code style and quality (ruff)
+uv run ruff check .
+
+# Fix auto-fixable issues
+uv run ruff check --fix .
+
+# Type check (mypy)
+uv run mypy .
+
+# Run all checks
+uv run black --check . && uv run ruff check . && uv run mypy .
+```
+
+## D-Bus Interface
+
+The service implements the `org.gnome.Shell.Extensions.Speech2TextWhisperCpp` interface (compatible with the original service):
+
+### Methods
+- `StartRecording(duration: int, copy_to_clipboard: bool, preview_mode: bool) -> recording_id: str`
+- `StopRecording(recording_id: str) -> success: bool`
+- `CancelRecording(recording_id: str) -> success: bool`
+- `TypeText(text: str, copy_to_clipboard: bool) -> success: bool`
+- `GetServiceStatus() -> status: str`
+- `CheckDependencies() -> (all_available: bool, missing: list[str])`
+
+### Signals
+- `RecordingStarted(recording_id: str)`
+- `RecordingStopped(recording_id: str, reason: str)`
+- `TranscriptionReady(recording_id: str, text: str)`
+- `RecordingError(recording_id: str, error_message: str)`
+- `TextTyped(text: str, success: bool)`
+
+## Differences from Original Service
+
+| Feature | Original Service | Whisper.cpp Service |
+|---------|-----------------|---------------------|
+| Backend | Whisper Python package | whisper.cpp HTTP server |
+| Model Loading | Loads model into memory | Separate server process |
+| Memory Usage | High (model in service RAM) | Low (model in server RAM) |
+| Processing | Local Python/CPU/GPU | Local C++/CPU/GPU (faster) |
+| Dependencies | torch, whisper, numpy | requests only |
+| Configuration | Model selected at startup | Environment variables |
+| Network | None required | HTTP to localhost |
+| Type Hints | Minimal | Full mypy strict mode |
+| Dev Tools | None | black, ruff, mypy via uv |
+| Server Management | N/A | Auto-start, health checks |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────┐
+│   GNOME Shell Extension                 │
+│   (UI, Keyboard shortcuts)              │
+└─────────────────┬───────────────────────┘
+                  │ D-Bus
+┌─────────────────▼───────────────────────┐
+│   Speech2Text Service (whisper.cpp)     │
+│   - Audio recording (FFmpeg)            │
+│   - Text typing (xdotool/ydotool)       │
+│   - Clipboard (wl-copy/xclip)           │
+│   - WhisperCppClient                    │
+└─────────────────┬───────────────────────┘
+                  │ HTTP (POST /inference, GET /health)
+┌─────────────────▼───────────────────────┐
+│   whisper.cpp Server                    │
+│   - Fast C++ inference                  │
+│   - GGML quantized models               │
+│   - Local, private processing           │
+└─────────────────────────────────────────┘
+```
+
+## Troubleshooting
+
+### Service won't start
+- Check D-Bus registration: `dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2TextWhisperCpp --print-reply /org/gnome/Shell/Extensions/Speech2TextWhisperCpp org.gnome.Shell.Extensions.Speech2TextWhisperCpp.GetServiceStatus`
+- Check logs: `journalctl --user -f | grep speech2text`
+- Verify dependencies: run the service manually and check error messages
+
+### Can't connect to whisper.cpp server
+- Verify server is running: `curl http://localhost:8080/health` (should return `{"status":"ok"}`)
+- Check `WHISPER_SERVER_URL` environment variable matches server address
+- Check if server is listening: `netstat -tlnp | grep 8080`
+- Start server manually: `whisper-server -m ~/.cache/whisper.cpp/ggml-base.bin -l auto`
+
+### Transcription is slow
+- Use a smaller model (tiny or base recommended for CPU)
+- Use a machine with more CPU cores (whisper.cpp uses multiple threads)
+- Consider using a GPU build of whisper.cpp if available
+- Check CPU usage during transcription - high load indicates CPU bottleneck
+
+### "Missing dependencies" or "Server not responding" errors
+- The service uses the `/health` endpoint to check whisper.cpp server status
+- Make sure your whisper.cpp server is recent enough to support the `/health` endpoint
+- Update whisper.cpp: `cd whisper.cpp && git pull && make server`
+- If auto-start fails, try starting the server manually first
+- Check logs: `journalctl --user -f | grep whisper`
+
+### Model download fails
+- Ensure write access to `~/.cache/whisper.cpp/`
+- Check disk space (models: 75MB to 3GB)
+- Download manually using official script:
+  ```bash
+  git clone https://github.com/ggerganov/whisper.cpp
+  cd whisper.cpp
+  ./models/download-ggml-model.sh base ~/.cache/whisper.cpp
+  ```
+
+## WhisperCppClient Module
+
+This service includes a reusable `WhisperCppClient` class that can be used independently:
+
+```python
+from whisper_cpp_client import WhisperCppClient
+
+# Initialize (auto-starts server if needed)
+client = WhisperCppClient(
+    base_url="http://localhost:8080",
+    auto_start=True,
+    model_file="base",
+    language="auto"
+)
+
+# Check health
+health = client.health_check()
+print(health)  # {'status': 'ok'}
+
+# Transcribe audio
+with open("audio.wav", "rb") as f:
+    text = client.audio.transcriptions.create(file=f)
+    print(text)
+
+# Cleanup
+client.stop_server()
+```
+
+## License
+
+GPL-2.0-or-later (same as the original project)
+
+## Credits
+
+Based on the original `gnome-speech2text` project by Kaveh Tehrani.

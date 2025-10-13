@@ -1,3 +1,0 @@
-[D-BUS Service]
-Name=org.gnome.Shell.Extensions.Speech2Text
-Exec=/usr/bin/gnome-speech2text-service-openai
