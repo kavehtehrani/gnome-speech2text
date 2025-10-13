@@ -164,6 +164,28 @@ class WhisperCppClient:
                 time.sleep(wait_interval)
                 elapsed += wait_interval
 
+                # Check if server process died
+                try:
+                    exit_code = self._server_process.poll()
+                    if exit_code is not None:
+                        try:
+                            stdout, stderr = self._server_process.communicate(timeout=1.0)
+                            stdout_str = stdout.decode('utf-8').strip() if stdout else ""
+                            stderr_str = stderr.decode('utf-8').strip() if stderr else ""
+                        except Exception as e:
+                            stdout_str = "(error reading stdout)"
+                            stderr_str = "(error reading stderr)"
+
+                        self._server_process = None
+                        raise RuntimeError(
+                            f"whisper-server exited early (rc={exit_code}): "
+                            f"stdout='{stdout_str}', stderr='{stderr_str}'"
+                        )
+                except AttributeError:
+                    # Process might have been cleaned up by another thread
+                    self._server_process = None
+                    raise RuntimeError("whisper-server process was unexpectedly terminated")
+
                 health = self.health_check()
                 if health["status"] == "ok":
                     return True
