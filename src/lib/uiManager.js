@@ -4,15 +4,11 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { SettingsDialog } from "./settingsDialog.js";
-import { ServiceSetupDialog } from "./setupDialog.js";
-import { ShortcutCapture } from "./shortcutCapture.js";
-
 export class UIManager {
   constructor(extensionCore) {
     this.extensionCore = extensionCore;
     this.icon = null;
-    this.settingsDialog = null;
+    this._buttonPressSignalId = null;
   }
 
   initialize() {
@@ -21,7 +17,7 @@ export class UIManager {
 
     // Set up the icon
     let icon = new St.Icon({
-      icon_name: "microphone-symbolic",
+      icon_name: "radio-checked-symbolic",
       style_class: "system-status-icon",
     });
     this.icon.add_child(icon);
@@ -37,25 +33,18 @@ export class UIManager {
   }
 
   createPopupMenu() {
-    // Settings menu item
+    // Settings menu item - opens standard GNOME extension preferences
     let settingsItem = new PopupMenu.PopupMenuItem("Settings");
     settingsItem.connect("activate", () => {
-      this.showSettingsWindow();
+      this.openPreferences();
     });
     this.icon.menu.addMenuItem(settingsItem);
-
-    // Setup Guide menu item
-    let setupItem = new PopupMenu.PopupMenuItem("Setup");
-    setupItem.connect("activate", () => {
-      this.showServiceSetupDialog("Manual setup guide requested");
-    });
-    this.icon.menu.addMenuItem(setupItem);
   }
 
   _setupClickHandler() {
     // Store reference to 'this' to avoid context issues in callback
     const self = this;
-    this.icon.connect("button-press-event", (actor, event) => {
+    this._buttonPressSignalId = this.icon.connect("button-press-event", (_actor, event) => {
       const buttonPressed = event.get_button();
 
       if (buttonPressed === 1) {
@@ -87,24 +76,13 @@ export class UIManager {
     Main.panel.addToStatusArea("speech2text-indicator", this.icon);
   }
 
-  showSettingsWindow() {
-    if (!this.extensionCore.settings) {
-      console.error("Extension not properly enabled, cannot show settings");
-      return;
+  openPreferences() {
+    try {
+      this.extensionCore.openPreferences();
+    } catch (e) {
+      console.error("Failed to open preferences:", e);
+      Main.notify("Speech2Text", "Failed to open preferences window");
     }
-
-    if (!this.settingsDialog) {
-      this.settingsDialog = new SettingsDialog(this.extensionCore);
-    }
-    this.settingsDialog.show();
-  }
-
-  showServiceSetupDialog(errorMessage) {
-    const setupDialog = new ServiceSetupDialog(
-      this.extensionCore,
-      errorMessage
-    );
-    setupDialog.show();
   }
 
   showErrorNotification(title, message) {
@@ -115,31 +93,26 @@ export class UIManager {
     Main.notify(title, message);
   }
 
-  captureNewShortcut(callback) {
-    const shortcutCapture = new ShortcutCapture();
-    shortcutCapture.capture(callback);
-  }
-
   cleanup() {
-    // Close settings dialog
-    if (this.settingsDialog) {
-      console.log("Closing settings dialog");
-      this.settingsDialog.close();
-      this.settingsDialog = null;
+    // Disconnect signal handler
+    if (this._buttonPressSignalId && this.icon) {
+      try {
+        this.icon.disconnect(this._buttonPressSignalId);
+        console.log("Button press signal disconnected");
+      } catch (error) {
+        console.log("Error disconnecting button press signal:", error.message);
+      }
+      this._buttonPressSignalId = null;
     }
 
-    // Clean up panel icon first (CRITICAL for avoiding conflicts)
+    // Clean up panel icon (this.icon and statusArea reference the same object)
     try {
       if (this.icon) {
         console.log("Removing panel icon from status area");
+        // Only destroy once - this.icon and statusArea["speech2text-indicator"] are the same object
         this.icon.destroy();
         this.icon = null;
-      }
-
-      // Remove from status area to prevent conflicts
-      if (Main.panel.statusArea["speech2text-indicator"]) {
-        console.log("Cleaning up status area indicator");
-        Main.panel.statusArea["speech2text-indicator"].destroy();
+        // Clean up the reference in statusArea
         delete Main.panel.statusArea["speech2text-indicator"];
       }
     } catch (error) {

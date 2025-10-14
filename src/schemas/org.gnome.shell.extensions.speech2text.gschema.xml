@@ -2,7 +2,7 @@
 <schemalist>
     <schema id="org.gnome.shell.extensions.speech2text" path="/org/gnome/shell/extensions/speech2text/">
         <key name="toggle-recording" type="as">
-            <default>['&lt;Super&gt;&lt;Alt&gt;r']</default>
+            <default>['&lt;Alt&gt;&lt;Super&gt;space']</default>
             <summary>Toggle recording</summary>
             <description>Keyboard shortcut to toggle recording</description>
         </key>

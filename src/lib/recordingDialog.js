@@ -27,6 +27,7 @@ export class RecordingDialog {
     this.delayedCleanupTimeoutId = null;
     this.isPreviewMode = false;
     this.transcribedText = "";
+    this.textEntry = null;
 
     this._buildDialog();
   }
@@ -172,7 +173,7 @@ export class RecordingDialog {
       this.onCancel?.();
     });
 
-    // Keyboard handling
+    // Keyboard handling - single handler for both recording and preview modes
     this.keyboardHandlerId = this.modalBarrier.connect(
       "key-press-event",
       (actor, event) => {
@@ -185,9 +186,18 @@ export class RecordingDialog {
           keyval === Clutter.KEY_Return ||
           keyval === Clutter.KEY_KP_Enter
         ) {
-          if (!this.isPreviewMode) {
+          if (this.isPreviewMode) {
+            // Preview mode: Copy to clipboard and close
+            if (this.textEntry) {
+              const finalText = this.textEntry.get_text();
+              console.log(`Copying text to clipboard (Enter key): "${finalText}"`);
+              this._copyToClipboard(finalText);
+            }
+            this.close();
+            this.onCancel?.();
+          } else {
+            // Recording mode: Stop recording and show processing
             this.showProcessing();
-            // Trigger the stop recording
             if (this.onStop) {
               this.onStop();
             }
@@ -396,7 +406,7 @@ export class RecordingDialog {
     }
 
     // Add text display for editing
-    const textEntry = new St.Entry({
+    this.textEntry = new St.Entry({
       text: text,
       style: `
         background-color: rgba(255, 255, 255, 0.1);
@@ -414,13 +424,13 @@ export class RecordingDialog {
     });
 
     // Make it behave like multiline
-    const clutterText = textEntry.get_clutter_text();
+    const clutterText = this.textEntry.get_clutter_text();
     clutterText.set_line_wrap(true);
     clutterText.set_line_wrap_mode(2); // PANGO_WRAP_WORD
     clutterText.set_single_line_mode(false);
     clutterText.set_activatable(false);
 
-    this.container.add_child(textEntry);
+    this.container.add_child(this.textEntry);
 
     // Focus the text entry after a short delay and select all text
     if (this.focusTimeoutId) {
@@ -445,7 +455,7 @@ export class RecordingDialog {
       );
 
       insertButton.connect("clicked", () => {
-        const finalText = textEntry.get_text();
+        const finalText = this.textEntry.get_text();
         this.close();
         this.onInsert?.(finalText);
       });
@@ -464,7 +474,7 @@ export class RecordingDialog {
 
     copyButton.connect("clicked", () => {
       // Copy to clipboard and close
-      const finalText = textEntry.get_text();
+      const finalText = this.textEntry.get_text();
       console.log(`Copying text to clipboard: "${finalText}"`);
 
       // Copy to clipboard using our own method
@@ -509,31 +519,8 @@ export class RecordingDialog {
     });
     this.container.add_child(keyboardHint);
 
-    // Update keyboard handling for preview mode
-    this.modalBarrier.disconnect(this.keyboardHandlerId);
-    this.keyboardHandlerId = this.modalBarrier.connect(
-      "key-press-event",
-      (actor, event) => {
-        const keyval = event.get_key_symbol();
-        if (keyval === Clutter.KEY_Escape) {
-          this.close();
-          this.onCancel?.();
-          return Clutter.EVENT_STOP;
-        } else if (
-          keyval === Clutter.KEY_Return ||
-          keyval === Clutter.KEY_KP_Enter
-        ) {
-          // Enter copies to clipboard and closes modal (default action)
-          const finalText = textEntry.get_text();
-          console.log(`Copying text to clipboard (Enter key): "${finalText}"`);
-          this._copyToClipboard(finalText);
-          this.close();
-          this.onCancel?.();
-          return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
-      }
-    );
+    // Keyboard handling is managed by the single handler in _buildRecordingUI()
+    // No need to disconnect/reconnect - it checks this.isPreviewMode
   }
 
   showError(message) {
@@ -733,111 +720,90 @@ export class RecordingDialog {
         // Cleanup will be done immediately to avoid timeout issues
 
         // Do immediate cleanup instead of delayed to avoid timeout issues on disable
-        import("gi://GLib")
-          .then(({ default: GLib }) => {
-            if (this.cleanupTimeoutId) {
-              GLib.Source.remove(this.cleanupTimeoutId);
-            }
-            // Execute cleanup immediately instead of creating a timeout
-            (() => {
+        if (this.cleanupTimeoutId) {
+          GLib.Source.remove(this.cleanupTimeoutId);
+        }
+        // Execute cleanup immediately instead of creating a timeout
+        try {
+          // Remove from chrome if it has a parent
+          if (modal.get_parent) {
+            const parent = modal.get_parent();
+            if (parent) {
+              // Try the official method first
               try {
-                // Remove from chrome if it has a parent
-                if (modal.get_parent) {
-                  const parent = modal.get_parent();
-                  if (parent) {
-                    // Try the official method first
+                Main.layoutManager.removeChrome(modal);
+                console.log("Modal removed from chrome successfully");
+              } catch (chromeError) {
+                console.log(
+                  "Chrome removal failed, trying direct parent removal:",
+                  chromeError.message
+                );
+                // For GNOME 48+, try a gentler approach first
+                if (isGNOME48Plus) {
+                  try {
+                    // Try to hide first, then remove with delay
+                    if (modal.hide) modal.hide();
+                    // Do immediate removal instead of delayed
                     try {
-                      Main.layoutManager.removeChrome(modal);
-                      console.log("Modal removed from chrome successfully");
-                    } catch (chromeError) {
+                      parent.remove_child(modal);
                       console.log(
-                        "Chrome removal failed, trying direct parent removal:",
-                        chromeError.message
+                        "Modal removed from parent immediately (GNOME 48+)"
                       );
-                      // For GNOME 48+, try a gentler approach first
-                      if (isGNOME48Plus) {
-                        try {
-                          // Try to hide first, then remove with delay
-                          if (modal.hide) modal.hide();
-                          // Do immediate removal instead of delayed
-                          try {
-                            parent.remove_child(modal);
-                            console.log(
-                              "Modal removed from parent immediately (GNOME 48+)"
-                            );
-                          } catch (delayedError) {
-                            console.log(
-                              "Immediate parent removal failed:",
-                              delayedError.message
-                            );
-                          }
-                        } catch (gnome48Error) {
-                          console.log(
-                            "GNOME 48+ specific removal failed:",
-                            gnome48Error.message
-                          );
-                          // Fallback to direct removal
-                          try {
-                            parent.remove_child(modal);
-                            console.log(
-                              "Modal removed from parent directly (fallback)"
-                            );
-                          } catch (parentError) {
-                            console.log(
-                              "Direct parent removal also failed:",
-                              parentError.message
-                            );
-                          }
-                        }
-                      } else {
-                        // Standard fallback for older GNOME versions
-                        try {
-                          parent.remove_child(modal);
-                          console.log("Modal removed from parent directly");
-                        } catch (parentError) {
-                          console.log(
-                            "Direct parent removal also failed:",
-                            parentError.message
-                          );
-                        }
-                      }
+                    } catch (delayedError) {
+                      console.log(
+                        "Immediate parent removal failed:",
+                        delayedError.message
+                      );
+                    }
+                  } catch (gnome48Error) {
+                    console.log(
+                      "GNOME 48+ specific removal failed:",
+                      gnome48Error.message
+                    );
+                    // Fallback to direct removal
+                    try {
+                      parent.remove_child(modal);
+                      console.log(
+                        "Modal removed from parent directly (fallback)"
+                      );
+                    } catch (parentError) {
+                      console.log(
+                        "Direct parent removal also failed:",
+                        parentError.message
+                      );
                     }
                   }
-                }
-
-                // Finally, destroy the modal
-                if (modal.destroy) {
+                } else {
+                  // Standard fallback for older GNOME versions
                   try {
-                    modal.destroy();
-                    console.log("Modal destroyed successfully");
-                  } catch (destroyError) {
+                    parent.remove_child(modal);
+                    console.log("Modal removed from parent directly");
+                  } catch (parentError) {
                     console.log(
-                      "Modal destruction failed:",
-                      destroyError.message
+                      "Direct parent removal also failed:",
+                      parentError.message
                     );
                   }
                 }
-              } catch (cleanupError) {
-                console.log("Delayed cleanup failed:", cleanupError.message);
               }
-            })();
-          })
-          .catch(() => {
-            // Fallback if GLib import fails - try immediate cleanup
+            }
+          }
+
+          // Finally, destroy the modal
+          if (modal.destroy) {
             try {
-              if (modal.get_parent && modal.get_parent()) {
-                Main.layoutManager.removeChrome(modal);
-              }
-              if (modal.destroy) {
-                modal.destroy();
-              }
-            } catch (immediateError) {
+              modal.destroy();
+              console.log("Modal destroyed successfully");
+            } catch (destroyError) {
               console.log(
-                "Immediate fallback cleanup failed:",
-                immediateError.message
+                "Modal destruction failed:",
+                destroyError.message
               );
             }
-          });
+          }
+        } catch (cleanupError) {
+          console.log("Cleanup failed:", cleanupError.message);
+        }
       }
     } catch (error) {
       console.error("Error closing recording dialog:", error.message);

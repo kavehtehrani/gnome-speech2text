@@ -184,7 +184,7 @@ export class DBusManager {
     if (!this.dbusProxy) {
       return {
         available: false,
-        error: "Service not installed. Please run the installation first.",
+        error: "Service not available",
       };
     }
 
@@ -214,15 +214,13 @@ export class DBusManager {
     } catch (e) {
       console.error(`Error checking service status: ${e}`);
 
-      // Provide more helpful error messages
       if (
         e.message &&
         e.message.includes("org.freedesktop.DBus.Error.ServiceUnknown")
       ) {
         return {
           available: false,
-          error:
-            "Service installed but not running. Please restart GNOME Shell:\n• X11: Alt+F2, type 'r', press Enter\n• Wayland: Log out and log back in",
+          error: "Service not running",
         };
       } else if (
         e.message &&
@@ -230,15 +228,12 @@ export class DBusManager {
       ) {
         return {
           available: false,
-          error:
-            "Service not responding. Please restart GNOME Shell or check if dependencies are installed.",
+          error: "Service not responding",
         };
       } else {
         return {
           available: false,
-          error: `Service error: ${
-            e.message || "Unknown error"
-          }. Try restarting GNOME Shell.`,
+          error: `Service error: ${e.message || "Unknown error"}`,
         };
       }
     }
