@@ -62,6 +62,16 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
         # WHISPER_LANGUAGE should be a language code like: en, es, fr, de, or "auto" for auto-detection
         language = os.environ.get("WHISPER_LANGUAGE", "auto")
 
+        # Determine VAD model for auto-start (optional)
+        # WHISPER_VAD_MODEL should be a VAD model name like: silero-v5.1.2
+        # Special values:
+        #   - "auto" (default): Auto-discover VAD models in ~/.cache/whisper.cpp/
+        #   - "none" or empty: Disable VAD
+        #   - Specific name: Use that model
+        vad_model = os.environ.get("WHISPER_VAD_MODEL", "auto")
+        if vad_model and vad_model.strip().lower() in ("none", ""):
+            vad_model = None
+
         # Check if auto-start is enabled
         auto_start = os.environ.get("WHISPER_AUTO_START", "true").lower()
         auto_start_enabled = auto_start not in ("false", "0", "no", "off")
@@ -72,6 +82,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             auto_start=auto_start_enabled,
             model_file=model_file_name,
             language=language,
+            vad_model=vad_model,
         )
 
         # Initialize syslog for proper journalctl logging

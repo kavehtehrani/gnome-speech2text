@@ -102,13 +102,13 @@ export WHISPER_SERVER_URL="http://192.168.1.100:8080"  # Remote server
 ### WHISPER_MODEL
 Model to use when auto-starting the server. Only applies if `WHISPER_AUTO_START=true`.
 
-**Default**: `base`
+**Default**: `small`
 
 **Available**: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, plus variants like `base.en`, `small-q5_1`, etc.
 
 ```bash
-export WHISPER_MODEL="base"          # Good balance (recommended)
-export WHISPER_MODEL="small"         # Better accuracy
+export WHISPER_MODEL="base"          # Faster, lower accuracy
+export WHISPER_MODEL="small"         # Good balance (default)
 export WHISPER_MODEL="large-v3-turbo"  # Best quality
 ```
 
@@ -123,6 +123,24 @@ export WHISPER_LANGUAGE="en"    # English only
 export WHISPER_LANGUAGE="es"    # Spanish only
 ```
 
+### WHISPER_VAD_MODEL
+VAD (Voice Activity Detection) model to filter silence from audio. Only applies if `WHISPER_AUTO_START=true`.
+
+VAD helps prevent hallucinations (like "Thank you for watching") when processing silent audio by filtering out non-speech portions.
+
+**Default**: `auto`
+
+**Options**:
+- `auto` - Auto-discover VAD models in `~/.cache/whisper.cpp/` (matches `ggml-silero-v*.bin`)
+- `none` - Disable VAD
+- Specific name like `silero-v5.1.2` - Use that model explicitly
+
+```bash
+export WHISPER_VAD_MODEL="auto"           # Auto-discover (default)
+export WHISPER_VAD_MODEL="none"           # Disable VAD
+export WHISPER_VAD_MODEL="silero-v5.1.2"  # Use specific model
+```
+
 ### WHISPER_AUTO_START
 Auto-start whisper.cpp server if not running.
 
@@ -133,7 +151,7 @@ export WHISPER_AUTO_START="false"  # Connect to existing server only
 export WHISPER_AUTO_START="true"   # Auto-start if needed (default)
 ```
 
-## Setting up whisper.cpp Server
+## Setting up whisper.cpp
 
 1. **Build whisper.cpp with server support**:
    ```bash
@@ -142,19 +160,24 @@ export WHISPER_AUTO_START="true"   # Auto-start if needed (default)
    make server
    ```
 
-2. **Download a model**:
+2. **Download a transcription model**:
    ```bash
-   bash ./models/download-ggml-model.sh base
+   # Download main model to ~/.cache/whisper.cpp/
+   bash ./models/download-ggml-model.sh base ~/.cache/whisper.cpp
    ```
 
-3. **Start the server**:
+3. **(Optional but recommended) Download VAD model**:
    ```bash
-   ./server -m models/ggml-base.bin -l auto
+   # Download VAD model to filter silence and prevent hallucinations
+   bash ./models/download-vad-model.sh silero-v5.1.2 ~/.cache/whisper.cpp
    ```
 
-4. **Test the connection**:
+4. **That's it!** The service will auto-start the whisper-server when needed.
+
+   To verify the service can start the server:
    ```bash
    curl http://localhost:8080/health
+   # Should return {"status":"ok"} after the service starts it
    ```
 
 ## Usage
@@ -298,7 +321,8 @@ client = WhisperCppClient(
     base_url="http://localhost:8080",
     auto_start=True,
     model_file="base",
-    language="auto"
+    language="auto",
+    vad_model="auto"  # Auto-discover VAD model, or use "silero-v5.1.2" or None
 )
 
 # Check health

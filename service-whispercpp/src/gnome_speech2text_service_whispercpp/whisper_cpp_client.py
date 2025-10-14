@@ -6,6 +6,7 @@ This module provides an OpenAI-compatible API for interacting with whisper.cpp s
 It handles server health checking, auto-starting, and audio transcription.
 """
 
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -31,6 +32,12 @@ class WhisperCppClient:
             - Quantized: "base-q5_1", "base-q8_0", "small-q5_1", "medium-q8_0"
         language: Language code for auto-start server (default: "auto" for auto-detection).
             Examples: "en", "es", "fr", "de", "auto"
+        vad_model: VAD (Voice Activity Detection) model name for auto-start (default: "auto").
+            When "auto" (default), automatically discovers VAD models in ~/.cache/whisper.cpp/
+            matching pattern: ggml-silero-v*.bin (e.g., silero-v5.1.2, silero-v1.2.3-alpha)
+            When specified explicitly, uses that model name.
+            When None, disables VAD.
+            Path format: ~/.cache/whisper.cpp/ggml-{vad_model}.bin
 
     Example:
         >>> client = WhisperCppClient(base_url="http://localhost:8080")
@@ -45,10 +52,12 @@ class WhisperCppClient:
         auto_start: bool = True,
         model_file: str = "small",
         language: str = "auto",
+        vad_model: Optional[str] = "auto",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model_file = model_file
         self.language = language
+        self.vad_model = self._resolve_vad_model(vad_model)
         self._server_process: Optional[subprocess.Popen[bytes]] = None
 
         # Determine if this is a localhost server
@@ -66,6 +75,63 @@ class WhisperCppClient:
     def audio(self) -> "AudioResource":
         """Access to audio-related resources (OpenAI-compatible)"""
         return self._audio_resource
+
+    def _discover_vad_model(self) -> Optional[str]:
+        """Discover available VAD models in ~/.cache/whisper.cpp/
+
+        Searches for VAD model files matching the pattern:
+        ggml-silero-v*.bin (e.g., ggml-silero-v5.1.2.bin, ggml-silero-v1.2.3-alpha.bin)
+
+        Returns:
+            str: The model name (without ggml- prefix and .bin suffix) if found,
+                 None if no VAD model is found
+
+        Example:
+            If ggml-silero-v5.1.2.bin exists, returns "silero-v5.1.2"
+        """
+        cache_dir = Path.home() / ".cache" / "whisper.cpp"
+        if not cache_dir.exists():
+            return None
+
+        # Pattern to match: ggml-silero-v{version}.bin
+        # Matches versions like: v5.1.2, v1.2, v1.2.3-alpha, v2.0.1-beta.2
+        pattern = re.compile(r"^ggml-(silero-v[\d.]+([-.][\w.]+)?).bin$")
+
+        vad_models = []
+        for file_path in cache_dir.glob("ggml-silero-v*.bin"):
+            match = pattern.match(file_path.name)
+            if match:
+                model_name = match.group(1)  # Extract the part between ggml- and .bin
+                vad_models.append((model_name, file_path))
+
+        if not vad_models:
+            return None
+
+        # If multiple models found, use the one with the highest version number
+        # Sort by filename to get the latest version
+        vad_models.sort(key=lambda x: x[0], reverse=True)
+        selected_model = vad_models[0][0]
+
+        return selected_model
+
+    def _resolve_vad_model(self, vad_model: Optional[str]) -> Optional[str]:
+        """Resolve VAD model parameter to actual model name
+
+        Args:
+            vad_model: VAD model specification:
+                - "auto": Auto-discover VAD model in cache directory
+                - None or empty string: Disable VAD
+                - Specific name: Use that model name
+
+        Returns:
+            Optional[str]: Resolved model name, or None if VAD should be disabled
+        """
+        if vad_model == "auto":
+            return self._discover_vad_model()
+        elif vad_model and vad_model.strip():
+            return vad_model.strip()
+        else:
+            return None
 
     def health_check(self, timeout: float = 2.0) -> dict[str, str]:
         """Check if the whisper.cpp server is healthy and responding
@@ -148,6 +214,20 @@ class WhisperCppClient:
                 "-l",
                 self.language,
             ]
+
+            # Add VAD flags if VAD model is specified
+            if self.vad_model:
+                vad_model_path = (
+                    Path.home() / ".cache" / "whisper.cpp" / f"ggml-{self.vad_model}.bin"
+                )
+
+                if not vad_model_path.exists():
+                    raise FileNotFoundError(
+                        f"VAD model not found at {vad_model_path}. "
+                        f"Download it using the official script from whisper.cpp repository."
+                    )
+
+                cmd.extend(["--vad", "-vm", str(vad_model_path)])
 
             self._server_process = subprocess.Popen(
                 cmd,

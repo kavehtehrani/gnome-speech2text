@@ -27,8 +27,12 @@ GNOME Shell Speech2Text extension, using a local whisper.cpp server.
 
 Configuration:
   WHISPER_SERVER_URL - Server endpoint (default: http://localhost:8080)
-  WHISPER_MODEL      - Model name for auto-start (default: base)
+  WHISPER_MODEL      - Model name for auto-start (default: small)
   WHISPER_LANGUAGE   - Language for auto-start (default: auto)
+  WHISPER_VAD_MODEL  - VAD model to filter silence (default: auto)
+                       - 'auto': Auto-discover VAD models in cache
+                       - 'none': Disable VAD
+                       - Specific name: e.g., 'silero-v5.1.2'
   WHISPER_AUTO_START - Auto-start server if not running (default: true)
         """,
     )
