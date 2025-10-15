@@ -19,7 +19,7 @@ export class KeybindingManager {
     } else {
       // Use a much safer shortcut that doesn't conflict with system shortcuts
       // Avoid Ctrl+C (SIGINT), Ctrl+Z (SIGTSTP), and workspace navigation shortcuts
-      this.currentKeybinding = "<Super><Alt>r";
+      this.currentKeybinding = "<Super><Alt>space";
       this.extensionCore.settings.set_strv("toggle-recording", [
         this.currentKeybinding,
       ]);
