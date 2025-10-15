@@ -34,56 +34,86 @@ This service uses whisper.cpp's native HTTP server API:
 
 ## Installation
 
-### For Development (with uv)
+### For Users
 
+**Option 1: Quick install** (from this source directory):
 ```bash
-cd service-whispercpp
+./install.sh
+```
 
-# First, install system dependencies (required for D-Bus and GLib bindings)
+**Option 2: Manual install from PyPI** (if you don't have the source):
+```bash
+pipx install --system-site-packages gnome-speech2text-service-whispercpp
+gnome-speech2text-whispercpp-setup
+```
+
+### For Development
+
+Development uses `uv` for managing the environment and dependencies in editable mode.
+
+**Prerequisites:**
+```bash
+# Install system dependencies (required for D-Bus and GLib bindings)
 sudo apt install python3-dbus python3-gi  # Debian/Ubuntu
 # OR
 sudo dnf install python3-dbus python3-gobject  # Fedora
 
-# Initialize and sync dependencies (uses system packages for dbus/gi)
-uv venv --system-site-packages
-uv sync --group dev
-
-# Run development commands
-uv run black .              # Format code
-uv run ruff check .         # Lint code
-uv run mypy .               # Type check code
-
-# Run the service
-uv run gnome-speech2text-service-whispercpp
+# Install uv if not already installed
+pip install uv
 ```
 
-### For Production (with pip)
-
+**Setup:**
 ```bash
-cd service-whispercpp
+# Create venv with system site packages (for python3-dbus and python3-gi)
+uv venv --system-site-packages
 
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+# Install package in editable mode + all dependencies (runtime + dev)
+uv sync --group dev
 
-# Install dependencies
-pip install -r requirements.txt
+# Register service with D-Bus
+.venv/bin/gnome-speech2text-whispercpp-setup
+```
 
-# Or install as package
-pip install .
+**Development workflow:**
+```bash
+# Make changes to code in src/
+# Changes are immediately active - just restart the service to test
 
-# Run the service
-gnome-speech2text-service-whispercpp
+# To restart the service:
+pkill -f gnome-speech2text-service-whispercpp
+
+# The service will auto-start when the extension calls it
+# Or manually start it for debugging:
+.venv/bin/gnome-speech2text-service-whispercpp
+
+# View service logs
+journalctl -f | grep -E 'gnome-speech2text|whispercpp'
+```
+
+**Code quality tools:**
+```bash
+# Format code
+uv run black .
+
+# Lint code
+uv run ruff check .
+uv run ruff check --fix .  # Auto-fix issues
+
+# Type check
+uv run mypy .
+
+# Run all checks
+uv run black --check . && uv run ruff check . && uv run mypy .
 ```
 
 ### System Dependencies
 
-Same as the original service:
+Required for the service to function:
 - `ffmpeg` - for audio recording
-- `xdotool` - for text insertion (X11)
+- `xdotool` - for text insertion (X11 only)
 - `wl-clipboard` - for clipboard on Wayland
 - `xclip` or `xsel` - for clipboard on X11
-- `python3-dbus` and `python3-gi` - for D-Bus and GLib integration
+- `python3-dbus` and `python3-gi` - for D-Bus and GLib integration (must be system packages)
 
 ## Configuration
 
@@ -188,32 +218,14 @@ The service will be automatically started by D-Bus when the GNOME extension make
 
 ```bash
 # Check if service is registered
-dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2Text \
-  --print-reply /org/gnome/Shell/Extensions/Speech2Text \
-  org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
+dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2TextWhisperCpp \
+  --print-reply /org/gnome/Shell/Extensions/Speech2TextWhisperCpp \
+  org.gnome.Shell.Extensions.Speech2TextWhisperCpp.GetServiceStatus
 
 # Manually start for debugging
 gnome-speech2text-service-whispercpp
 ```
 
-### Development Commands
-
-```bash
-# Format code (black)
-uv run black .
-
-# Check code style and quality (ruff)
-uv run ruff check .
-
-# Fix auto-fixable issues
-uv run ruff check --fix .
-
-# Type check (mypy)
-uv run mypy .
-
-# Run all checks
-uv run black --check . && uv run ruff check . && uv run mypy .
-```
 
 ## D-Bus Interface
 
@@ -308,6 +320,25 @@ The service implements the `org.gnome.Shell.Extensions.Speech2TextWhisperCpp` in
   cd whisper.cpp
   ./models/download-ggml-model.sh base ~/.cache/whisper.cpp
   ```
+
+## Uninstallation
+
+To completely remove the service:
+
+```bash
+# Step 1: Clean up service files (D-Bus, desktop entries, etc.)
+gnome-speech2text-whispercpp-uninstall
+
+# Step 2: Uninstall the pipx package
+pipx uninstall gnome-speech2text-service-whispercpp
+```
+
+The uninstall command will:
+- Stop any running service processes
+- Remove D-Bus service file
+- Remove desktop entry
+- Remove old service directory (if exists)
+- Provide instructions for pipx uninstall
 
 ## WhisperCppClient Module
 

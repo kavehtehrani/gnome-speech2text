@@ -1,5 +1,0 @@
-openai-whisper>=20231117
-dbus-python>=1.2.16
-PyGObject>=3.40.0
-torch>=1.13.0
-torchaudio>=0.13.0 

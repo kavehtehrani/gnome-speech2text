@@ -26,8 +26,8 @@ export class RecordingController {
         await this.serviceManager.ensureServiceAvailable();
       if (!serviceAvailable) {
         console.log("Service initialization failed");
-        this.uiManager.showServiceSetupDialog(
-          "Speech-to-text service is not available"
+        this.uiManager.showServiceMissingNotification(
+          "Speech-to-text service is not available.\nPlease install the WhisperCpp service."
         );
         return;
       }
@@ -36,7 +36,7 @@ export class RecordingController {
         await this.serviceManager.dbusManager.checkServiceStatus();
       if (!serviceStatus.available) {
         console.log("Service not available:", serviceStatus.error);
-        this.uiManager.showServiceSetupDialog(serviceStatus.error);
+        this.uiManager.showServiceMissingNotification(serviceStatus.error);
         return;
       }
 

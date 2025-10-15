@@ -1,4 +1,0 @@
-[D-BUS Service]
-Name=org.gnome.Shell.Extensions.Speech2Text
-Exec=/usr/bin/speech2text-service
-User=session 

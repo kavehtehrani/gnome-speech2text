@@ -93,6 +93,20 @@ export class UIManager {
     Main.notify(title, message);
   }
 
+  showServiceMissingNotification(errorMessage) {
+    const title = "WhisperCpp Service Not Installed";
+    const message = (errorMessage || "Service not found") + "\n\n" +
+      "Quick install (2 commands):\n" +
+      "  pipx install gnome-speech2text-service-whispercpp\n" +
+      "  gnome-speech2text-whispercpp-setup\n\n" +
+      "Or use one-liner:\n" +
+      "  curl -fsSL https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/service-whispercpp/install.sh | bash\n\n" +
+      "Documentation:\n" +
+      "  github.com/kavehtehrani/gnome-speech2text#installation";
+
+    Main.notify(title, message);
+  }
+
   cleanup() {
     // Disconnect signal handler
     if (this._buttonPressSignalId && this.icon) {

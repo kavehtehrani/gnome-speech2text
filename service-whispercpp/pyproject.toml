@@ -53,6 +53,8 @@ Documentation = "https://github.com/kavehtehrani/gnome-speech2text/blob/main/REA
 
 [project.scripts]
 gnome-speech2text-service-whispercpp = "gnome_speech2text_service_whispercpp.cli:main"
+gnome-speech2text-whispercpp-setup = "gnome_speech2text_service_whispercpp.setup:main"
+gnome-speech2text-whispercpp-uninstall = "gnome_speech2text_service_whispercpp.setup:uninstall"
 
 [tool.setuptools.packages.find]
 where = ["src"]
