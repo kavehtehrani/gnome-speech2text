@@ -49,8 +49,8 @@ def check_service():
         # Use the main loop that was set up at the start
         bus = dbus.SessionBus()
         service = bus.get_object(
-            'org.gnome.Shell.Extensions.Speech2TextWhisperCpp',
-            '/org/gnome/Shell/Extensions/Speech2TextWhisperCpp'
+            "org.gnome.Shell.Extensions.Speech2TextWhisperCpp",
+            "/org/gnome/Shell/Extensions/Speech2TextWhisperCpp",
         )
 
         status = service.GetServiceStatus()
@@ -99,12 +99,12 @@ def record_and_transcribe(service, duration=5):
 
     transcription_result = {"text": None, "error": None, "done": False}
 
-    def on_transcription_ready(recording_id, text):
+    def on_transcription_ready(_recording_id, text):
         transcription_result["text"] = text
         transcription_result["done"] = True
         loop.quit()
 
-    def on_recording_error(recording_id, error):
+    def on_recording_error(_recording_id, error):
         transcription_result["error"] = error
         transcription_result["done"] = True
         loop.quit()
@@ -114,19 +114,19 @@ def record_and_transcribe(service, duration=5):
     bus.add_signal_receiver(
         on_transcription_ready,
         dbus_interface="org.gnome.Shell.Extensions.Speech2TextWhisperCpp",
-        signal_name="TranscriptionReady"
+        signal_name="TranscriptionReady",
     )
     bus.add_signal_receiver(
         on_recording_error,
         dbus_interface="org.gnome.Shell.Extensions.Speech2TextWhisperCpp",
-        signal_name="RecordingError"
+        signal_name="RecordingError",
     )
 
     # Start recording (preview_mode=true means don't type, just transcribe)
     recording_id = service.StartRecording(
-        duration,      # duration in seconds
-        False,         # copy_to_clipboard
-        True           # preview_mode (don't type the text)
+        duration,  # duration in seconds
+        False,  # copy_to_clipboard
+        True,  # preview_mode (don't type the text)
     )
 
     print_info(f"Recording ID: {recording_id}")
@@ -197,5 +197,6 @@ if __name__ == "__main__":
     except Exception as e:
         print_error(f"Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

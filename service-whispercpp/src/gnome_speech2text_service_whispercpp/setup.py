@@ -13,6 +13,7 @@ Can be run standalone after pipx installation:
     gnome-speech2text-whispercpp-uninstall  # Cleanup before uninstalling
 """
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -26,7 +27,7 @@ def get_service_executable_path() -> Optional[str]:
     # Try to find the executable in PATH
     executable = shutil.which("gnome-speech2text-service-whispercpp")
     if executable:
-        return os.path.abspath(executable)
+        return str(Path(executable).resolve())
 
     # Check if we're running from a venv (development mode)
     # Look in the same bin directory as the Python interpreter
@@ -58,7 +59,9 @@ def setup_dbus_service() -> bool:
     dbus_service_dir.mkdir(parents=True, exist_ok=True)
 
     # D-Bus service file path
-    service_file = dbus_service_dir / "org.gnome.Shell.Extensions.Speech2TextWhisperCpp.service"
+    service_file = (
+        dbus_service_dir / "org.gnome.Shell.Extensions.Speech2TextWhisperCpp.service"
+    )
 
     # D-Bus service file content
     service_content = f"""[D-BUS Service]
@@ -151,16 +154,16 @@ def verify_dependencies() -> bool:
             missing.append("xdotool (optional for text insertion)")
 
     # Check Python D-Bus bindings
-    try:
-        import dbus
+    if importlib.util.find_spec("dbus") is not None:
         print("  ✅ python3-dbus found")
-    except ImportError:
+    else:
         missing.append("python3-dbus")
 
     # Check PyGObject
     try:
         import gi
-        gi.require_version('GLib', '2.0')
+
+        gi.require_version("GLib", "2.0")
         print("  ✅ python3-gi (PyGObject) found")
     except (ImportError, ValueError):
         missing.append("python3-gi")
@@ -256,7 +259,9 @@ def main() -> int:
     print(f"  {executable_path}")
     print()
     print("To verify D-Bus registration:")
-    print("  dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2TextWhisperCpp \\")
+    print(
+        "  dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2TextWhisperCpp \\"
+    )
     print("    --print-reply /org/gnome/Shell/Extensions/Speech2TextWhisperCpp \\")
     print("    org.gnome.Shell.Extensions.Speech2TextWhisperCpp.GetServiceStatus")
     print()
@@ -313,7 +318,9 @@ def remove_desktop_entry() -> bool:
 
 def remove_old_service_directory() -> bool:
     """Remove old-style service directory if it exists."""
-    service_dir = Path.home() / ".local" / "share" / "gnome-speech2text-service-whispercpp"
+    service_dir = (
+        Path.home() / ".local" / "share" / "gnome-speech2text-service-whispercpp"
+    )
 
     if service_dir.exists():
         try:
@@ -324,7 +331,7 @@ def remove_old_service_directory() -> bool:
             print(f"❌ Error removing service directory: {e}")
             return False
     else:
-        print(f"ℹ️  Old service directory not found (probably installed via pipx)")
+        print("ℹ️  Old service directory not found (probably installed via pipx)")
         return True
 
 
@@ -349,7 +356,9 @@ def stop_running_service() -> bool:
                     subprocess.run(["kill", pid], check=True)
                     print(f"✅ Stopped process {pid}")
                 except subprocess.CalledProcessError:
-                    print(f"⚠️  Could not stop process {pid} (may require manual intervention)")
+                    print(
+                        f"⚠️  Could not stop process {pid} (may require manual intervention)"
+                    )
             return True
         else:
             print("ℹ️  No running service processes found")

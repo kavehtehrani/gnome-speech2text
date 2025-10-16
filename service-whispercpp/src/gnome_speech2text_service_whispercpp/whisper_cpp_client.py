@@ -10,7 +10,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, BinaryIO, Optional
+from typing import Any, BinaryIO, Optional, Union
 from urllib.parse import urlparse
 
 import requests
@@ -218,7 +218,10 @@ class WhisperCppClient:
             # Add VAD flags if VAD model is specified
             if self.vad_model:
                 vad_model_path = (
-                    Path.home() / ".cache" / "whisper.cpp" / f"ggml-{self.vad_model}.bin"
+                    Path.home()
+                    / ".cache"
+                    / "whisper.cpp"
+                    / f"ggml-{self.vad_model}.bin"
                 )
 
                 if not vad_model_path.exists():
@@ -249,10 +252,16 @@ class WhisperCppClient:
                     exit_code = self._server_process.poll()
                     if exit_code is not None:
                         try:
-                            stdout, stderr = self._server_process.communicate(timeout=1.0)
-                            stdout_str = stdout.decode('utf-8').strip() if stdout else ""
-                            stderr_str = stderr.decode('utf-8').strip() if stderr else ""
-                        except Exception as e:
+                            stdout, stderr = self._server_process.communicate(
+                                timeout=1.0
+                            )
+                            stdout_str = (
+                                stdout.decode("utf-8").strip() if stdout else ""
+                            )
+                            stderr_str = (
+                                stderr.decode("utf-8").strip() if stderr else ""
+                            )
+                        except Exception:
                             stdout_str = "(error reading stdout)"
                             stderr_str = "(error reading stderr)"
 
@@ -261,10 +270,12 @@ class WhisperCppClient:
                             f"whisper-server exited early (rc={exit_code}): "
                             f"stdout='{stdout_str}', stderr='{stderr_str}'"
                         )
-                except AttributeError:
+                except AttributeError as err:
                     # Process might have been cleaned up by another thread
                     self._server_process = None
-                    raise RuntimeError("whisper-server process was unexpectedly terminated")
+                    raise RuntimeError(
+                        "whisper-server process was unexpectedly terminated"
+                    ) from err
 
                 health = self.health_check()
                 if health["status"] == "ok":
@@ -318,7 +329,7 @@ class TranscriptionResource:
         response_format: str = "text",
         language: Optional[str] = None,
         timeout: float = 30.0,
-    ) -> str:
+    ) -> Union[str, dict[str, Any]]:
         """Transcribe audio file using whisper.cpp server
 
         The model used for transcription is determined by the whisper.cpp server
@@ -362,21 +373,23 @@ class TranscriptionResource:
             )
             response.raise_for_status()
 
-            # Parse response based on format
-            if response_format == "text":
-                text = response.text.strip()
-                if not text:
-                    raise ValueError("Transcription returned empty result")
-                return text
-            elif response_format in ("json", "verbose_json"):
+            # Try to parse as JSON first (all errors are returned as JSON)
+            try:
                 result: dict[str, Any] = response.json()
-                text = str(result.get("text", "")).strip()
-                if not text:
-                    raise ValueError("Transcription returned empty result")
-                return text
-            else:
-                # For other formats (srt, vtt), return as-is
-                return str(response.text)
+
+                # Check if server returned an error
+                if "error" in result:
+                    error_msg = result["error"]
+                    raise ValueError(f"Whisper server returned error: {error_msg}")
+
+                # Successfully parsed JSON - return it as-is
+                # Empty text field is valid (no speech detected)
+                return result
+
+            except (ValueError, KeyError, TypeError):
+                # JSON parsing failed - response is plain text (text/srt/vtt format)
+                # Empty string is valid (no speech detected)
+                return response.text
 
         except requests.exceptions.HTTPError as e:
             # Enhance error messages

@@ -208,6 +208,21 @@ export class RecordingStateManager {
       return { action: "ignored", text: null };
     }
 
+    // Check if transcription is empty (no speech detected)
+    if (!text || text.trim().length === 0) {
+      console.log("No speech detected - showing notification");
+      Main.notify("Speech2Text", "No speech detected");
+
+      // Close dialog and clean up
+      if (this.recordingDialog) {
+        this.recordingDialog.close();
+        this.recordingDialog = null;
+      }
+      this.currentRecordingId = null;
+      this.updateIcon(false);
+      return { action: "ignored", text: null };
+    }
+
     // Check if we should skip preview and auto-insert
     const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
     const isWayland = Meta.is_wayland_compositor();

@@ -8,6 +8,7 @@ whisper.cpp server with OpenAI-compatible API.
 
 import contextlib
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -68,7 +69,7 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
         #   - "auto" (default): Auto-discover VAD models in ~/.cache/whisper.cpp/
         #   - "none" or empty: Disable VAD
         #   - Specific name: Use that model
-        vad_model = os.environ.get("WHISPER_VAD_MODEL", "auto")
+        vad_model: Optional[str] = os.environ.get("WHISPER_VAD_MODEL", "auto")
         if vad_model and vad_model.strip().lower() in ("none", ""):
             vad_model = None
 
@@ -532,21 +533,20 @@ class Speech2TextService(dbus.service.Object):  # type: ignore
             recording_info["status"] = "transcribing"
 
             # Transcribe using whisper.cpp server
-            # The model is determined by the server's -m flag at startup
+            # Use JSON format for better error detection and structured response
             with Path(audio_file).open("rb") as af:
                 response = self.client.audio.transcriptions.create(
-                    file=af, response_format="text"
+                    file=af, response_format="json"
                 )
-            text: str = (
-                response.strip() if isinstance(response, str) else response.text.strip()
-            )
 
-            if not text:
-                syslog.syslog(
-                    syslog.LOG_WARNING,
-                    f"Transcription returned empty text for recording {recording_id}",
-                )
-                raise Exception("Transcription returned empty result")
+            # Extract text from response (response is dict for JSON format, str for text format)
+            if isinstance(response, dict):
+                text = str(response.get("text", "")).strip()
+            else:
+                text = response.strip()
+
+            # Remove excessive white space including new-lines (sic!)
+            text = re.sub(r"\s+", " ", text.strip())
 
             recording_info["text"] = text
             recording_info["status"] = "completed"

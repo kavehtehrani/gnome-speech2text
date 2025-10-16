@@ -156,6 +156,9 @@ export class RecordingController {
       return;
     }
 
+    // Log error to journal for debugging
+    console.error(`Recording error for ${recordingId}: ${errorMessage}`);
+
     this.recordingStateManager.handleRecordingError(recordingId, errorMessage);
   }
 
