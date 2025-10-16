@@ -115,7 +115,7 @@ check_extension_details() {
     echo "=== EXTENSION DETAILS ==="
     
     # Check if extension is installed
-    EXT_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page"
+    EXT_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-speech2text@bcelary.github"
     if [ -d "$EXT_DIR" ]; then
         echo "Extension installed at: $EXT_DIR"
         echo "Extension files:"
@@ -134,7 +134,7 @@ check_extension_details() {
     
     # Check extension status
     echo "Extension status:"
-    gnome-extensions show gnome-speech2text@kaveh.page 2>/dev/null || echo "Extension not found/enabled"
+    gnome-extensions show gnome-speech2text@bcelary.github 2>/dev/null || echo "Extension not found/enabled"
 }
 
 # Generate output filename with timestamp

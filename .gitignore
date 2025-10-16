@@ -50,3 +50,6 @@ Thumbs.db
 /src/schemas/gschemas.compiled
 /test-dbus.py
 /tmp/
+
+# Local development files
+.claude.md

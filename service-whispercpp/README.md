@@ -53,25 +53,32 @@ sudo pacman -S python-dbus python-gobject ffmpeg wl-clipboard xdotool xclip
 
 ### For Users
 
-**Option 1: Install from PyPI** (recommended):
+**Option 1: Install from source** (recommended, PyPI package coming soon):
 
 ```bash
-# Quick curl install (when available online):
-curl -fsSL https://raw.githubusercontent.com/YOUR_REPO/main/service-whispercpp/install.sh | bash
-```
-
-**Option 2: Install from local source** (if you have the repository):
-
-```bash
-cd service-whispercpp
+# Clone the repository
+git clone https://github.com/bcelary/gnome-speech2text.git
+cd gnome-speech2text/service-whispercpp
 ./install.sh --from-source
 ```
 
-**Option 3: Manual install from PyPI**:
+**Option 2: Quick curl install** (not yet available):
+
+> **Note**: PyPI package will be published in the future. For now, use Option 1.
 
 ```bash
-pipx install --system-site-packages gnome-speech2text-service-whispercpp
-gnome-speech2text-whispercpp-setup
+# Coming soon:
+# curl -fsSL https://raw.githubusercontent.com/bcelary/gnome-speech2text/main/service-whispercpp/install.sh | bash
+```
+
+**Option 3: Manual install from PyPI** (not yet available):
+
+> **Note**: PyPI package will be published in the future. For now, use Option 1.
+
+```bash
+# Coming soon:
+# pipx install --system-site-packages gnome-speech2text-service-whispercpp
+# gnome-speech2text-whispercpp-setup
 ```
 
 ### For Development
@@ -269,21 +276,6 @@ The service implements the `org.gnome.Shell.Extensions.Speech2TextWhisperCpp` in
 - `RecordingError(recording_id: str, error_message: str)`
 - `TextTyped(text: str, success: bool)`
 
-## Differences from Original Service
-
-| Feature           | Original Service            | Whisper.cpp Service        |
-| ----------------- | --------------------------- | -------------------------- |
-| Backend           | Whisper Python package      | whisper.cpp HTTP server    |
-| Model Loading     | Loads model into memory     | Separate server process    |
-| Memory Usage      | High (model in service RAM) | Low (model in server RAM)  |
-| Processing        | Local Python/CPU/GPU        | Local C++/CPU/GPU (faster) |
-| Dependencies      | torch, whisper, numpy       | requests only              |
-| Configuration     | Model selected at startup   | Environment variables      |
-| Network           | None required               | HTTP to localhost          |
-| Type Hints        | Minimal                     | Full mypy strict mode      |
-| Dev Tools         | None                        | black, ruff, mypy via uv   |
-| Server Management | N/A                         | Auto-start, health checks  |
-
 ## Architecture
 
 ```
@@ -404,4 +396,6 @@ GPL-2.0-or-later (same as the original project)
 
 ## Credits
 
-Based on the original `gnome-speech2text` project by Kaveh Tehrani.
+- Forked from [kavehtehrani/gnome-speech2text](https://github.com/kavehtehrani/gnome-speech2text)
+- Uses [whisper.cpp](https://github.com/ggerganov/whisper.cpp) by Georgi Gerganov
+- Based on OpenAI's [Whisper](https://github.com/openai/whisper) models

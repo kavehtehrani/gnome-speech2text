@@ -9,6 +9,7 @@ This is the entry point that gets called when users run
 import argparse
 import sys
 
+from . import __version__
 from .service import main as service_main
 
 
@@ -37,7 +38,9 @@ Configuration:
         """,
     )
 
-    parser.add_argument("--version", action="version", version="%(prog)s 1.0.0")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
 
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 

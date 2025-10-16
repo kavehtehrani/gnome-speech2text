@@ -1,12 +1,14 @@
-"""GNOME Speech2Text Service - OpenAI Backend
+"""GNOME Speech2Text Service - Whisper.cpp Backend
 
 A D-Bus service that provides speech-to-text functionality for the GNOME Shell
-extension using OpenAI API (compatible with OpenAI and whisper.cpp servers).
+extension using whisper.cpp server for local speech recognition.
+
+Forked from kavehtehrani/gnome-speech2text
 """
 
-__version__ = "1.0.0"
-__author__ = "Kaveh Tehrani"
-__email__ = "codemonkey13x@gmail.com"
+__version__ = "0.9"
+__author__ = "Bartek Celary"
+__email__ = "bcelary@gmail.com"
 
 from .service import Speech2TextService
 

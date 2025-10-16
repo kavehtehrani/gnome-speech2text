@@ -1,11 +1,11 @@
 {
-  "uuid": "gnome-speech2text@kaveh.page",
+  "uuid": "gnome-speech2text@bcelary.github",
   "name": "GNOME Speech2Text",
-  "description": "This extension adds speech to text (dictation) to the GNOME Shell using OpenAI’s Whisper automatic speech recognition model. The extension captures audio, runs transcription locally, and copies the transcribed text into your clipboard. It requires installing a companion D-Bus service (installer included). \n\nThis extension accesses the clipboard to copy transcribed text.",
+  "description": "Local speech-to-text for GNOME Shell using whisper.cpp. Record audio with a keyboard shortcut, transcribe it locally using Whisper models, and insert the text at your cursor or copy to clipboard. Requires installing a companion D-Bus service (installer included). Forked from kavehtehrani/gnome-speech2text.\n\nThis extension accesses the clipboard to copy transcribed text.",
   "shell-version": ["46", "47", "48"],
-  "url": "https://github.com/kavehtehrani/gnome-speech2text/",
-  "author": "Kaveh Tehrani",
-  "version-name": "1.0.4",
+  "url": "https://github.com/bcelary/gnome-speech2text/",
+  "author": "Bartek Celary",
+  "version-name": "0.9",
   "settings-schema": "org.gnome.shell.extensions.speech2text"
 }
 
