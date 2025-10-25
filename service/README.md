@@ -104,7 +104,7 @@ Signals:
 
 ## License
 
-This project is licensed under the GPL-2.0-or-later license. See the LICENSE file for details.
+This project is licensed under the GPL-3.0-or-later license. See the LICENSE file for details.
 
 ## Contributing
 

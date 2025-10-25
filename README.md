@@ -1,6 +1,6 @@
 # GNOME Speech2Text
 
-![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![GPLv3](https://img.shields.io/badge/License-GPLv3-yellow.svg)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=black)
 ![GNOME](https://img.shields.io/badge/GNOME-4A90D9?style=flat&logo=gnome&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)
@@ -224,7 +224,7 @@ make clean
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GPLv3 - see the LICENSE file for details.
 
 ## Contributing
 

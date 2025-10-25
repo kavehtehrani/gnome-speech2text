@@ -7,7 +7,7 @@ name = "gnome-speech2text-service"
 version = "1.0.4"
 description = "D-Bus service providing speech-to-text functionality for GNOME Shell"
 readme = "README.md"
-license = {text = "GPL-2.0-or-later"}
+license = {text = "GPL-3.0-or-later"}
 authors = [
     {name = "Kaveh Tehrani", email = "codemonkey13x@gmail.com"}
 ]
@@ -24,7 +24,7 @@ keywords = [
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
