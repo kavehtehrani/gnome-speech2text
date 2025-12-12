@@ -7,9 +7,18 @@ INSTALL_MODE=""
 FORCE_MODE=false
 NON_INTERACTIVE=false
 LOCAL_SOURCE_DIR=""
+PYTHON_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --python)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --python requires a value (e.g. --python python3.12 or --python /usr/bin/python3.12)"
+                exit 1
+            fi
+            PYTHON_OVERRIDE="$2"
+            shift 2
+            ;;
         --local)
             INSTALL_MODE="local"
             FORCE_MODE=true
@@ -30,6 +39,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
+            echo "  --python <cmd>    Use a specific Python interpreter (also via SPEECH2TEXT_PYTHON)"
             echo "  --local           Force installation from local source (requires pyproject.toml)"
             echo "  --pypi            Force installation from PyPI"
             echo "  --non-interactive Run without user prompts (auto-accept defaults)"
@@ -84,12 +94,161 @@ error_exit() {
     exit 1
 }
 
+print_python_module_install_help() {
+    local python_bin="$1"
+    local python_ver="$2"
+    echo
+    echo -e "${CYAN}Python environment notes:${NC}"
+    echo "  - Selected interpreter: $python_bin (Python $python_ver)"
+    echo "  - This installer creates the service venv with: --system-site-packages"
+    echo "    That means some dependencies MUST come from your system Python packages."
+    echo
+    echo -e "${CYAN}Required system-provided Python modules:${NC}"
+    echo "  - dbus-python  (provides: import dbus)"
+    echo "  - PyGObject    (provides: import gi)"
+    echo
+    echo -e "${CYAN}How to install (distro-agnostic):${NC}"
+    echo "  - Use your distro's package manager to install the packages that provide"
+    echo "    the 'dbus' and 'gi' Python modules for the SAME interpreter version."
+    echo "  - Package names vary by distro; search for terms like:"
+    echo "      dbus-python, python-dbus, python3-dbus"
+    echo "      pygobject, python-gobject, python3-gi"
+    echo
+    echo -e "${CYAN}Then re-run with an explicit interpreter if needed:${NC}"
+    echo "  $0 --python python3.12"
+    echo
+}
+
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
 version_ge() {
     printf '%s\n%s\n' "$2" "$1" | sort -V -C
+}
+
+# Distro-agnostic Python selection
+python_candidate_exists() {
+    local candidate="$1"
+    if [[ "$candidate" == */* ]]; then
+        [ -x "$candidate" ]
+    else
+        command_exists "$candidate"
+    fi
+}
+
+resolve_python_candidate() {
+    local candidate="$1"
+    if [[ "$candidate" == */* ]]; then
+        echo "$candidate"
+    else
+        command -v "$candidate" 2>/dev/null || true
+    fi
+}
+
+get_python_version_major_minor() {
+    local python_bin="$1"
+    "$python_bin" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1
+}
+
+select_python() {
+    local override="${PYTHON_OVERRIDE:-${SPEECH2TEXT_PYTHON:-}}"
+    local candidates=()
+
+    if [ -n "$override" ]; then
+        candidates+=("$override")
+    fi
+
+    # Prefer versions that are most likely to have compatible wheels (Torch/Whisper)
+    candidates+=("python3.13" "python3.12" "python3.11" "python3.10" "python3.9" "python3.8" "python3")
+
+    local checked_any=false
+    local last_problem=""
+
+    for c in "${candidates[@]}"; do
+        if ! python_candidate_exists "$c"; then
+            continue
+        fi
+
+        local py
+        py="$(resolve_python_candidate "$c")"
+        if [ -z "$py" ]; then
+            continue
+        fi
+
+        checked_any=true
+
+        local v
+        v="$(get_python_version_major_minor "$py")"
+        if [ -z "$v" ]; then
+            last_problem="Unable to determine Python version for: $py"
+            if [ -n "$override" ] && [ "$c" = "$override" ]; then
+                error_exit "$last_problem"
+            fi
+            continue
+        fi
+
+        # Minimum supported for this project
+        if ! version_ge "$v" "3.8"; then
+            last_problem="Python $v detected at $py. Python 3.8+ is required."
+            if [ -n "$override" ] && [ "$c" = "$override" ]; then
+                error_exit "$last_problem"
+            fi
+            continue
+        fi
+
+        # Fail-fast on 3.14+ due to likely Torch/Whisper incompatibilities
+        if version_ge "$v" "3.14"; then
+            last_problem="Python $v detected at $py, which is not supported yet."
+            if [ -n "$override" ] && [ "$c" = "$override" ]; then
+                error_exit "$last_problem"$'\n\n'"Please install a supported Python (recommended: 3.12 or 3.13) and re-run with:"$'\n'"  $0 --python python3.12"
+            fi
+            # If this is an auto candidate, skip and try older versions
+            continue
+        fi
+
+        # Ensure core runtime dependencies are available for the selected interpreter.
+        # Note: the venv uses --system-site-packages, so these must be present in the interpreter's site-packages.
+        if ! "$py" -c "import dbus" >/dev/null 2>&1; then
+            last_problem="Python module 'dbus' (dbus-python) is not available for $py (Python $v)."
+            if [ -n "$override" ] && [ "$c" = "$override" ]; then
+                print_error "$last_problem"
+                print_python_module_install_help "$py" "$v"
+                exit 1
+            fi
+            continue
+        fi
+
+        if ! "$py" -c "import gi; gi.require_version('GLib','2.0')" >/dev/null 2>&1; then
+            last_problem="Python module 'gi' (PyGObject) is not available for $py (Python $v)."
+            if [ -n "$override" ] && [ "$c" = "$override" ]; then
+                print_error "$last_problem"
+                print_python_module_install_help "$py" "$v"
+                exit 1
+            fi
+            continue
+        fi
+
+        # Check that venv works for this interpreter
+        if ! "$py" -c "import venv" >/dev/null 2>&1; then
+            last_problem="Python venv support is not available for $py (Python $v)."
+            if [ -n "$override" ] && [ "$c" = "$override" ]; then
+                error_exit "$last_problem"$'\n\n'"Install the venv module for this Python interpreter (often a separate system package), then retry."
+            fi
+            continue
+        fi
+
+        PYTHON="$py"
+        PYTHON_VERSION="$v"
+        return 0
+    done
+
+    if [ "$checked_any" = false ]; then
+        error_exit "No usable Python interpreter found on PATH."$'\n\n'"Please install Python 3.8–3.13 and re-run with:"$'\n'"  $0 --python python3.12"
+    fi
+
+    # If we checked at least one and none worked, provide a consolidated message
+    error_exit "Could not find a compatible Python interpreter."$'\n'"Last problem: $last_problem"$'\n\n'"Please install Python 3.8–3.13 (recommended: 3.12/3.13) and re-run with:"$'\n'"  $0 --python python3.12"
 }
 
 # Helper function for interactive prompts
@@ -148,32 +307,33 @@ print_status "Installing GNOME Speech2Text D-Bus Service"
 # Detect installation mode early
 detect_install_mode
 
+# Select Python interpreter early (distro-agnostic)
+print_status "Selecting Python interpreter..."
+select_python
+print_status "Using Python: $PYTHON (version $PYTHON_VERSION)"
+
 # Check for required system dependencies
 check_system_dependencies() {
     local missing_deps=()
     local missing_python_version=false
 
     # Check for Python 3.8+
-    if ! command_exists python3; then
-        print_error "Python 3 is not installed."
-        missing_deps+=("python3")
+    if [ -z "${PYTHON:-}" ]; then
+        print_error "No Python interpreter selected."
+        missing_deps+=("python (3.8–3.13)")
+    elif ! version_ge "$PYTHON_VERSION" "3.8"; then
+        print_warning "Python $PYTHON_VERSION detected. Python 3.8+ is required"
+        missing_python_version=true
     else
-        local python_version
-        python_version=$(python3 --version | grep -oE '[0-9]+\.[0-9]+' | head -1)
-        if ! version_ge "$python_version" "3.8"; then
-            print_warning "Python $python_version detected. Python 3.8+ recommended"
-            missing_python_version=true
-        else
-            print_status "Python $python_version (compatible)"
-        fi
+        print_status "Python $PYTHON_VERSION (compatible)"
     fi
 
     # Check for pip
-    if ! command_exists pip3 && ! command_exists pip; then
-        print_error "Python pip not found"
-        missing_deps+=("python3-pip")
+    if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then
+        print_warning "pip for the selected Python was not found (will rely on venv/ensurepip if available)"
+        missing_deps+=("pip (for selected python)")
     else
-        print_status "Python pip found"
+        print_status "pip found for selected Python"
     fi
 
     # Check for FFmpeg
@@ -223,16 +383,16 @@ check_system_dependencies() {
     fi
 
     # Check for D-Bus development files
-    if ! python3 -c "import dbus" 2>/dev/null; then
-        print_error "python3-dbus is not installed"
-        missing_deps+=("python3-dbus")
+    if ! "$PYTHON" -c "import dbus" 2>/dev/null; then
+        print_error "Python module 'dbus' (dbus-python) is not available for the selected Python"
+        missing_deps+=("python module: dbus (dbus-python)")
     else
-        print_status "python3-dbus found"
+        print_status "dbus-python (module 'dbus') found"
     fi
 
-    if ! python3 -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
-        print_error "PyGObject is not installed"
-        missing_deps+=("python3-gi")
+    if ! "$PYTHON" -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
+        print_error "PyGObject (module 'gi') is not available for the selected Python"
+        missing_deps+=("python module: gi (PyGObject)")
     else
         print_status "PyGObject found"
     fi
@@ -247,7 +407,7 @@ check_system_dependencies() {
         printf '%s\n' "${missing_deps[@]}"
         echo
         
-        echo -e "${CYAN}Please install these packages using your distribution's package manager.${NC}"
+        echo -e "${CYAN}Please install these dependencies using your distribution's package manager (for the selected Python interpreter).${NC}"
         echo
         
         local install_anyway
@@ -271,15 +431,19 @@ print_status "Creating service directory: $SERVICE_DIR"
 mkdir -p "$SERVICE_DIR"
 
 print_status "Creating Python virtual environment..."
-if ! python3 -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
+if ! "$PYTHON" -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
     print_error "Failed to create virtual environment. python3-venv may not be installed."
     echo ""
-    echo "Please install python3-venv using your distribution's package manager."
-    error_exit "python3-venv is required. Please install it and run this script again."
+    echo "Please install venv support for the selected Python interpreter using your distribution's package manager."
+    error_exit "Python venv support is required. Please install it and run this script again."
 fi
 
 print_status "Upgrading pip..."
-"$VENV_DIR/bin/pip" install --upgrade pip
+if [ ! -x "$VENV_DIR/bin/pip" ]; then
+    print_warning "pip was not created in the venv; attempting to bootstrap with ensurepip..."
+    "$VENV_DIR/bin/python" -m ensurepip --upgrade || true
+fi
+"$VENV_DIR/bin/python" -m pip install --upgrade pip
 
 print_status "Installing Python dependencies..."
 

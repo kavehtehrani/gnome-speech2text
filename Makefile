@@ -6,8 +6,13 @@ EXTENSION_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas
 SCHEMA_ID = org.gnome.shell.extensions.speech2text
+SERVICE_INSTALLER = $(SOURCE_DIR)/install-service.sh
 
-.PHONY: help install compile-schemas clean clean-service package status verify-schema
+# Optional: override the python interpreter used by the service installer.
+# Example: make install-service PYTHON=python3.12
+PYTHON ?=
+
+.PHONY: help install compile-schemas install-service clean clean-service package status verify-schema
 
 # Default target
 help:
@@ -23,6 +28,7 @@ help:
 	@echo "  status          - Check extension installation status"
 	@echo "  install         - Install extension + compile schemas"
 	@echo "  compile-schemas - Compile GSettings schemas only"
+	@echo "  install-service - Install the D-Bus service (supports PYTHON=... override)"
 	@echo "  verify-schema   - Verify schema is properly installed"
 	@echo "  package         - Create distribution package (development only)"
 	@echo ""
@@ -63,7 +69,7 @@ compile-schemas:
 
 
 # Complete setup process
-setup: clean install compile-schemas
+setup: clean install compile-schemas install-service
 	@echo ""
 	@echo "🎉 Extension setup completed!"
 	@echo "   The extension should now be available in GNOME Extensions."
@@ -75,6 +81,20 @@ setup: clean install compile-schemas
 		echo "   ⚠️  Wayland detected - please log out and log back in"; \
 	else \
 		echo "   ⚠️  Unknown session type - manual restart required"; \
+	fi
+
+# Install the D-Bus service (Python + venv + D-Bus registration)
+install-service:
+	@echo "🧩 Installing GNOME Speech2Text D-Bus service..."
+	@if [ ! -x "$(SERVICE_INSTALLER)" ]; then \
+		echo "❌ Service installer not found or not executable: $(SERVICE_INSTALLER)"; \
+		exit 1; \
+	fi
+	@if [ -n "$(PYTHON)" ]; then \
+		echo "   Using Python override: $(PYTHON)"; \
+		"$(SERVICE_INSTALLER)" --python "$(PYTHON)"; \
+	else \
+		"$(SERVICE_INSTALLER)"; \
 	fi
 
 
