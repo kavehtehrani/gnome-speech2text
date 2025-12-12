@@ -94,31 +94,6 @@ error_exit() {
     exit 1
 }
 
-print_python_module_install_help() {
-    local python_bin="$1"
-    local python_ver="$2"
-    echo
-    echo -e "${CYAN}Python environment notes:${NC}"
-    echo "  - Selected interpreter: $python_bin (Python $python_ver)"
-    echo "  - This installer creates the service venv with: --system-site-packages"
-    echo "    That means some dependencies MUST come from your system Python packages."
-    echo
-    echo -e "${CYAN}Required system-provided Python modules:${NC}"
-    echo "  - dbus-python  (provides: import dbus)"
-    echo "  - PyGObject    (provides: import gi)"
-    echo
-    echo -e "${CYAN}How to install (distro-agnostic):${NC}"
-    echo "  - Use your distro's package manager to install the packages that provide"
-    echo "    the 'dbus' and 'gi' Python modules for the SAME interpreter version."
-    echo "  - Package names vary by distro; search for terms like:"
-    echo "      dbus-python, python-dbus, python3-dbus"
-    echo "      pygobject, python-gobject, python3-gi"
-    echo
-    echo -e "${CYAN}Then re-run with an explicit interpreter if needed:${NC}"
-    echo "  $0 --python python3.12"
-    echo
-}
-
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
@@ -204,28 +179,6 @@ select_python() {
                 error_exit "$last_problem"$'\n\n'"Please install a supported Python (recommended: 3.12 or 3.13) and re-run with:"$'\n'"  $0 --python python3.12"
             fi
             # If this is an auto candidate, skip and try older versions
-            continue
-        fi
-
-        # Ensure core runtime dependencies are available for the selected interpreter.
-        # Note: the venv uses --system-site-packages, so these must be present in the interpreter's site-packages.
-        if ! "$py" -c "import dbus" >/dev/null 2>&1; then
-            last_problem="Python module 'dbus' (dbus-python) is not available for $py (Python $v)."
-            if [ -n "$override" ] && [ "$c" = "$override" ]; then
-                print_error "$last_problem"
-                print_python_module_install_help "$py" "$v"
-                exit 1
-            fi
-            continue
-        fi
-
-        if ! "$py" -c "import gi; gi.require_version('GLib','2.0')" >/dev/null 2>&1; then
-            last_problem="Python module 'gi' (PyGObject) is not available for $py (Python $v)."
-            if [ -n "$override" ] && [ "$c" = "$override" ]; then
-                print_error "$last_problem"
-                print_python_module_install_help "$py" "$v"
-                exit 1
-            fi
             continue
         fi
 
@@ -328,13 +281,8 @@ check_system_dependencies() {
         print_status "Python $PYTHON_VERSION (compatible)"
     fi
 
-    # Check for pip
-    if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then
-        print_warning "pip for the selected Python was not found (will rely on venv/ensurepip if available)"
-        missing_deps+=("pip (for selected python)")
-    else
-        print_status "pip found for selected Python"
-    fi
+    # pip is installed inside the service virtualenv (via venv/ensurepip), so we do not
+    # require pip to be available on the base interpreter here.
 
     # Check for FFmpeg
     if ! command_exists ffmpeg; then
@@ -382,20 +330,8 @@ check_system_dependencies() {
         fi
     fi
 
-    # Check for D-Bus development files
-    if ! "$PYTHON" -c "import dbus" 2>/dev/null; then
-        print_error "Python module 'dbus' (dbus-python) is not available for the selected Python"
-        missing_deps+=("python module: dbus (dbus-python)")
-    else
-        print_status "dbus-python (module 'dbus') found"
-    fi
-
-    if ! "$PYTHON" -c "import gi; gi.require_version('GLib', '2.0')" 2>/dev/null; then
-        print_error "PyGObject (module 'gi') is not available for the selected Python"
-        missing_deps+=("python module: gi (PyGObject)")
-    else
-        print_status "PyGObject found"
-    fi
+    # Note: D-Bus bindings are provided by the service venv via dbus-next (pure Python),
+    # so we intentionally do NOT require system-provided dbus-python / PyGObject here.
 
     # If there are missing dependencies, provide guidance
     if [ ${#missing_deps[@]} -gt 0 ] || [ "$missing_python_version" = true ]; then
@@ -431,7 +367,7 @@ print_status "Creating service directory: $SERVICE_DIR"
 mkdir -p "$SERVICE_DIR"
 
 print_status "Creating Python virtual environment..."
-if ! "$PYTHON" -m venv "$VENV_DIR" --system-site-packages 2>/dev/null; then
+if ! "$PYTHON" -m venv "$VENV_DIR" 2>/dev/null; then
     print_error "Failed to create virtual environment. python3-venv may not be installed."
     echo ""
     echo "Please install venv support for the selected Python interpreter using your distribution's package manager."

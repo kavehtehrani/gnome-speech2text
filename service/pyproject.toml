@@ -38,6 +38,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
+    "dbus-next>=0.2.3",
     "openai-whisper>=20231117",
     "torch>=1.13.0",
     "torchaudio>=0.13.0",
