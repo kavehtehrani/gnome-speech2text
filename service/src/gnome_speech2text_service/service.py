@@ -68,10 +68,23 @@ class Speech2TextService(ServiceInterface):
         """Lazy load Whisper model with CPU fallback."""
         if self.whisper_model is None:
             try:
+                # Avoid oversubscribing CPU threads (especially important in VMs)
+                try:
+                    import torch  # type: ignore
+
+                    cpu_count = os.cpu_count() or 1
+                    torch.set_num_threads(max(1, min(4, cpu_count)))
+                    torch.set_num_interop_threads(1)
+                except Exception:
+                    # If torch isn't available yet for any reason, don't fail here.
+                    pass
+
                 print("Loading Whisper model...")
+                syslog.syslog(syslog.LOG_INFO, "Loading Whisper model: base (cpu)")
                 # Force CPU-only mode to avoid CUDA compatibility issues
                 self.whisper_model = whisper.load_model("base", device="cpu")
                 print("Whisper model loaded successfully on CPU")
+                syslog.syslog(syslog.LOG_INFO, "Whisper model loaded successfully")
             except Exception as e:
                 print(f"Failed to load Whisper model: {e}")
                 raise e
@@ -532,6 +545,9 @@ class Speech2TextService(ServiceInterface):
                 )
                 return
 
+            syslog.syslog(syslog.LOG_INFO, f"Starting transcription for recording {recording_id}")
+            started = time.time()
+
             model = self._load_whisper_model()
             # Force fp16 off for CPU-only environments.
             result = model.transcribe(audio_file, fp16=False)
@@ -551,6 +567,10 @@ class Speech2TextService(ServiceInterface):
             recording_info["text"] = text
             recording_info["status"] = "completed"
 
+            syslog.syslog(
+                syslog.LOG_INFO,
+                f"Transcription finished for {recording_id} in {time.time() - started:.1f}s (chars={len(text)})",
+            )
             self._emit_threadsafe(self.TranscriptionReady, recording_id, text)
 
             copy_to_clipboard = recording_info.get("copy_to_clipboard", False)
