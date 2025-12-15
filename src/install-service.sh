@@ -135,7 +135,8 @@ select_python() {
     fi
 
     # Prefer versions that are most likely to have compatible wheels (Torch/Whisper)
-    candidates+=("python3.13" "python3.12" "python3.11" "python3.10" "python3.9" "python3.8" "python3")
+    # Prefer 3.12 first as it tends to have the most compatible ML wheels across distros.
+    candidates+=("python3.12" "python3.13" "python3.11" "python3.10" "python3.9" "python3.8" "python3")
 
     local checked_any=false
     local last_problem=""
@@ -399,13 +400,17 @@ install_service_package() {
             
         "pypi")
             print_status "Installing gnome-speech2text-service from PyPI..."
+            REQUIRED_SERVICE_VERSION="1.0.7"
             
             # Try PyPI installation with fallback
-            if "$VENV_DIR/bin/pip" install --upgrade gnome-speech2text-service; then
+            # Require the service version that includes dbus-next (no dbus-python/PyGObject build deps).
+            if "$VENV_DIR/bin/pip" install --upgrade "gnome-speech2text-service>=$REQUIRED_SERVICE_VERSION"; then
                 echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
             else
                 echo ""
                 print_warning "PyPI installation failed!"
+                echo "This installer requires gnome-speech2text-service >= $REQUIRED_SERVICE_VERSION."
+                echo "If you are developing locally, re-run with --local to install from this repository."
                 
                 # Offer local fallback if available
                 FALLBACK_DIR="$LOCAL_SOURCE_DIR"
@@ -423,7 +428,7 @@ install_service_package() {
                     fi
                 else
                     echo "No local source available for fallback."
-                    error_exit "PyPI installation failed. Please check your internet connection and try again."
+                    error_exit "PyPI installation failed. If you installed the extension from GNOME Extensions, please update the service package on PyPI and try again."
                 fi
             fi
             ;;
@@ -463,7 +468,8 @@ install_dbus_service_file() {
             fi
             if [ -f "$SRC_DIR/data/org.gnome.Shell.Extensions.Speech2Text.service" ]; then
                 sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/gnome-speech2text-service|g" \
-                    "$SRC_DIR/data/org.gnome.Shell.Extensions.Speech2Text.service" > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service"
+                    "$SRC_DIR/data/org.gnome.Shell.Extensions.Speech2Text.service" | \
+                    grep -vE '^User=' > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service"
                 echo "✅ D-Bus service file installed from local data"
             else
                 # Fallback: create directly if data file isn't present

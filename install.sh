@@ -398,13 +398,13 @@ echo ""
 echo -e "${BLUE}This script will install all required dependencies for Ubuntu.${NC}"
 echo ""
 if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, wl-clipboard"
+    echo "Required packages: python3, python3-pip, python3-venv, ffmpeg, wl-clipboard"
     echo "We need to run the following command to install all dependencies:"
-    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard"
+    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv ffmpeg wl-clipboard"
 else
-    echo "Required packages: python3, python3-pip, python3-venv, python3-dbus, python3-gi, ffmpeg, xdotool, xclip"
+    echo "Required packages: python3, python3-pip, python3-venv, ffmpeg, xdotool, xclip"
     echo "We need to run the following command to install all dependencies:"
-    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip"
+    echo "sudo apt update && sudo apt install -y python3 python3-pip python3-venv ffmpeg xdotool xclip"
 fi
 echo ""
 install_all=$(ask_user "Would you like to install all dependencies at once? [Y/n]: " "Y")
@@ -415,9 +415,9 @@ case "$install_all" in
     * ) 
         print_status "Installing all dependencies..."
         if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
-            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg wl-clipboard
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv ffmpeg wl-clipboard
         else
-            sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-dbus python3-gi ffmpeg xdotool xclip
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv ffmpeg xdotool xclip
         fi
         if [ $? -eq 0 ]; then
             print_status "All dependencies installed successfully!"

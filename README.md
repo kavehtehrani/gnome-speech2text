@@ -46,8 +46,7 @@ you run the extension you will get a popup to guide you through this setup.
 - **GNOME Shell 46 or later** (tested up to GNOME 48)
 - **Python 3.8 or later** (with pip)
 - **python3-venv** (for virtual environment creation)
-- **python3-dbus** (for D-Bus integration)
-- **python3-gi** (PyGObject for GLib integration)
+- **D-Bus Python library** is installed inside the service virtualenv (no system `python3-dbus` / `python3-gi` required)
 - **FFmpeg** (for audio recording)
 - **xdotool** (for text insertion on X11 only)
 - **Clipboard tools**: xclip/xsel (X11) or wl-clipboard (Wayland)
@@ -86,6 +85,8 @@ Notes about installers and distributions:
   dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
 - You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
   packages.
+  - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
+    use `./src/install-service.sh --local` instead.
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 

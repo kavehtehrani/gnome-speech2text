@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import whisper
 from dbus_next.aio import MessageBus
@@ -19,6 +20,16 @@ from dbus_next.service import ServiceInterface, method, signal as dbus_signal
 BUS_NAME = "org.gnome.Shell.Extensions.Speech2Text"
 OBJECT_PATH = "/org/gnome/Shell/Extensions/Speech2Text"
 INTERFACE_NAME = "org.gnome.Shell.Extensions.Speech2Text"
+
+if TYPE_CHECKING:
+    # dbus-next uses D-Bus type signature strings in annotations like: param: 's' -> 'b'
+    # Static type checkers may flag these as undefined forward references; define them for typing only.
+    class i: ...
+    class b: ...
+    class s: ...
+    class ss: ...
+    class sb: ...
+    class bas: ...
 
 
 class Speech2TextService(ServiceInterface):

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gnome-speech2text-service"
-version = "1.0.4"
+version = "1.0.7"
 description = "D-Bus service providing speech-to-text functionality for GNOME Shell"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
