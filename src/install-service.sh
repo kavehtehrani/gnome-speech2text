@@ -400,7 +400,7 @@ install_service_package() {
             
         "pypi")
             print_status "Installing gnome-speech2text-service from PyPI..."
-            REQUIRED_SERVICE_VERSION="1.0.7"
+            REQUIRED_SERVICE_VERSION="1.0.8"
             
             # Try PyPI installation with fallback
             # Require the service version that includes dbus-next (no dbus-python/PyGObject build deps).
