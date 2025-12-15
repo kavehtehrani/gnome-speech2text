@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import math
 import os
 import signal
 import subprocess
@@ -10,6 +11,8 @@ import tempfile
 import threading
 import time
 import uuid
+import wave
+from array import array
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -73,6 +76,59 @@ class Speech2TextService(ServiceInterface):
                 print(f"Failed to load Whisper model: {e}")
                 raise e
         return self.whisper_model
+
+    def _wav_rms_normalized(self, wav_path: str) -> float:
+        """
+        Compute RMS of a PCM WAV file (normalized 0..1).
+        Uses only the stdlib to avoid extra dependencies.
+        """
+        try:
+            with wave.open(wav_path, "rb") as wf:
+                nchannels = wf.getnchannels()
+                sampwidth = wf.getsampwidth()
+                nframes = wf.getnframes()
+
+                # We expect 16kHz mono 16-bit, but handle minor variations.
+                if sampwidth != 2 or nframes <= 0:
+                    return 0.0
+
+                total_samples = 0
+                sumsq = 0.0
+
+                # Read in chunks
+                chunk_frames = 4096
+                while True:
+                    frames = wf.readframes(chunk_frames)
+                    if not frames:
+                        break
+
+                    samples = array("h")
+                    samples.frombytes(frames)
+
+                    # If stereo, downmix by simple averaging pairs
+                    if nchannels == 2:
+                        # Ensure even length
+                        if len(samples) % 2 == 1:
+                            samples = samples[:-1]
+                        mono = array("h")
+                        for i in range(0, len(samples), 2):
+                            mono.append(int((samples[i] + samples[i + 1]) / 2))
+                        samples = mono
+                    elif nchannels != 1:
+                        # Unknown channel layout; treat as failure
+                        return 0.0
+
+                    for s in samples:
+                        sumsq += float(s) * float(s)
+                    total_samples += len(samples)
+
+                if total_samples == 0:
+                    return 0.0
+
+                rms = math.sqrt(sumsq / total_samples)
+                return float(rms) / 32768.0
+        except Exception:
+            return 0.0
 
     def _check_dependencies(self):
         """Check if all required dependencies are available."""
@@ -463,9 +519,34 @@ class Speech2TextService(ServiceInterface):
         try:
             recording_info["status"] = "transcribing"
 
+            # Detect silent recordings early to avoid confusing empty transcriptions.
+            rms = self._wav_rms_normalized(audio_file)
+            syslog.syslog(syslog.LOG_INFO, f"Audio RMS (normalized): {rms:.6f}")
+            if rms < 0.001:
+                recording_info["status"] = "failed"
+                self._emit_threadsafe(
+                    self.RecordingError,
+                    recording_id,
+                    "No speech detected (audio appears silent). "
+                    "Check your microphone input and that PulseAudio/PipeWire default source is correct.",
+                )
+                return
+
             model = self._load_whisper_model()
-            result = model.transcribe(audio_file)
+            # Force fp16 off for CPU-only environments.
+            result = model.transcribe(audio_file, fp16=False)
             text = result["text"].strip()
+
+            if not text:
+                recording_info["status"] = "failed"
+                self._emit_threadsafe(
+                    self.RecordingError,
+                    recording_id,
+                    "Transcription produced empty text. "
+                    "This often means the recording contained silence or very low volume input. "
+                    "Check microphone/input source and try again.",
+                )
+                return
 
             recording_info["text"] = text
             recording_info["status"] = "completed"
