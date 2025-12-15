@@ -19,11 +19,11 @@ This service handles the actual speech recognition processing using OpenAI's Whi
 
 ### System Dependencies
 
-This service requires several system packages to be installed. See the main [README.md](../README.md) for the complete list of system dependencies.
+This service requires several system packages to be installed (e.g. ffmpeg, clipboard tools). See the main [README.md](../README.md) for the complete list of system dependencies.
 
 ### Service Installation
 
-The service is available on PyPI and can be installed via pip:
+The service is available on PyPI and is typically installed into a per-user virtual environment by the extension’s installer.
 
 ```bash
 pip install gnome-speech2text-service
@@ -83,22 +83,28 @@ The service uses OpenAI's Whisper model locally for speech recognition. No API k
 
 ### D-Bus Interface
 
-The service provides the following D-Bus methods:
+The service provides the following D-Bus interface (stable; used by the GNOME extension):
+
+Methods:
 
 - `StartRecording(duration, copy_to_clipboard, preview_mode)` → `recording_id`
 - `StopRecording(recording_id)` → `success`
-- `GetRecordingStatus(recording_id)` → `status, progress`
 - `CancelRecording(recording_id)` → `success`
+- `TypeText(text, copy_to_clipboard)` → `success`
+- `GetServiceStatus()` → `status`
+- `CheckDependencies()` → `all_available, missing_dependencies[]`
 
 Signals:
 
+- `RecordingStarted(recording_id)`
+- `RecordingStopped(recording_id, reason)`
 - `TranscriptionReady(recording_id, text)`
-- `RecordingProgress(recording_id, progress)`
 - `RecordingError(recording_id, error_message)`
+- `TextTyped(text, success)`
 
 ## Requirements
 
-- **Python**: 3.8 or higher
+- **Python**: 3.8–3.13 (Python 3.14+ not supported yet)
 - **System**: Linux with D-Bus support
 - **Desktop**: GNOME Shell (tested on GNOME 46+)
 
