@@ -219,6 +219,13 @@ export class DBusManager {
         e.message &&
         e.message.includes("org.freedesktop.DBus.Error.ServiceUnknown")
       ) {
+        if (e.message.includes("not activatable")) {
+          return {
+            available: false,
+            error:
+              "Service is not activatable. The D-Bus activation file may be missing or invalid.\nReinstall the service, then restart GNOME Shell:\n• X11: Alt+F2, type 'r', press Enter\n• Wayland: Log out and log back in",
+          };
+        }
         return {
           available: false,
           error:

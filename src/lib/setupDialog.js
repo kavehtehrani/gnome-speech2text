@@ -405,6 +405,8 @@ This service is installed separately from the extension (following GNOME guideli
 
   _fallbackToClipboard(scriptPath) {
     // Copy the local installation command to clipboard
+    // Note: --pypi installs the companion service package from PyPI.
+    // If you are developing from a git clone, use --local instead.
     const localInstallCmd = `bash "${scriptPath}" --pypi --non-interactive`;
     this._copyToClipboard(localInstallCmd);
 

@@ -43,11 +43,10 @@ you run the extension you will get a popup to guide you through this setup.
 
 ### System Dependencies
 
-- **GNOME Shell 46 or later** (tested up to GNOME 48)
-- **Python 3.8 or later** (with pip)
+- **GNOME Shell 46 or later** (tested up to GNOME 49)
+- **Python 3.8–3.13** (Python 3.14+ not supported yet due to ML dependency compatibility)
 - **python3-venv** (for virtual environment creation)
-- **python3-dbus** (for D-Bus integration)
-- **python3-gi** (PyGObject for GLib integration)
+- **D-Bus Python library** is installed inside the service virtualenv (`dbus-next`; no system `python3-dbus` / `python3-gi` required)
 - **FFmpeg** (for audio recording)
 - **xdotool** (for text insertion on X11 only)
 - **Clipboard tools**: xclip/xsel (X11) or wl-clipboard (Wayland)
@@ -72,8 +71,10 @@ For the manual installation experience, use the repository installer script:
 ```bash
 git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
-make install
+make setup
 ```
+
+`make setup` installs both the extension and the D-Bus service. (Use `make install` if you only want the extension.)
 
 ### First Time Setup
 
@@ -86,6 +87,8 @@ Notes about installers and distributions:
   dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
 - You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
   packages.
+  - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
+    use `./src/install-service.sh --local` instead.
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 
@@ -123,7 +126,7 @@ First make sure 1- extension is enabled in the GNOME Extensions, and 2- you have
 
 ```bash
 # View extension logs
-journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text)"
+journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text|Whisper|transcrib)"
 
 # Check installation status
 make status
