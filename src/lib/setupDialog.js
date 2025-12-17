@@ -511,6 +511,11 @@ This service is installed separately from the extension (following GNOME guideli
       "small",
       "margin-top: 4px;"
     );
+    const defaultNote = createStyledLabel(
+      "Recommended default (most compatible across platforms): model=base, device=cpu.",
+      "small",
+      "margin-top: 2px;"
+    );
 
     // Wire controls
     const rotate = (arr, current, dir) => {
@@ -568,6 +573,7 @@ This service is installed separately from the extension (following GNOME guideli
     section.add_child(modelRow);
     section.add_child(deviceRow);
     section.add_child(note);
+    section.add_child(defaultNote);
     return section;
   }
 
