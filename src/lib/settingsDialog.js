@@ -500,18 +500,8 @@ export class SettingsDialog {
     }
 
     // Modal overlay handlers
-    // GNOME 49+ can route button-press-event through the overlay in a way that
-    // blocks clicks on child widgets if we always stop propagation.
-    // Only stop clicks on the backdrop itself; let child widgets (e.g. close button)
-    // receive events normally.
-    this.overlay.connect("button-press-event", (actor, event) => {
-      try {
-        const source = event?.get_source?.();
-        return source === actor ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
-      } catch {
-        return Clutter.EVENT_STOP;
-      }
-    });
+    // Restore original behavior (matches origin/main): block click-through.
+    this.overlay.connect("button-press-event", () => Clutter.EVENT_STOP);
     this.overlay.connect("key-press-event", (actor, event) => {
       if (event.get_key_symbol() === Clutter.KEY_Escape) {
         this.close();
@@ -533,8 +523,8 @@ export class SettingsDialog {
     this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [windowWidth, windowHeight] = this.settingsWindow.get_size();
       if (windowWidth === 0) windowWidth = 450;
-      if (windowHeight === 0)
-        windowHeight = Math.min(monitor.height * 0.8, 600);
+      if (windowHeight === 0) i;
+      windowHeight = Math.min(monitor.height * 0.8, 600);
 
       // Use integer coordinates in overlay parent space to avoid subpixel blur
       const centerX = Math.round((monitor.width - windowWidth) / 2);
