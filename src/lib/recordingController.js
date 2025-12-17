@@ -96,10 +96,20 @@ export class RecordingController {
         );
         recordingDialog.open();
       } else {
-        this.uiManager.showErrorNotification(
-          "Speech2Text Error",
-          "Failed to start recording. Please try again."
-        );
+        // If the user selected a non-default model/device, a common cause is an older
+        // service version that doesn't support SetWhisperConfig yet.
+        const selectedModel = settings.get_string("whisper-model") || "base";
+        const selectedDevice = settings.get_string("whisper-device") || "cpu";
+        if (selectedModel !== "base" || selectedDevice !== "cpu") {
+          this.uiManager.showServiceSetupDialog(
+            "Your installed Speech2Text service is outdated and doesn't support model/device selection yet. Reinstall/upgrade the service using the options below."
+          );
+        } else {
+          this.uiManager.showErrorNotification(
+            "Speech2Text Error",
+            "Failed to start recording. Please try again."
+          );
+        }
       }
     }
   }

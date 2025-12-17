@@ -81,6 +81,18 @@ make setup
 The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with
 automatic or manual installation options.
 
+### Whisper model & CPU/GPU settings
+
+Speech2Text uses OpenAI Whisper locally. You can configure:
+
+- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants (including `*.en`, `large-v2`, `large-v3`).
+- **Device**:
+  - **CPU (default)**: recommended for most users; easier install and compatibility.
+  - **GPU**: attempts to use an accelerator backend via PyTorch. On Linux this usually means **NVIDIA CUDA**.
+    (Advanced users may be able to use other backends depending on their PyTorch build.)
+
+Important: switching CPU/GPU may require reinstalling the background service so the correct ML dependencies are installed.
+
 Notes about installers and distributions:
 
 - The extension bundle includes `src/install-service.sh`, a distro-agnostic service installer that only verifies system
@@ -89,6 +101,8 @@ Notes about installers and distributions:
   packages.
   - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
     use `./src/install-service.sh --local` instead.
+  - Note: the installer supports **GPU mode** via `--gpu`. If you are in GPU mode in the extension settings, the setup
+    dialog will run the installer with `--gpu`.
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 
@@ -113,10 +127,22 @@ If you only want to manually install the D-Bus service (for development or advan
 
 # Or install from PyPI
 ./src/install-service.sh --pypi
+
+# Install with GPU-enabled ML dependencies (advanced)
+./src/install-service.sh --pypi --gpu
 ```
 
 The service is available as a Python package on
 PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/)
+
+### Upgrading from older versions (CUDA/NVIDIA pip packages cleanup)
+
+Older versions of the service installer could pull GPU-related *pip packages* (e.g. `nvidia-*`) into the service’s
+virtual environment. New versions default to **CPU-only** PyTorch wheels unless you explicitly choose GPU mode.
+
+If you are using **CPU mode** and want to remove legacy GPU-related pip packages, simply re-run the installer
+(from the setup dialog or manually). The installer rebuilds the service virtual environment from scratch, so it will
+remove any old GPU-related pip packages from the service venv automatically.
 
 #### Troubleshooting Installation
 

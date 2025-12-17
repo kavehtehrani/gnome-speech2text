@@ -31,6 +31,14 @@ export class SettingsDialog {
     this.skipPreviewCheckbox = null;
     this.skipPreviewCheckboxIcon = null;
     this.centerTimeoutId = null;
+
+    // Whisper settings controls
+    this.whisperModelPrevButton = null;
+    this.whisperModelNextButton = null;
+    this.whisperModelValueLabel = null;
+    this.whisperDevicePrevButton = null;
+    this.whisperDeviceNextButton = null;
+    this.whisperDeviceValueLabel = null;
   }
 
   show() {
@@ -75,6 +83,7 @@ export class SettingsDialog {
     const headerBox = this._buildHeaderSection();
     const shortcutSection = this._buildShortcutSection();
     const durationSection = this._buildDurationSection();
+    const whisperSection = this._buildWhisperSection();
     const clipboardSection = this._buildClipboardSection();
     const skipPreviewSection = this._buildSkipPreviewSection();
 
@@ -83,6 +92,8 @@ export class SettingsDialog {
     settingsWindow.add_child(shortcutSection);
     settingsWindow.add_child(createSeparator());
     settingsWindow.add_child(durationSection);
+    settingsWindow.add_child(createSeparator());
+    settingsWindow.add_child(whisperSection);
     settingsWindow.add_child(createSeparator());
     settingsWindow.add_child(clipboardSection);
 
@@ -103,6 +114,108 @@ export class SettingsDialog {
 
     this.overlay.add_child(settingsWindow);
     this.settingsWindow = settingsWindow;
+  }
+
+  _buildWhisperSection() {
+    let whisperSection = createVerticalBox();
+    let whisperLabel = createStyledLabel("Speech Recognition", "subtitle");
+    let whisperDescription = createStyledLabel(
+      "Configure the Whisper model and whether to use CPU or GPU (CUDA).",
+      "description"
+    );
+
+    // Model selector
+    const models = [
+      "tiny",
+      "tiny.en",
+      "base",
+      "base.en",
+      "small",
+      "small.en",
+      "medium",
+      "medium.en",
+      "large",
+      "large-v2",
+      "large-v3",
+    ];
+
+    const currentModel = (() => {
+      const m = this.settings.get_string("whisper-model");
+      if (m && models.includes(m)) return m;
+      return "base";
+    })();
+
+    let modelRow = createHorizontalBox();
+    let modelLabel = createStyledLabel("Model:", "normal", "min-width: 80px;");
+
+    let modelControlBox = createCenteredBox(false, "8px");
+    this.whisperModelPrevButton = createIncrementButton("←", 28);
+    this.whisperModelNextButton = createIncrementButton("→", 28);
+    this.whisperModelValueLabel = createStyledLabel(
+      currentModel,
+      "normal",
+      createAccentDisplayStyle(COLORS.PRIMARY, "140px")
+    );
+
+    modelControlBox.add_child(this.whisperModelPrevButton);
+    modelControlBox.add_child(this.whisperModelValueLabel);
+    modelControlBox.add_child(this.whisperModelNextButton);
+
+    modelRow.add_child(modelLabel);
+    modelRow.add_child(modelControlBox);
+
+    // Device selector
+    const devices = ["cpu", "gpu"];
+    const currentDevice = (() => {
+      const d = this.settings.get_string("whisper-device");
+      if (d && devices.includes(d)) return d;
+      return "cpu";
+    })();
+
+    let deviceRow = createHorizontalBox();
+    let deviceLabel = createStyledLabel(
+      "Device:",
+      "normal",
+      "min-width: 80px;"
+    );
+
+    let deviceControlBox = createCenteredBox(false, "8px");
+    this.whisperDevicePrevButton = createIncrementButton("←", 28);
+    this.whisperDeviceNextButton = createIncrementButton("→", 28);
+    this.whisperDeviceValueLabel = createStyledLabel(
+      currentDevice,
+      "normal",
+      createAccentDisplayStyle(
+        currentDevice === "gpu" ? COLORS.WARNING : COLORS.SUCCESS,
+        "140px"
+      )
+    );
+
+    deviceControlBox.add_child(this.whisperDevicePrevButton);
+    deviceControlBox.add_child(this.whisperDeviceValueLabel);
+    deviceControlBox.add_child(this.whisperDeviceNextButton);
+
+    deviceRow.add_child(deviceLabel);
+    deviceRow.add_child(deviceControlBox);
+
+    // Small warning note (especially relevant for GPU)
+    const deviceNote = createStyledLabel(
+      "Note: switching CPU/GPU may require reinstalling the background service.",
+      "small",
+      "margin-top: 4px;"
+    );
+
+    whisperSection.add_child(whisperLabel);
+    whisperSection.add_child(whisperDescription);
+    whisperSection.add_child(modelRow);
+    whisperSection.add_child(deviceRow);
+    whisperSection.add_child(deviceNote);
+
+    // Keep model list available for event handlers
+    this._whisperModels = models;
+    this._whisperDevices = devices;
+
+    return whisperSection;
   }
 
   _buildHeaderSection() {
@@ -376,6 +489,64 @@ export class SettingsDialog {
       this.settings.set_int("recording-duration", newValue);
       this.durationValueLabel.set_text(`${newValue}s`);
     });
+
+    // Whisper model controls
+    if (this.whisperModelPrevButton && this.whisperModelNextButton) {
+      const rotateModel = (direction) => {
+        const models = this._whisperModels || ["base"];
+        const current = this.settings.get_string("whisper-model") || "base";
+        const idx = Math.max(0, models.indexOf(current));
+        const nextIdx =
+          (idx + direction + models.length) % Math.max(1, models.length);
+        const nextModel = models[nextIdx] || "base";
+        this.settings.set_string("whisper-model", nextModel);
+        this.whisperModelValueLabel?.set_text(nextModel);
+        Main.notify("Speech2Text", `Whisper model set to: ${nextModel}`);
+      };
+      this.whisperModelPrevButton.connect("clicked", () => rotateModel(-1));
+      this.whisperModelNextButton.connect("clicked", () => rotateModel(1));
+    }
+
+    // Whisper device controls (CPU/GPU) + reinstall prompt on change
+    if (this.whisperDevicePrevButton && this.whisperDeviceNextButton) {
+      const rotateDevice = (direction) => {
+        const devices = this._whisperDevices || ["cpu", "gpu"];
+        const oldDevice = this.settings.get_string("whisper-device") || "cpu";
+        const idx = Math.max(0, devices.indexOf(oldDevice));
+        const nextIdx =
+          (idx + direction + devices.length) % Math.max(1, devices.length);
+        const nextDevice = devices[nextIdx] || "cpu";
+        if (nextDevice === oldDevice) return;
+
+        this.settings.set_string("whisper-device", nextDevice);
+        this.whisperDeviceValueLabel?.set_text(nextDevice);
+        this.whisperDeviceValueLabel?.set_style(
+          createAccentDisplayStyle(
+            nextDevice === "gpu" ? COLORS.WARNING : COLORS.SUCCESS,
+            "140px"
+          )
+        );
+
+        // Prompt reinstall so the user can switch the service environment
+        // (especially important when switching CPU -> GPU).
+        Main.notify(
+          "Speech2Text",
+          `Whisper device set to: ${nextDevice}. Service reinstall may be required.`
+        );
+
+        // Close settings to avoid stacking modals, then open installer dialog.
+        try {
+          this.close();
+        } catch (_e) {
+          // Ignore close issues; still show setup dialog.
+        }
+        this.extension.uiManager?.showServiceSetupDialog(
+          `reinstall_required:${nextDevice}`
+        );
+      };
+      this.whisperDevicePrevButton.connect("clicked", () => rotateDevice(-1));
+      this.whisperDeviceNextButton.connect("clicked", () => rotateDevice(1));
+    }
 
     // Clipboard checkbox
     this.clipboardCheckbox.connect("clicked", () => {

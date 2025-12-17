@@ -30,6 +30,8 @@ export class RecordingStateManager {
       const recordingDuration = settings.get_int("recording-duration");
       const copyToClipboard = settings.get_boolean("copy-to-clipboard");
       const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
+      const whisperModel = settings.get_string("whisper-model") || "base";
+      const whisperDevice = settings.get_string("whisper-device") || "cpu";
 
       // Store settings for later use in transcription handling
       this.lastRecordingSettings = {
@@ -43,11 +45,41 @@ export class RecordingStateManager {
       const previewMode = true;
 
       console.log(
-        `Starting recording: duration=${recordingDuration}, clipboard=${copyToClipboard}, skipPreview=${skipPreviewX11}`
+        `Starting recording: duration=${recordingDuration}, clipboard=${copyToClipboard}, skipPreview=${skipPreviewX11}, model=${whisperModel}, device=${whisperDevice}`
       );
 
       if (!this.dbusManager) {
         console.error("RecordingStateManager: dbusManager is null");
+        return false;
+      }
+
+      // Ensure the service uses the user's selected model/device before recording starts.
+      try {
+        const applied = await this.dbusManager.setWhisperConfig(
+          whisperModel,
+          whisperDevice
+        );
+        if (!applied) {
+          // Service is an older version without SetWhisperConfig.
+          // Allow default behavior (base+cpu) to continue for backwards compatibility.
+          if (whisperModel === "base" && whisperDevice === "cpu") {
+            console.log(
+              "Service does not support SetWhisperConfig yet; continuing with default base+cpu."
+            );
+          } else {
+            Main.notify(
+              "Speech2Text",
+              "Your installed service is outdated and doesn't support model/device selection yet. Please reinstall/upgrade the service."
+            );
+            return false;
+          }
+        }
+      } catch (e) {
+        console.error(`Failed to set Whisper config: ${e.message}`);
+        Main.notify(
+          "Speech2Text Error",
+          `Failed to apply Whisper settings: ${e.message}`
+        );
         return false;
       }
 
