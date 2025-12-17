@@ -3,6 +3,7 @@ import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
+import * as MessageTray from "resource:///org/gnome/shell/ui/messageTray.js";
 
 import { SettingsDialog } from "./settingsDialog.js";
 import { ServiceSetupDialog } from "./setupDialog.js";
@@ -113,6 +114,83 @@ export class UIManager {
 
   showSuccessNotification(title, message) {
     Main.notify(title, message);
+  }
+
+  /**
+   * Show a clickable notification (GNOME Shell 46–49).
+   * Falls back to Main.notify if MessageTray API changes.
+   */
+  showActionableNotification(title, message, onActivate) {
+    try {
+      // Follow the upstream docs for GNOME Shell extensions:
+      // https://gjs.guide/extensions/topics/notifications.html#notifications
+      const source = MessageTray.getSystemSource?.();
+      if (!source) {
+        Main.notify(title, message);
+        return;
+      }
+
+      const notification = new MessageTray.Notification({
+        source,
+        title,
+        body: message,
+        iconName: "microphone-symbolic",
+        urgency: MessageTray.Urgency?.NORMAL ?? undefined,
+      });
+
+      // Connect click activation (works across versions).
+      if (onActivate) {
+        const handler = () => {
+          try {
+            onActivate();
+          } catch (e) {
+            console.error("Notification activation handler failed:", e);
+            Main.notify(
+              "Speech2Text Error",
+              "Failed to open transcription view."
+            );
+          }
+        };
+
+        // Banner/body activation
+        try {
+          notification.connect("activated", handler);
+        } catch {
+          // ignore
+        }
+
+        // Some versions also emit action-invoked for default action
+        try {
+          notification.connect("action-invoked", handler);
+        } catch {
+          // ignore
+        }
+      }
+
+      // Add an explicit action button where supported (more reliable than body click).
+      if (onActivate && typeof notification.addAction === "function") {
+        try {
+          notification.addAction("View", () => {
+            try {
+              onActivate();
+            } catch (e) {
+              console.error("Notification action handler failed:", e);
+              Main.notify(
+                "Speech2Text Error",
+                "Failed to open transcription view."
+              );
+            }
+          });
+        } catch {
+          // Optional, ignore if unsupported.
+        }
+      }
+
+      source.addNotification?.(notification);
+    } catch (e) {
+      console.error("Failed to show actionable notification:", e);
+      Main.notify(title, message);
+    }
   }
 
   captureNewShortcut(callback) {

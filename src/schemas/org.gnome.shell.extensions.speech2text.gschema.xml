@@ -22,6 +22,11 @@
             <summary>Skip preview dialog on X11</summary>
             <description>If enabled (X11 only), the extension will insert the transcribed text immediately after recording, without showing the preview dialog. Has no effect on Wayland.</description>
         </key>
+        <key name="non-blocking-transcription" type="b">
+            <default>false</default>
+            <summary>Non-blocking transcription</summary>
+            <description>If enabled, the extension will show a small non-blocking “Transcribing…” window while processing your audio, so you can keep using your computer. A notification will be shown when transcription finishes.</description>
+        </key>
         <key name="whisper-model" type="s">
             <default>'base'</default>
             <summary>Whisper model</summary>

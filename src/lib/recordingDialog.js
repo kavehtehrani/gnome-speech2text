@@ -10,13 +10,14 @@ import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
 
 // Enhanced recording dialog for D-Bus version (matches original design)
 export class RecordingDialog {
-  constructor(onCancel, onInsert, onStop, maxDuration = 60) {
+  constructor(onCancel, onInsert, onStop, maxDuration = 60, options = {}) {
     console.log("DBusRecordingDialog constructor called");
 
     this.onCancel = onCancel;
     this.onInsert = onInsert;
     this.onStop = onStop;
     this.maxDuration = maxDuration;
+    this.allowInsert = options?.allowInsert !== false;
     this.startTime = null;
     this.elapsedTime = 0;
     this.timerInterval = null;
@@ -159,7 +160,6 @@ export class RecordingDialog {
     // Connect button events
     this.stopButton.connect("clicked", () => {
       console.log("Stop button clicked!");
-      this.showProcessing();
       // Trigger the stop recording via the parent extension
       if (this.onStop) {
         this.onStop();
@@ -186,7 +186,6 @@ export class RecordingDialog {
           keyval === Clutter.KEY_KP_Enter
         ) {
           if (!this.isPreviewMode) {
-            this.showProcessing();
             // Trigger the stop recording
             if (this.onStop) {
               this.onStop();
@@ -437,7 +436,7 @@ export class RecordingDialog {
 
     // Only show insert button on X11
     let insertButton = null;
-    if (!isWayland) {
+    if (!isWayland && this.allowInsert) {
       insertButton = createHoverButton(
         "Insert Text",
         COLORS.SUCCESS,

@@ -111,15 +111,6 @@ export class RecordingStateManager {
       await this.dbusManager.stopRecording(this.currentRecordingId);
       this.updateIcon(false);
 
-      // Show processing state instead of closing dialog
-      if (
-        this.recordingDialog &&
-        typeof this.recordingDialog.showProcessing === "function"
-      ) {
-        console.log("Showing processing state after manual stop");
-        this.recordingDialog.showProcessing();
-      }
-
       // Don't set currentRecordingId to null or close dialog yet
       // Wait for transcription to complete
       // Also don't reset isCancelled flag here - we want to process the audio
@@ -141,7 +132,7 @@ export class RecordingStateManager {
     // If the recording was cancelled, ignore the completion
     if (this.isCancelled) {
       console.log("Recording was cancelled - ignoring completion");
-      return;
+      return false;
     }
 
     // If we don't have a dialog, the recording was already stopped manually
@@ -149,22 +140,12 @@ export class RecordingStateManager {
       console.log(
         `Recording ${recordingId} completed but dialog already closed (manual stop)`
       );
-      return;
-    }
-
-    // Show processing state
-    if (
-      this.recordingDialog &&
-      typeof this.recordingDialog.showProcessing === "function"
-    ) {
-      console.log("Showing processing state after automatic completion");
-      this.recordingDialog.showProcessing();
-    } else {
-      console.log(`ERROR: Dialog does not have showProcessing method`);
+      return false;
     }
 
     // Don't close the dialog here - wait for transcription
     // The dialog will be closed in handleTranscriptionReady based on settings
+    return true;
   }
 
   async cancelRecording() {
@@ -238,6 +219,25 @@ export class RecordingStateManager {
     if (this.isCancelled) {
       console.log("Recording was cancelled - ignoring transcription");
       return { action: "ignored", text: null };
+    }
+
+    // Non-blocking mode: NEVER auto-insert or show a modal preview.
+    if (settings.get_boolean("non-blocking-transcription")) {
+      console.log("=== NON-BLOCKING MODE ===");
+      // Ensure any existing dialog is closed/cleared (controller usually already did this).
+      if (this.recordingDialog) {
+        try {
+          this.recordingDialog.close();
+        } catch (e) {
+          // Non-fatal.
+        } finally {
+          this.recordingDialog = null;
+        }
+      }
+
+      this.currentRecordingId = null;
+      this.updateIcon(false);
+      return { action: "nonBlockingClipboard", text };
     }
 
     // Check if we should skip preview and auto-insert

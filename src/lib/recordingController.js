@@ -1,12 +1,15 @@
+import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { RecordingStateManager } from "./recordingStateManager.js";
 import { RecordingDialog } from "./recordingDialog.js";
+import { TranscriptionProgress } from "./transcriptionProgress.js";
 
 export class RecordingController {
   constructor(uiManager, serviceManager) {
     this.uiManager = uiManager;
     this.serviceManager = serviceManager;
     this.recordingStateManager = null;
+    this.transcriptionProgress = null;
   }
 
   initialize() {
@@ -82,10 +85,18 @@ export class RecordingController {
             this._typeText(text);
             this.recordingStateManager.setRecordingDialog(null);
           },
-          () => {
+          async () => {
             // Stop callback
             console.log("Stop recording button clicked");
-            this.recordingStateManager.stopRecording();
+            const stopped = await this.recordingStateManager.stopRecording();
+            if (stopped) {
+              this._beginTranscriptionUi();
+            } else {
+              this.uiManager.showErrorNotification(
+                "Speech2Text Error",
+                "Failed to stop recording."
+              );
+            }
           },
           settings.get_int("recording-duration")
         );
@@ -124,8 +135,12 @@ export class RecordingController {
       `RecordingController: Recording stopped - ID: ${recordingId}, reason: ${reason}`
     );
     if (reason === "completed") {
-      // Recording completed automatically - don't close dialog yet
-      this.recordingStateManager.handleRecordingCompleted(recordingId);
+      // Recording completed automatically - begin transcription UI.
+      const shouldShowUi =
+        this.recordingStateManager.handleRecordingCompleted(recordingId);
+      if (shouldShowUi) {
+        this._beginTranscriptionUi();
+      }
     }
     // For manual stops (reason === "stopped"), the dialog is already closed
     // in the stopRecording method
@@ -136,6 +151,8 @@ export class RecordingController {
       console.log("Recording state manager not initialized");
       return;
     }
+
+    this._endTranscriptionUi();
 
     console.log(
       `RecordingController: Transcription ready - ID: ${recordingId}, text: "${text}"`
@@ -149,6 +166,40 @@ export class RecordingController {
     console.log(
       `RecordingController: Transcription result - action: ${result?.action}`
     );
+
+    if (result && result.action === "nonBlockingClipboard") {
+      // Non-blocking mode is clipboard-only: do NOT auto-insert or show a modal preview.
+      try {
+        const autoCopy =
+          this.uiManager.extensionCore.settings.get_boolean(
+            "copy-to-clipboard"
+          );
+
+        if (autoCopy) {
+          const clipboard = St.Clipboard.get_default();
+          clipboard.set_text(St.ClipboardType.CLIPBOARD, result.text);
+          this.uiManager.showActionableNotification(
+            "Speech2Text",
+            "Transcription copied to clipboard. Click to review.",
+            () => this._showCopyOnlyPreviewDialog(result.text)
+          );
+        } else {
+          this.uiManager.showActionableNotification(
+            "Speech2Text",
+            "Transcription ready. Click to view and copy.",
+            () => this._showCopyOnlyPreviewDialog(result.text)
+          );
+        }
+      } catch (e) {
+        console.error(`Error copying to clipboard: ${e}`);
+        this.uiManager.showErrorNotification(
+          "Speech2Text Error",
+          "Failed to handle transcription result."
+        );
+      }
+      return;
+    }
+
     if (result && result.action === "insert") {
       this._typeText(result.text);
     } else if (result && result.action === "createPreview") {
@@ -164,6 +215,19 @@ export class RecordingController {
     if (!this.recordingStateManager) {
       console.log("Recording state manager not initialized");
       return;
+    }
+
+    this._endTranscriptionUi();
+
+    if (
+      this.uiManager.extensionCore.settings.get_boolean(
+        "non-blocking-transcription"
+      )
+    ) {
+      this.uiManager.showErrorNotification(
+        "Speech2Text Error",
+        `Transcription failed: ${errorMessage}`
+      );
     }
 
     this.recordingStateManager.handleRecordingError(recordingId, errorMessage);
@@ -195,6 +259,21 @@ export class RecordingController {
     previewDialog.showPreview(text);
   }
 
+  _showCopyOnlyPreviewDialog(text) {
+    // Copy-only preview: disable insert even on X11 (predictable for non-blocking mode).
+    const previewDialog = new RecordingDialog(
+      () => {
+        previewDialog.close();
+      },
+      null, // no insert callback
+      null,
+      0,
+      { allowInsert: false }
+    );
+    previewDialog.open();
+    previewDialog.showPreview(text);
+  }
+
   async _typeText(text) {
     try {
       await this.serviceManager.typeText(
@@ -210,11 +289,62 @@ export class RecordingController {
     }
   }
 
+  _beginTranscriptionUi() {
+    const settings = this.uiManager.extensionCore.settings;
+    const nonBlocking = settings.get_boolean("non-blocking-transcription");
+
+    if (nonBlocking) {
+      // Close the blocking modal (if present) and replace with a small non-modal window.
+      const dialog = this.recordingStateManager?.recordingDialog;
+      if (dialog) {
+        try {
+          dialog.close();
+        } catch (e) {
+          // Non-fatal.
+        } finally {
+          this.recordingStateManager.setRecordingDialog(null);
+        }
+      }
+
+      if (this.transcriptionProgress) {
+        this.transcriptionProgress.close();
+        this.transcriptionProgress = null;
+      }
+
+      this.transcriptionProgress = new TranscriptionProgress(() => {
+        // Cancel processing: discard audio and stop waiting.
+        this.recordingStateManager.cancelRecording();
+        this._endTranscriptionUi();
+      });
+      this.transcriptionProgress.open();
+      return;
+    }
+
+    // Default behavior: use the existing modal dialog's processing UI.
+    const dialog = this.recordingStateManager?.recordingDialog;
+    if (dialog && typeof dialog.showProcessing === "function") {
+      dialog.showProcessing();
+    }
+  }
+
+  _endTranscriptionUi() {
+    if (this.transcriptionProgress) {
+      try {
+        this.transcriptionProgress.close();
+      } catch (e) {
+        // Ignore cleanup errors.
+      }
+      this.transcriptionProgress = null;
+    }
+  }
+
   cleanup() {
     if (this.recordingStateManager) {
       console.log("Cleaning up recording state manager");
       this.recordingStateManager.cleanup();
       this.recordingStateManager = null;
     }
+
+    this._endTranscriptionUi();
   }
 }
