@@ -33,6 +33,8 @@ export class SettingsDialog {
     this.nonBlockingTranscriptionCheckbox = null;
     this.nonBlockingTranscriptionCheckboxIcon = null;
     this.centerTimeoutId = null;
+    this.keyPressHandler = null;
+    this.clickHandler = null;
   }
 
   show() {
@@ -53,9 +55,15 @@ export class SettingsDialog {
     }
 
     if (this.overlay) {
-      cleanupModal(this.overlay, {});
+      cleanupModal(this.overlay, {
+        keyPressHandler: this.keyPressHandler,
+        clickHandler: this.clickHandler,
+      });
       this.overlay = null;
     }
+
+    this.keyPressHandler = null;
+    this.clickHandler = null;
   }
 
   _createDialog() {
@@ -500,15 +508,32 @@ export class SettingsDialog {
     }
 
     // Modal overlay handlers
-    // Restore original behavior (matches origin/main): block click-through.
-    this.overlay.connect("button-press-event", () => Clutter.EVENT_STOP);
-    this.overlay.connect("key-press-event", (actor, event) => {
-      if (event.get_key_symbol() === Clutter.KEY_Escape) {
-        this.close();
-        return Clutter.EVENT_STOP;
+    this.clickHandler = this.overlay.connect(
+      "button-press-event",
+      (actor, event) => {
+        try {
+          if (event.get_source() === this.overlay) {
+            this.close();
+            return Clutter.EVENT_STOP;
+          }
+          return Clutter.EVENT_PROPAGATE;
+        } catch {
+          return Clutter.EVENT_STOP;
+        }
       }
-      return Clutter.EVENT_STOP;
-    });
+    );
+
+    // Keyboard handling: Escape closes, others propagate.
+    this.keyPressHandler = this.overlay.connect(
+      "key-press-event",
+      (actor, event) => {
+        if (event.get_key_symbol() === Clutter.KEY_Escape) {
+          this.close();
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      }
+    );
   }
 
   _showDialog() {
@@ -523,8 +548,8 @@ export class SettingsDialog {
     this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
       let [windowWidth, windowHeight] = this.settingsWindow.get_size();
       if (windowWidth === 0) windowWidth = 450;
-      if (windowHeight === 0) i;
-      windowHeight = Math.min(monitor.height * 0.8, 600);
+      if (windowHeight === 0)
+        windowHeight = Math.min(monitor.height * 0.8, 600);
 
       // Use integer coordinates in overlay parent space to avoid subpixel blur
       const centerX = Math.round((monitor.width - windowWidth) / 2);
