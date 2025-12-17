@@ -240,7 +240,6 @@ export class RecordingDialog {
 
     // Determine color based on progress
     let barColor = COLORS.PRIMARY;
-    let textColor = "white";
 
     if (progress > 0.8) {
       barColor = progress > 0.95 ? COLORS.DANGER : COLORS.WARNING;
@@ -259,7 +258,7 @@ export class RecordingDialog {
     // Update text style to match the progress bar
     this.timeDisplay.set_style(`
       font-size: 14px; 
-      color: ${textColor}; 
+      color: white; 
       font-weight: bold;
       text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
       padding: 0 12px;
@@ -730,114 +729,88 @@ export class RecordingDialog {
           }
         })();
 
-        // Cleanup will be done immediately to avoid timeout issues
+        // Cleanup will be done immediately to avoid timeout issues.
+        try {
+          if (this.cleanupTimeoutId) {
+            GLib.Source.remove(this.cleanupTimeoutId);
+          }
 
-        // Do immediate cleanup instead of delayed to avoid timeout issues on disable
-        import("gi://GLib")
-          .then(({ default: GLib }) => {
-            if (this.cleanupTimeoutId) {
-              GLib.Source.remove(this.cleanupTimeoutId);
-            }
-            // Execute cleanup immediately instead of creating a timeout
-            (() => {
+          // Remove from chrome if it has a parent
+          if (modal.get_parent) {
+            const parent = modal.get_parent();
+            if (parent) {
+              // Try the official method first
               try {
-                // Remove from chrome if it has a parent
-                if (modal.get_parent) {
-                  const parent = modal.get_parent();
-                  if (parent) {
-                    // Try the official method first
+                Main.layoutManager.removeChrome(modal);
+                log.debug("Modal removed from chrome successfully");
+              } catch (chromeError) {
+                log.debug(
+                  "Chrome removal failed, trying direct parent removal:",
+                  chromeError.message
+                );
+                // For GNOME 48+, try a gentler approach first
+                if (isGNOME48Plus) {
+                  try {
+                    // Try to hide first, then remove with delay
+                    if (modal.hide) modal.hide();
+                    // Do immediate removal instead of delayed
                     try {
-                      Main.layoutManager.removeChrome(modal);
-                      log.debug("Modal removed from chrome successfully");
-                    } catch (chromeError) {
+                      parent.remove_child(modal);
                       log.debug(
-                        "Chrome removal failed, trying direct parent removal:",
-                        chromeError.message
+                        "Modal removed from parent immediately (GNOME 48+)"
                       );
-                      // For GNOME 48+, try a gentler approach first
-                      if (isGNOME48Plus) {
-                        try {
-                          // Try to hide first, then remove with delay
-                          if (modal.hide) modal.hide();
-                          // Do immediate removal instead of delayed
-                          try {
-                            parent.remove_child(modal);
-                            log.debug(
-                              "Modal removed from parent immediately (GNOME 48+)"
-                            );
-                          } catch (delayedError) {
-                            log.debug(
-                              "Immediate parent removal failed:",
-                              delayedError.message
-                            );
-                          }
-                        } catch (gnome48Error) {
-                          log.debug(
-                            "GNOME 48+ specific removal failed:",
-                            gnome48Error.message
-                          );
-                          // Fallback to direct removal
-                          try {
-                            parent.remove_child(modal);
-                            log.debug(
-                              "Modal removed from parent directly (fallback)"
-                            );
-                          } catch (parentError) {
-                            log.debug(
-                              "Direct parent removal also failed:",
-                              parentError.message
-                            );
-                          }
-                        }
-                      } else {
-                        // Standard fallback for older GNOME versions
-                        try {
-                          parent.remove_child(modal);
-                          log.debug("Modal removed from parent directly");
-                        } catch (parentError) {
-                          log.debug(
-                            "Direct parent removal also failed:",
-                            parentError.message
-                          );
-                        }
-                      }
+                    } catch (delayedError) {
+                      log.debug(
+                        "Immediate parent removal failed:",
+                        delayedError.message
+                      );
+                    }
+                  } catch (gnome48Error) {
+                    log.debug(
+                      "GNOME 48+ specific removal failed:",
+                      gnome48Error.message
+                    );
+                    // Fallback to direct removal
+                    try {
+                      parent.remove_child(modal);
+                      log.debug(
+                        "Modal removed from parent directly (fallback)"
+                      );
+                    } catch (parentError) {
+                      log.debug(
+                        "Direct parent removal also failed:",
+                        parentError.message
+                      );
                     }
                   }
-                }
-
-                // Finally, destroy the modal
-                if (modal.destroy) {
+                } else {
+                  // Standard fallback for older GNOME versions
                   try {
-                    modal.destroy();
-                    log.debug("Modal destroyed successfully");
-                  } catch (destroyError) {
+                    parent.remove_child(modal);
+                    log.debug("Modal removed from parent directly");
+                  } catch (parentError) {
                     log.debug(
-                      "Modal destruction failed:",
-                      destroyError.message
+                      "Direct parent removal also failed:",
+                      parentError.message
                     );
                   }
                 }
-              } catch (cleanupError) {
-                log.warn("Delayed cleanup failed:", cleanupError.message);
               }
-            })();
-          })
-          .catch(() => {
-            // Fallback if GLib import fails - try immediate cleanup
-            try {
-              if (modal.get_parent && modal.get_parent()) {
-                Main.layoutManager.removeChrome(modal);
-              }
-              if (modal.destroy) {
-                modal.destroy();
-              }
-            } catch (immediateError) {
-              log.debug(
-                "Immediate fallback cleanup failed:",
-                immediateError.message
-              );
             }
-          });
+          }
+
+          // Finally, destroy the modal
+          if (modal.destroy) {
+            try {
+              modal.destroy();
+              log.debug("Modal destroyed successfully");
+            } catch (destroyError) {
+              log.debug("Modal destruction failed:", destroyError.message);
+            }
+          }
+        } catch (cleanupError) {
+          log.warn("Delayed cleanup failed:", cleanupError.message);
+        }
       }
     } catch (error) {
       console.error("Error closing recording dialog:", error.message);

@@ -81,3 +81,34 @@ export function cleanupModal(overlay, handlers = {}) {
     return false;
   }
 }
+
+/**
+ * Remove a widget from GNOME Shell chrome (if present) and optionally destroy it.
+ * Intended for non-modal chrome widgets (e.g. floating progress toasts).
+ */
+export function cleanupChromeWidget(widget, { destroy = true } = {}) {
+  if (!widget) return false;
+
+  try {
+    try {
+      if (widget.get_parent && widget.get_parent()) {
+        Main.layoutManager.removeChrome(widget);
+      }
+    } catch (e) {
+      log.warn("Failed to remove chrome widget:", e?.message || String(e));
+    }
+
+    if (destroy && widget.destroy) {
+      try {
+        widget.destroy();
+      } catch (e) {
+        log.warn("Failed to destroy chrome widget:", e?.message || String(e));
+      }
+    }
+
+    return true;
+  } catch (e) {
+    log.warn("Failed to cleanup chrome widget:", e?.message || String(e));
+    return false;
+  }
+}

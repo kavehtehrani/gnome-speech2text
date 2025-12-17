@@ -648,8 +648,7 @@ This service is installed separately from the extension (following GNOME guideli
 
       const gpuFlag = this._selectedDevice === "gpu" ? " --gpu" : "";
       const modelFlag = ` --whisper-model ${this._selectedModel}`;
-      const command = `bash -c "'${scriptPath}' --pypi --non-interactive${gpuFlag}; echo; echo 'Press Enter to close...'; read"`;
-      const commandWithModel = `bash -c "'${scriptPath}' --pypi --non-interactive${gpuFlag}${modelFlag}; echo; echo 'Press Enter to close...'; read"`;
+      const command = `bash -c "'${scriptPath}' --pypi --non-interactive${gpuFlag}${modelFlag}; echo; echo 'Press Enter to close...'; read"`;
 
       // Detect available terminal emulator
       const terminal = this._detectTerminal();
@@ -659,7 +658,7 @@ This service is installed separately from the extension (following GNOME guideli
           const terminalArgs = this._getTerminalArgs(
             terminal,
             workingDir,
-            commandWithModel
+            command
           );
           Gio.Subprocess.new(
             [terminal, ...terminalArgs],

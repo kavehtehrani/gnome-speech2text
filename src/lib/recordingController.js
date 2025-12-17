@@ -29,7 +29,12 @@ export class RecordingController {
     // Now handle the actual recording toggle
     if (this.recordingStateManager.isRecording()) {
       log.debug("Stopping recording");
-      this.recordingStateManager.stopRecording();
+      const stopped = await this.recordingStateManager.stopRecording();
+      if (stopped) {
+        this._beginTranscriptionUi();
+      } else {
+        this.uiManager.notify("Speech2Text Error", "Failed to stop recording.");
+      }
     } else {
       log.debug("Starting recording");
 

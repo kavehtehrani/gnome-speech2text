@@ -5,6 +5,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { COLORS, STYLES } from "./constants.js";
 import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
+import { cleanupChromeWidget } from "./resourceUtils.js";
 
 export class TranscriptionProgress {
   constructor(onCancel) {
@@ -143,19 +144,7 @@ export class TranscriptionProgress {
     }
 
     if (this.container) {
-      try {
-        if (this.container.get_parent()) {
-          Main.layoutManager.removeChrome(this.container);
-        }
-      } catch (e) {
-        // Ignore remove errors; we’ll still destroy below.
-      }
-
-      try {
-        this.container.destroy();
-      } catch (e) {
-        // Ignore destroy errors.
-      }
+      cleanupChromeWidget(this.container, { destroy: true });
 
       this.container = null;
       this._label = null;
