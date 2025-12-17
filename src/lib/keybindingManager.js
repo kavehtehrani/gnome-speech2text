@@ -1,6 +1,7 @@
 import Meta from "gi://Meta";
 import Shell from "gi://Shell";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import { log } from "./resourceUtils.js";
 
 export class KeybindingManager {
   constructor(extensionCore) {
@@ -34,12 +35,12 @@ export class KeybindingManager {
       Meta.KeyBindingFlags.NONE,
       Shell.ActionMode.NORMAL,
       () => {
-        console.log("Keyboard shortcut triggered");
+        log.debug("Keyboard shortcut triggered");
         // Use direct reference to this extension instance
         self.extensionCore.toggleRecording();
       }
     );
-    console.log(`Keybinding registered: ${this.currentKeybinding}`);
+    log.debug(`Keybinding registered: ${this.currentKeybinding}`);
   }
 
   cleanup() {

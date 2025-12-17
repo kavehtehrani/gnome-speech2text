@@ -8,6 +8,7 @@ import * as MessageTray from "resource:///org/gnome/shell/ui/messageTray.js";
 import { SettingsDialog } from "./settingsDialog.js";
 import { ServiceSetupDialog } from "./setupDialog.js";
 import { ShortcutCapture } from "./shortcutCapture.js";
+import { log } from "./resourceUtils.js";
 
 export class UIManager {
   constructor(extensionCore) {
@@ -62,7 +63,7 @@ export class UIManager {
       if (buttonPressed === 1) {
         // Left click - toggle recording
         self.icon.menu.close(true);
-        console.log("Click handler triggered");
+        log.debug("Click handler triggered");
 
         // Use direct reference to this extension instance
         self.extensionCore.toggleRecording();
@@ -82,7 +83,7 @@ export class UIManager {
       Main.panel.statusArea["speech2text-indicator"]?.destroy();
       delete Main.panel.statusArea["speech2text-indicator"];
     } catch (e) {
-      console.log("No existing indicator to remove:", e.message);
+      log.debug("No existing indicator to remove:", e.message);
     }
 
     Main.panel.addToStatusArea("speech2text-indicator", this.icon);
@@ -201,7 +202,7 @@ export class UIManager {
   cleanup() {
     // Close settings dialog
     if (this.settingsDialog) {
-      console.log("Closing settings dialog");
+      log.debug("Closing settings dialog");
       this.settingsDialog.close();
       this.settingsDialog = null;
     }
@@ -209,19 +210,19 @@ export class UIManager {
     // Clean up panel icon first (CRITICAL for avoiding conflicts)
     try {
       if (this.icon) {
-        console.log("Removing panel icon from status area");
+        log.debug("Removing panel icon from status area");
         this.icon.destroy();
         this.icon = null;
       }
 
       // Remove from status area to prevent conflicts
       if (Main.panel.statusArea["speech2text-indicator"]) {
-        console.log("Cleaning up status area indicator");
+        log.debug("Cleaning up status area indicator");
         Main.panel.statusArea["speech2text-indicator"].destroy();
         delete Main.panel.statusArea["speech2text-indicator"];
       }
     } catch (error) {
-      console.log("Error cleaning up panel icon:", error.message);
+      log.warn("Error cleaning up panel icon:", error.message);
       // Force cleanup even if there are errors
       this.icon = null;
       try {

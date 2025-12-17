@@ -1,4 +1,5 @@
 import { DBusManager } from "./dbusManager.js";
+import { log } from "./resourceUtils.js";
 
 export class ServiceManager {
   constructor() {
@@ -9,21 +10,21 @@ export class ServiceManager {
   async initialize() {
     // Check if D-Bus manager exists and is initialized
     if (!this.dbusManager) {
-      console.log("D-Bus manager is null, creating new instance");
+      log.debug("D-Bus manager is null, creating new instance");
       this.dbusManager = new DBusManager();
     }
 
     // Double-check that dbusManager wasn't nullified during creation
     if (!this.dbusManager) {
-      console.log("D-Bus manager became null after creation attempt");
+      log.debug("D-Bus manager became null after creation attempt");
       return false;
     }
 
     if (!this.dbusManager.isInitialized) {
-      console.log("D-Bus manager not initialized, initializing...");
+      log.debug("D-Bus manager not initialized, initializing...");
       const initialized = await this.dbusManager.initialize();
       if (!initialized) {
-        console.log("Failed to initialize D-Bus manager");
+        log.warn("Failed to initialize D-Bus manager");
         return false;
       }
     }
@@ -36,7 +37,7 @@ export class ServiceManager {
     // Ensure D-Bus manager is available and initialized
     const dbusReady = await this.initialize();
     if (!dbusReady || !this.dbusManager) {
-      console.log("D-Bus manager initialization failed or was nullified");
+      log.warn("D-Bus manager initialization failed or was nullified");
       return {
         available: false,
         error: "Failed to initialize Speech2Text service connection.",
@@ -45,7 +46,7 @@ export class ServiceManager {
 
     // Double-check that dbusManager is still valid (race condition protection)
     if (!this.dbusManager) {
-      console.log("D-Bus manager became null during initialization");
+      log.debug("D-Bus manager became null during initialization");
       return {
         available: false,
         error: "Speech2Text service connection became unavailable.",
@@ -55,7 +56,7 @@ export class ServiceManager {
     // Check service status
     const serviceStatus = await this.dbusManager.checkServiceStatus();
     if (!serviceStatus.available) {
-      console.log("Service not available:", serviceStatus.error);
+      log.warn("Service not available:", serviceStatus.error);
       return { available: false, error: serviceStatus.error };
     }
 
@@ -73,7 +74,7 @@ export class ServiceManager {
 
   async typeText(text, copyToClipboard) {
     if (!text || !text.trim()) {
-      console.log("No text to type");
+      log.debug("No text to type");
       return;
     }
 
@@ -84,53 +85,18 @@ export class ServiceManager {
       throw new Error("Failed to connect to service.");
     }
 
-    console.log(`Typing text via D-Bus: "${text}"`);
+    log.debug(`Typing text via D-Bus: "${text}"`);
 
     await this.dbusManager.typeText(text.trim(), copyToClipboard);
   }
 
-  async startRecording(settings) {
-    if (!this.dbusManager) {
-      console.error("D-Bus manager not available for recording");
-      return false;
-    }
-
-    return await this.dbusManager.startRecording(settings);
-  }
-
-  async stopRecording() {
-    if (!this.dbusManager) {
-      console.error("D-Bus manager not available for stopping recording");
-      return false;
-    }
-
-    return await this.dbusManager.stopRecording();
-  }
-
-  async cancelRecording() {
-    if (!this.dbusManager) {
-      console.error("D-Bus manager not available for cancelling recording");
-      return false;
-    }
-
-    return await this.dbusManager.cancelRecording();
-  }
-
-  isRecording() {
-    if (!this.dbusManager) {
-      return false;
-    }
-
-    return this.dbusManager.isRecording();
-  }
-
   destroy() {
     if (this.dbusManager) {
-      console.log("Destroying D-Bus manager");
+      log.debug("Destroying D-Bus manager");
       try {
         this.dbusManager.destroy();
       } catch (error) {
-        console.log("Error destroying D-Bus manager:", error.message);
+        log.warn("Error destroying D-Bus manager:", error.message);
       } finally {
         this.dbusManager = null;
         this.isInitialized = false;

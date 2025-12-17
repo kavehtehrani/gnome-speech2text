@@ -1,6 +1,7 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import { log } from "./resourceUtils.js";
 
 // D-Bus interface XML for the speech2text service
 const Speech2TextInterface = `
@@ -85,7 +86,7 @@ export class DBusManager {
       try {
         await this.dbusProxy.GetServiceStatusAsync();
         this.isInitialized = true;
-        console.log("D-Bus proxy initialized and service is reachable");
+        log.debug("D-Bus proxy initialized and service is reachable");
 
         // If we previously registered signal handlers, re-connect them whenever
         // we recreate the proxy (e.g. after service restart or reconnect).
@@ -94,7 +95,7 @@ export class DBusManager {
         }
         return true;
       } catch (serviceError) {
-        console.log(
+        log.debug(
           "D-Bus proxy created but service is not reachable:",
           serviceError.message
         );
@@ -124,7 +125,7 @@ export class DBusManager {
       this.dbusProxy.connectSignal(
         "RecordingStarted",
         (proxy, sender, [recordingId]) => {
-          console.log(`Recording started: ${recordingId}`);
+          log.debug(`Recording started: ${recordingId}`);
           handlers.onRecordingStarted?.(recordingId);
         }
       )
@@ -134,7 +135,7 @@ export class DBusManager {
       this.dbusProxy.connectSignal(
         "RecordingStopped",
         (proxy, sender, [recordingId, reason]) => {
-          console.log(`Recording stopped: ${recordingId}, reason: ${reason}`);
+          log.debug(`Recording stopped: ${recordingId}, reason: ${reason}`);
           handlers.onRecordingStopped?.(recordingId, reason);
         }
       )
@@ -144,7 +145,7 @@ export class DBusManager {
       this.dbusProxy.connectSignal(
         "TranscriptionReady",
         (proxy, sender, [recordingId, text]) => {
-          console.log(`Transcription ready: ${recordingId}, text: ${text}`);
+          log.debug(`Transcription ready: ${recordingId}, text: ${text}`);
           handlers.onTranscriptionReady?.(recordingId, text);
         }
       )
@@ -154,9 +155,7 @@ export class DBusManager {
       this.dbusProxy.connectSignal(
         "RecordingError",
         (proxy, sender, [recordingId, errorMessage]) => {
-          console.log(
-            `Recording error: ${recordingId}, error: ${errorMessage}`
-          );
+          log.warn(`Recording error: ${recordingId}, error: ${errorMessage}`);
           handlers.onRecordingError?.(recordingId, errorMessage);
         }
       )
@@ -176,7 +175,7 @@ export class DBusManager {
       )
     );
 
-    console.log("D-Bus signals connected successfully");
+    log.debug("D-Bus signals connected successfully");
     return true;
   }
 
@@ -186,7 +185,7 @@ export class DBusManager {
         try {
           this.dbusProxy.disconnectSignal(connection);
         } catch (error) {
-          console.log(
+          log.debug(
             `Signal connection ${connection} was already disconnected or invalid`
           );
         }
@@ -366,7 +365,7 @@ export class DBusManager {
     this.lastConnectionCheck = now;
 
     if (!this.dbusProxy || !this.isInitialized) {
-      console.log("D-Bus connection invalid, need to reinitialize");
+      log.warn("D-Bus connection invalid, need to reinitialize");
       return false;
     }
 
@@ -375,7 +374,7 @@ export class DBusManager {
       await this.dbusProxy.GetServiceStatusAsync();
       return true;
     } catch (e) {
-      console.log("D-Bus connection validation failed:", e.message);
+      log.warn("D-Bus connection validation failed:", e.message);
       // Connection is stale, need to reinitialize
       this.isInitialized = false;
       this.dbusProxy = null;
@@ -386,12 +385,12 @@ export class DBusManager {
   async ensureConnection() {
     const isValid = await this.validateConnection();
     if (!isValid) {
-      console.log("Reinitializing D-Bus connection...");
+      log.debug("Reinitializing D-Bus connection...");
       const initialized = await this.initialize();
 
       // If initialization failed, try to start the service
       if (!initialized) {
-        console.log("Service not available, attempting to start...");
+        log.debug("Service not available, attempting to start...");
         const serviceStarted = await this._startService();
         if (serviceStarted) {
           return await this.initialize();
@@ -405,7 +404,7 @@ export class DBusManager {
 
   async _startService() {
     try {
-      console.log("Starting Speech2Text service...");
+      log.debug("Starting Speech2Text service...");
 
       // Get the user's home directory
       const homeDir = GLib.get_home_dir();
@@ -451,14 +450,14 @@ export class DBusManager {
 
         const [status] = testProxy.GetServiceStatusSync();
         if (status.startsWith("ready:")) {
-          console.log("Service started successfully");
+          log.debug("Service started successfully");
           return true;
         } else {
-          console.log(`Service started but not ready: ${status}`);
+          log.debug(`Service started but not ready: ${status}`);
           return false;
         }
       } catch (testError) {
-        console.log("Service not available after start attempt");
+        log.debug("Service not available after start attempt");
         return false;
       }
     } catch (e) {

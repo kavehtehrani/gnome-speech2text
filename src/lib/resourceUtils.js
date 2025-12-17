@@ -1,15 +1,34 @@
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import GLib from "gi://GLib";
+
+let _debugEnabled = null;
+export function isDebugEnabled() {
+  if (_debugEnabled === null) {
+    const v = String(GLib.getenv("SPEECH2TEXT_DEBUG") || "").toLowerCase();
+    _debugEnabled = v === "1" || v === "true" || v === "yes";
+  }
+  return _debugEnabled;
+}
+
+export const log = {
+  debug: (...args) => {
+    if (isDebugEnabled()) console.log(...args);
+  },
+  info: (...args) => console.log(...args),
+  warn: (...args) => console.warn(...args),
+  error: (...args) => console.error(...args),
+};
 
 // Helper to safely disconnect event handlers
 export function safeDisconnect(actor, handlerId, handlerName = "handler") {
   try {
     if (actor && handlerId) {
       actor.disconnect(handlerId);
-      console.log(`Disconnected ${handlerName} (ID: ${handlerId})`);
+      log.debug(`Disconnected ${handlerName} (ID: ${handlerId})`);
       return true;
     }
   } catch (e) {
-    console.log(`Error disconnecting ${handlerName}: ${e}`);
+    log.warn(`Error disconnecting ${handlerName}: ${e}`);
   }
   return false;
 }
@@ -37,28 +56,26 @@ export function cleanupModal(overlay, handlers = {}) {
     if (overlay && overlay.get_parent()) {
       try {
         Main.layoutManager.removeChrome(overlay);
-        console.log("Modal overlay removed from chrome successfully");
+        log.debug("Modal overlay removed from chrome successfully");
       } catch (removeError) {
-        console.log(`Error removing modal from chrome: ${removeError.message}`);
+        log.warn(`Error removing modal from chrome: ${removeError.message}`);
         // Try alternative cleanup if removeChrome fails
         try {
           if (overlay.destroy) {
             overlay.destroy();
-            console.log("Modal overlay destroyed as fallback");
+            log.debug("Modal overlay destroyed as fallback");
           }
         } catch (destroyError) {
-          console.log(
-            `Error destroying modal overlay: ${destroyError.message}`
-          );
+          log.warn(`Error destroying modal overlay: ${destroyError.message}`);
         }
       }
     } else if (overlay) {
-      console.log("Modal overlay has no parent, skipping chrome removal");
+      log.debug("Modal overlay has no parent, skipping chrome removal");
     }
 
     return true;
   } catch (e) {
-    console.log(`Error cleaning up modal: ${e.message}`);
+    log.warn(`Error cleaning up modal: ${e.message}`);
     return false;
   }
 }

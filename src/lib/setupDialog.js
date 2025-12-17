@@ -18,6 +18,7 @@ import {
   createIncrementButton,
 } from "./buttonUtils.js";
 import { cleanupModal } from "./resourceUtils.js";
+import { log } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
   constructor(extension, errorMessage) {
@@ -704,7 +705,7 @@ This service is installed separately from the extension (following GNOME guideli
       try {
         const foundPath = GLib.find_program_in_path(terminal);
         if (foundPath && foundPath.length > 0) {
-          console.log(`Found terminal: ${terminal} at ${foundPath}`);
+          log.debug(`Found terminal: ${terminal} at ${foundPath}`);
           return terminal;
         }
       } catch (_e) {

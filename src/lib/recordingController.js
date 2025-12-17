@@ -3,6 +3,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { RecordingStateManager } from "./recordingStateManager.js";
 import { RecordingDialog } from "./recordingDialog.js";
 import { TranscriptionProgress } from "./transcriptionProgress.js";
+import { log } from "./resourceUtils.js";
 
 export class RecordingController {
   constructor(uiManager, serviceManager) {
@@ -27,10 +28,10 @@ export class RecordingController {
 
     // Now handle the actual recording toggle
     if (this.recordingStateManager.isRecording()) {
-      console.log("Stopping recording");
+      log.debug("Stopping recording");
       this.recordingStateManager.stopRecording();
     } else {
-      console.log("Starting recording");
+      log.debug("Starting recording");
 
       // Ensure RecordingStateManager has current service manager reference
       if (
@@ -56,13 +57,13 @@ export class RecordingController {
           },
           (text) => {
             // Insert callback
-            console.log(`Inserting text: ${text}`);
+            log.debug(`Inserting text: ${text}`);
             this._typeText(text);
             this.recordingStateManager.setRecordingDialog(null);
           },
           async () => {
             // Stop callback
-            console.log("Stop recording button clicked");
+            log.debug("Stop recording button clicked");
             const stopped = await this.recordingStateManager.stopRecording();
             if (stopped) {
               this._beginTranscriptionUi();
@@ -77,7 +78,7 @@ export class RecordingController {
         );
 
         this.recordingStateManager.setRecordingDialog(recordingDialog);
-        console.log(
+        log.debug(
           "RecordingController: Created and set recording dialog, opening now"
         );
         recordingDialog.open();
@@ -102,11 +103,11 @@ export class RecordingController {
 
   handleRecordingStopped(recordingId, reason) {
     if (!this.recordingStateManager) {
-      console.log("Recording state manager not initialized");
+      log.debug("Recording state manager not initialized");
       return;
     }
 
-    console.log(
+    log.debug(
       `RecordingController: Recording stopped - ID: ${recordingId}, reason: ${reason}`
     );
     if (reason === "completed") {
@@ -123,13 +124,13 @@ export class RecordingController {
 
   handleTranscriptionReady(recordingId, text) {
     if (!this.recordingStateManager) {
-      console.log("Recording state manager not initialized");
+      log.debug("Recording state manager not initialized");
       return;
     }
 
     this._endTranscriptionUi();
 
-    console.log(
+    log.debug(
       `RecordingController: Transcription ready - ID: ${recordingId}, text: "${text}"`
     );
     const result = this.recordingStateManager.handleTranscriptionReady(
@@ -138,7 +139,7 @@ export class RecordingController {
       this.uiManager.extensionCore.settings
     );
 
-    console.log(
+    log.debug(
       `RecordingController: Transcription result - action: ${result?.action}`
     );
 
@@ -178,17 +179,17 @@ export class RecordingController {
     if (result && result.action === "insert") {
       this._typeText(result.text);
     } else if (result && result.action === "createPreview") {
-      console.log("Creating new preview dialog for transcribed text");
+      log.debug("Creating new preview dialog for transcribed text");
       this._showPreviewDialog(result.text);
     } else if (result && result.action === "ignored") {
-      console.log("Transcription ignored - recording was cancelled");
+      log.debug("Transcription ignored - recording was cancelled");
       // Nothing to do - recording was cancelled
     }
   }
 
   handleRecordingError(recordingId, errorMessage) {
     if (!this.recordingStateManager) {
-      console.log("Recording state manager not initialized");
+      log.debug("Recording state manager not initialized");
       return;
     }
 
@@ -209,7 +210,7 @@ export class RecordingController {
   }
 
   _showPreviewDialog(text) {
-    console.log("Creating preview dialog for text:", text);
+    log.debug("Creating preview dialog for text:", text);
 
     // Create a new preview-only dialog
     const previewDialog = new RecordingDialog(
@@ -219,7 +220,7 @@ export class RecordingController {
       },
       (finalText) => {
         // Insert callback
-        console.log(`Inserting text from preview: ${finalText}`);
+        log.debug(`Inserting text from preview: ${finalText}`);
         this._typeText(finalText);
         previewDialog.close();
       },
@@ -228,9 +229,9 @@ export class RecordingController {
     );
 
     // First open the dialog, then show preview
-    console.log("Opening preview dialog");
+    log.debug("Opening preview dialog");
     previewDialog.open();
-    console.log("Showing preview in opened dialog");
+    log.debug("Showing preview in opened dialog");
     previewDialog.showPreview(text);
   }
 
@@ -315,7 +316,7 @@ export class RecordingController {
 
   cleanup() {
     if (this.recordingStateManager) {
-      console.log("Cleaning up recording state manager");
+      log.debug("Cleaning up recording state manager");
       this.recordingStateManager.cleanup();
       this.recordingStateManager = null;
     }
