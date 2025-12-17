@@ -5,8 +5,6 @@ import { ServiceManager } from "./lib/serviceManager.js";
 import { KeybindingManager } from "./lib/keybindingManager.js";
 import { log } from "./lib/resourceUtils.js";
 
-let extensionInstance = null;
-
 export default class Speech2TextExtension extends Extension {
   constructor(metadata) {
     super(metadata);
@@ -39,7 +37,6 @@ export default class Speech2TextExtension extends Extension {
 
     this._setupSignalHandlers();
 
-    extensionInstance = this;
     log.debug("Extension enabled successfully");
   }
 
@@ -127,7 +124,6 @@ export default class Speech2TextExtension extends Extension {
       }
 
       if (this.settings && this.uiManager) {
-        extensionInstance = this;
         this._setupSignalHandlers();
       }
     } catch (recoveryError) {
@@ -142,8 +138,6 @@ export default class Speech2TextExtension extends Extension {
 
   disable() {
     log.debug("Disabling Speech2Text extension (D-Bus version)");
-
-    extensionInstance = null;
 
     // Clean up components in reverse order of initialization
     if (this.keybindingManager) {

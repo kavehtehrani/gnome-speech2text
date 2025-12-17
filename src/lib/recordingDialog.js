@@ -7,7 +7,11 @@ import * as Config from "resource:///org/gnome/shell/misc/config.js";
 
 import { COLORS, STYLES } from "./constants.js";
 import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
-import { cleanupRecordingModal, log } from "./resourceUtils.js";
+import {
+  cleanupChromeWidget,
+  cleanupRecordingModal,
+  log,
+} from "./resourceUtils.js";
 
 // Enhanced recording dialog for D-Bus version (matches original design)
 export class RecordingDialog {
@@ -645,7 +649,8 @@ export class RecordingDialog {
     } catch (error) {
       console.error("Error opening recording dialog:", error);
       if (this.modalBarrier) {
-        Main.layoutManager.removeChrome(this.modalBarrier);
+        // Keep behavior: remove from chrome only (no destroy) on open failure.
+        cleanupChromeWidget(this.modalBarrier, { destroy: false });
       }
       throw error;
     }
