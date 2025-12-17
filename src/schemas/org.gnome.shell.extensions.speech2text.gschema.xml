@@ -22,5 +22,15 @@
             <summary>Skip preview dialog on X11</summary>
             <description>If enabled (X11 only), the extension will insert the transcribed text immediately after recording, without showing the preview dialog. Has no effect on Wayland.</description>
         </key>
+        <key name="whisper-model" type="s">
+            <default>'base'</default>
+            <summary>Whisper model</summary>
+            <description>Whisper model to use for transcription (e.g. tiny, base, small, medium, large-v3).</description>
+        </key>
+        <key name="whisper-device" type="s">
+            <default>'cpu'</default>
+            <summary>Whisper device</summary>
+            <description>Device to use for transcription: cpu (default) or gpu (requires CUDA).</description>
+        </key>
     </schema>
 </schemalist>

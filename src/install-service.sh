@@ -8,6 +8,8 @@ FORCE_MODE=false
 NON_INTERACTIVE=false
 LOCAL_SOURCE_DIR=""
 PYTHON_OVERRIDE=""
+GPU_MODE=false
+WHISPER_MODEL=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -33,6 +35,18 @@ while [[ $# -gt 0 ]]; do
             NON_INTERACTIVE=true
             shift
             ;;
+        --gpu)
+            GPU_MODE=true
+            shift
+            ;;
+        --whisper-model)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --whisper-model requires a value (e.g. --whisper-model base)"
+                exit 1
+            fi
+            WHISPER_MODEL="$2"
+            shift 2
+            ;;
         --help|-h)
             echo "GNOME Speech2Text Service Installer"
             echo ""
@@ -42,6 +56,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --python <cmd>    Use a specific Python interpreter (also via SPEECH2TEXT_PYTHON)"
             echo "  --local           Force installation from local source (requires pyproject.toml)"
             echo "  --pypi            Force installation from PyPI"
+            echo "  --gpu             Install GPU-enabled ML dependencies (CUDA/accelerator support)"
+            echo "  --whisper-model <name>  Record selected Whisper model (for UI display; does not affect deps)"
             echo "  --non-interactive Run without user prompts (auto-accept defaults)"
             echo "  --help            Show this help message"
             echo ""
@@ -57,6 +73,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Default whisper model metadata (for install-state marker)
+if [ -z "$WHISPER_MODEL" ]; then
+    WHISPER_MODEL="base"
+fi
 
 # Check if running interactively
 INTERACTIVE=true
@@ -367,6 +388,22 @@ VENV_DIR="$SERVICE_DIR/venv"
 print_status "Creating service directory: $SERVICE_DIR"
 mkdir -p "$SERVICE_DIR"
 
+print_status "Stopping any running Speech2Text service (best-effort)..."
+# The service is D-Bus activated; if it's running while we rebuild the venv, it may keep old libs loaded.
+# Ignore errors if no process is running.
+if command_exists pkill; then
+    pkill -f "$SERVICE_DIR/venv/bin/gnome-speech2text-service" 2>/dev/null || true
+    pkill -f "$SERVICE_DIR/gnome-speech2text-service" 2>/dev/null || true
+else
+    print_warning "pkill not found; skipping best-effort service stop."
+    print_warning "If the service is currently running, consider logging out/in (Wayland) or restarting GNOME Shell (X11)."
+fi
+
+print_status "Rebuilding service virtual environment (fresh install)..."
+if [ -d "$VENV_DIR" ]; then
+    rm -rf "$VENV_DIR"
+fi
+
 print_status "Creating Python virtual environment..."
 if ! "$PYTHON" -m venv "$VENV_DIR" 2>/dev/null; then
     print_error "Failed to create virtual environment. python3-venv may not be installed."
@@ -384,6 +421,44 @@ fi
 
 print_status "Installing Python dependencies..."
 
+# Install ML dependencies first, then install service package with --no-deps.
+# This lets us force CPU-only torch wheels by default (so pip won't pull NVIDIA/CUDA packages).
+install_ml_dependencies() {
+    if [ "$GPU_MODE" = true ]; then
+        print_status "Installing ML dependencies (GPU mode)..."
+        echo -e "${YELLOW}Note:${NC} GPU mode requires a working accelerator stack (typically NVIDIA CUDA on Linux)."
+        "$VENV_DIR/bin/python" -m pip install --upgrade \
+            --index-url "https://pypi.org/simple" \
+            "dbus-next>=0.2.3" \
+            "openai-whisper>=20231117" \
+            "torch>=1.13.0" \
+            "torchaudio>=0.13.0" \
+            || error_exit "Failed to install GPU ML dependencies"
+    else
+        print_status "Installing ML dependencies (CPU-only mode)..."
+        # IMPORTANT:
+        # Install CPU-only torch/torchaudio FIRST. If we install openai-whisper first,
+        # pip may pull a CUDA-enabled torch wheel from PyPI and install nvidia-*-cu12 packages.
+        "$VENV_DIR/bin/python" -m pip install --upgrade \
+            --index-url "https://download.pytorch.org/whl/cpu" \
+            --extra-index-url "https://pypi.org/simple" \
+            "torch>=1.13.0" \
+            "torchaudio>=0.13.0" \
+            || error_exit "Failed to install CPU-only torch/torchaudio"
+
+        # Now install remaining deps from PyPI. With CPU torch already installed,
+        # openai-whisper should not pull CUDA-enabled torch wheels.
+        "$VENV_DIR/bin/python" -m pip install --upgrade \
+            --index-url "https://pypi.org/simple" \
+            --upgrade-strategy only-if-needed \
+            "dbus-next>=0.2.3" \
+            "openai-whisper>=20231117" \
+            || error_exit "Failed to install base dependencies"
+    fi
+}
+
+install_ml_dependencies
+
 # Install the service package based on detected mode
 install_service_package() {
     case "$INSTALL_MODE" in
@@ -394,17 +469,17 @@ install_service_package() {
                 error_exit "Local installation requested but pyproject.toml not found in $SRC_DIR. Run from repo root or use --pypi."
             fi
             
-            "$VENV_DIR/bin/pip" install "$SRC_DIR" || error_exit "Failed to install local gnome-speech2text-service package"
+            "$VENV_DIR/bin/pip" install --no-deps "$SRC_DIR" || error_exit "Failed to install local gnome-speech2text-service package"
             echo "✅ Installed from local source: $SRC_DIR"
             ;;
             
         "pypi")
             print_status "Installing gnome-speech2text-service from PyPI..."
-            REQUIRED_SERVICE_VERSION="1.0.8"
+            REQUIRED_SERVICE_VERSION="1.1.0"
             
             # Try PyPI installation with fallback
             # Require the service version that includes dbus-next (no dbus-python/PyGObject build deps).
-            if "$VENV_DIR/bin/pip" install --upgrade "gnome-speech2text-service>=$REQUIRED_SERVICE_VERSION"; then
+            if "$VENV_DIR/bin/pip" install --upgrade --no-deps --index-url "https://pypi.org/simple" "gnome-speech2text-service>=$REQUIRED_SERVICE_VERSION"; then
                 echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
             else
                 echo ""
@@ -421,7 +496,7 @@ install_service_package() {
                     
                     if [[ "$fallback" =~ ^[Yy]$ ]] || [ -z "$fallback" ]; then
                         print_status "Attempting local installation as fallback..."
-                        "$VENV_DIR/bin/pip" install "$FALLBACK_DIR" || error_exit "Both PyPI and local installation failed"
+                        "$VENV_DIR/bin/pip" install --no-deps "$FALLBACK_DIR" || error_exit "Both PyPI and local installation failed"
                         echo "✅ Installed from local source (fallback)"
                     else
                         error_exit "PyPI installation failed and local fallback declined"
@@ -523,6 +598,22 @@ else
     echo -e "${YELLOW}Package source: Local repository${NC}"
 fi
 echo ""
+
+# Record install state for the GNOME extension UI (what environment was installed).
+# This is intentionally simple key=value to keep it portable and distro-agnostic.
+INSTALL_STATE_FILE="$SERVICE_DIR/install-state.conf"
+INSTALLED_DEVICE="cpu"
+if [ "$GPU_MODE" = true ]; then
+    INSTALLED_DEVICE="gpu"
+fi
+INSTALLED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "unknown")"
+{
+    echo "device=$INSTALLED_DEVICE"
+    echo "model=$WHISPER_MODEL"
+    echo "installed_at=$INSTALLED_AT"
+    echo "installer_mode=$INSTALL_MODE"
+} > "$INSTALL_STATE_FILE" 2>/dev/null || true
+
 echo -e "${YELLOW}The D-Bus service has been installed and registered.${NC}"
 echo -e "${YELLOW}It will start automatically when the GNOME extension requests it.${NC}"
 echo ""

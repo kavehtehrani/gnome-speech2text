@@ -45,6 +45,8 @@ class Speech2TextService(ServiceInterface):
         # Service state
         self.active_recordings = {}  # recording_id -> recording_info
         self.whisper_model = None
+        self.whisper_model_name = "base"
+        self.whisper_device = "cpu"  # "cpu" or "gpu" (maps to whisper device "cpu"/"cuda")
         self.dependencies_checked = False
         self.missing_deps = []
 
@@ -52,6 +54,37 @@ class Speech2TextService(ServiceInterface):
         syslog.openlog("gnome-speech2text-service", syslog.LOG_PID, syslog.LOG_USER)
         syslog.syslog(syslog.LOG_INFO, "Speech2Text D-Bus service started")
         print("Speech2Text D-Bus service started")
+
+    def _validate_whisper_config(self, model: str, device: str) -> tuple[str, str]:
+        allowed_models = {
+            "tiny",
+            "tiny.en",
+            "base",
+            "base.en",
+            "small",
+            "small.en",
+            "medium",
+            "medium.en",
+            "large",
+            "large-v2",
+            "large-v3",
+        }
+        allowed_devices = {"cpu", "gpu"}
+
+        model = (model or "").strip()
+        device = (device or "").strip().lower()
+
+        if not model:
+            model = "base"
+        if device not in allowed_devices:
+            device = "cpu"
+
+        if model not in allowed_models:
+            raise ValueError(
+                f"Unsupported Whisper model: {model}. Allowed: {', '.join(sorted(allowed_models))}"
+            )
+
+        return model, device
 
     def _emit_threadsafe(self, fn, *args):
         """Emit a D-Bus signal safely from worker threads."""
@@ -65,7 +98,7 @@ class Speech2TextService(ServiceInterface):
         fn(*args)
 
     def _load_whisper_model(self):
-        """Lazy load Whisper model with CPU fallback."""
+        """Lazy load Whisper model using configured model/device."""
         if self.whisper_model is None:
             try:
                 # Avoid oversubscribing CPU threads (especially important in VMs)
@@ -80,10 +113,31 @@ class Speech2TextService(ServiceInterface):
                     pass
 
                 print("Loading Whisper model...")
-                syslog.syslog(syslog.LOG_INFO, "Loading Whisper model: base (cpu)")
-                # Force CPU-only mode to avoid CUDA compatibility issues
-                self.whisper_model = whisper.load_model("base", device="cpu")
-                print("Whisper model loaded successfully on CPU")
+                whisper_device = "cpu" if self.whisper_device == "cpu" else "cuda"
+
+                if self.whisper_device == "gpu":
+                    try:
+                        import torch  # type: ignore
+
+                        if not torch.cuda.is_available():
+                            raise RuntimeError("torch.cuda.is_available() is False")
+                    except Exception as e:
+                        raise RuntimeError(
+                            "GPU mode selected but CUDA is not available. "
+                            "Reinstall the service with GPU support and ensure NVIDIA drivers/CUDA are installed, "
+                            "or switch the extension setting back to CPU."
+                        ) from e
+
+                syslog.syslog(
+                    syslog.LOG_INFO,
+                    f"Loading Whisper model: {self.whisper_model_name} ({self.whisper_device})",
+                )
+                self.whisper_model = whisper.load_model(
+                    self.whisper_model_name, device=whisper_device
+                )
+                print(
+                    f"Whisper model loaded successfully: {self.whisper_model_name} ({self.whisper_device})"
+                )
                 syslog.syslog(syslog.LOG_INFO, "Whisper model loaded successfully")
             except Exception as e:
                 print(f"Failed to load Whisper model: {e}")
@@ -195,6 +249,16 @@ class Speech2TextService(ServiceInterface):
             import whisper  # noqa: F401
         except ImportError:
             missing.append("whisper")
+
+        # GPU-specific checks (only when requested)
+        if self.whisper_device == "gpu":
+            try:
+                import torch  # type: ignore
+
+                if not torch.cuda.is_available():
+                    missing.append("cuda (torch.cuda.is_available() is False)")
+            except Exception:
+                missing.append("torch (with CUDA)")
 
         self.missing_deps = missing
         self.dependencies_checked = True
@@ -549,8 +613,9 @@ class Speech2TextService(ServiceInterface):
             started = time.time()
 
             model = self._load_whisper_model()
-            # Force fp16 off for CPU-only environments.
-            result = model.transcribe(audio_file, fp16=False)
+            # fp16 is only meaningful/beneficial on GPU; keep it off for CPU.
+            use_fp16 = self.whisper_device == "gpu"
+            result = model.transcribe(audio_file, fp16=use_fp16)
             text = result["text"].strip()
 
             if not text:
@@ -598,6 +663,35 @@ class Speech2TextService(ServiceInterface):
             self._cleanup_recording(recording_id)
 
     # D-Bus Methods (must preserve signatures expected by the GNOME extension)
+    @method()
+    def SetWhisperConfig(self, model: "s", device: "s") -> "b":
+        """Set Whisper model and device (cpu/gpu)."""
+        try:
+            validated_model, validated_device = self._validate_whisper_config(model, device)
+
+            changed = (
+                validated_model != self.whisper_model_name
+                or validated_device != self.whisper_device
+            )
+            self.whisper_model_name = validated_model
+            self.whisper_device = validated_device
+
+            if changed:
+                # Force reload on next transcription.
+                self.whisper_model = None
+                # Dependencies are device-dependent.
+                self.dependencies_checked = False
+                self.missing_deps = []
+
+            syslog.syslog(
+                syslog.LOG_INFO,
+                f"Whisper config set: model={self.whisper_model_name}, device={self.whisper_device}",
+            )
+            return True
+        except Exception as e:
+            syslog.syslog(syslog.LOG_ERR, f"Failed to set Whisper config: {e}")
+            return False
+
     @method()
     def StartRecording(self, duration: "i", copy_to_clipboard: "b", preview_mode: "b") -> "s":
         """Start a new recording session."""
@@ -713,7 +807,10 @@ class Speech2TextService(ServiceInterface):
                 ]
             )
 
-            return f"ready:active_recordings={active_count}"
+            return (
+                f"ready:active_recordings={active_count},"
+                f"model={self.whisper_model_name},device={self.whisper_device}"
+            )
 
         except Exception as e:
             return f"error:{str(e)}"

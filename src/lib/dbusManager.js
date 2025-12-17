@@ -6,6 +6,11 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 const Speech2TextInterface = `
 <node>
   <interface name="org.gnome.Shell.Extensions.Speech2Text">
+    <method name="SetWhisperConfig">
+      <arg direction="in" type="s" name="model" />
+      <arg direction="in" type="s" name="device" />
+      <arg direction="out" type="b" name="success" />
+    </method>
     <method name="StartRecording">
       <arg direction="in" type="i" name="duration" />
       <arg direction="in" type="b" name="copy_to_clipboard" />
@@ -58,6 +63,7 @@ export class DBusManager {
   constructor() {
     this.dbusProxy = null;
     this.signalConnections = [];
+    this._signalHandlers = null;
     this.isInitialized = false;
     this.lastConnectionCheck = 0;
     this.connectionCheckInterval = 10000; // Check every 10 seconds
@@ -80,6 +86,12 @@ export class DBusManager {
         await this.dbusProxy.GetServiceStatusAsync();
         this.isInitialized = true;
         console.log("D-Bus proxy initialized and service is reachable");
+
+        // If we previously registered signal handlers, re-connect them whenever
+        // we recreate the proxy (e.g. after service restart or reconnect).
+        if (this._signalHandlers) {
+          this.connectSignals(this._signalHandlers);
+        }
         return true;
       } catch (serviceError) {
         console.log(
@@ -100,6 +112,9 @@ export class DBusManager {
       console.error("Cannot connect signals: D-Bus proxy not initialized");
       return false;
     }
+
+    // Remember handlers so we can reconnect after proxy reinitialization.
+    this._signalHandlers = handlers;
 
     // Clear existing connections
     this.disconnectSignals();
@@ -248,6 +263,33 @@ export class DBusManager {
           }. Try restarting GNOME Shell.`,
         };
       }
+    }
+  }
+
+  async setWhisperConfig(model, device) {
+    const connectionReady = await this.ensureConnection();
+    if (!connectionReady || !this.dbusProxy) {
+      throw new Error("D-Bus connection not available");
+    }
+
+    try {
+      const [success] = await this.dbusProxy.SetWhisperConfigAsync(
+        String(model || "base"),
+        String(device || "cpu")
+      );
+      if (!success) {
+        throw new Error(
+          "Service rejected Whisper settings. Check model/device values and reinstall service if needed."
+        );
+      }
+      return success;
+    } catch (e) {
+      // Backwards compatibility: older service versions don't implement SetWhisperConfig yet.
+      const msg = String(e?.message || e);
+      if (msg.includes("UnknownMethod") || msg.includes("could not be found")) {
+        return false;
+      }
+      throw new Error(`Failed to set Whisper config: ${msg}`);
     }
   }
 

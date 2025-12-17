@@ -3,6 +3,12 @@
 <node>
   <interface name="org.gnome.Shell.Extensions.Speech2Text">
     <!-- Methods -->
+    <method name="SetWhisperConfig">
+      <arg direction="in" type="s" name="model" />
+      <arg direction="in" type="s" name="device" />
+      <arg direction="out" type="b" name="success" />
+    </method>
+
     <method name="StartRecording">
       <arg direction="in" type="i" name="duration" />
       <arg direction="in" type="b" name="copy_to_clipboard" />
