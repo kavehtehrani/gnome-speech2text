@@ -1,6 +1,5 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { log } from "./resourceUtils.js";
 
 // D-Bus interface XML for the speech2text service
@@ -165,11 +164,6 @@ export class DBusManager {
       this.dbusProxy.connectSignal(
         "TextTyped",
         (proxy, sender, [text, success]) => {
-          if (success) {
-            Main.notify("Speech2Text", "Text inserted successfully!");
-          } else {
-            Main.notify("Speech2Text Error", "Failed to insert text.");
-          }
           handlers.onTextTyped?.(text, success);
         }
       )
@@ -418,10 +412,7 @@ export class DBusManager {
       }
 
       // Start the service
-      const subprocess = Gio.Subprocess.new(
-        [servicePath],
-        Gio.SubprocessFlags.NONE
-      );
+      Gio.Subprocess.new([servicePath], Gio.SubprocessFlags.NONE);
 
       // Wait for service to start and register with D-Bus
       await new Promise((resolve) => {

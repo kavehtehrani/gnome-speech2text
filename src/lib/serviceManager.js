@@ -4,7 +4,6 @@ import { log } from "./resourceUtils.js";
 export class ServiceManager {
   constructor() {
     this.dbusManager = null;
-    this.isInitialized = false;
   }
 
   async initialize() {
@@ -29,7 +28,6 @@ export class ServiceManager {
       }
     }
 
-    this.isInitialized = true;
     return true;
   }
 
@@ -99,7 +97,6 @@ export class ServiceManager {
         log.warn("Error destroying D-Bus manager:", error.message);
       } finally {
         this.dbusManager = null;
-        this.isInitialized = false;
       }
     }
   }

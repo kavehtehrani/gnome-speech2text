@@ -7,7 +7,7 @@ import * as Config from "resource:///org/gnome/shell/misc/config.js";
 
 import { COLORS, STYLES } from "./constants.js";
 import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
-import { log } from "./resourceUtils.js";
+import { cleanupRecordingModal, log } from "./resourceUtils.js";
 
 // Enhanced recording dialog for D-Bus version (matches original design)
 export class RecordingDialog {
@@ -735,79 +735,7 @@ export class RecordingDialog {
             GLib.Source.remove(this.cleanupTimeoutId);
           }
 
-          // Remove from chrome if it has a parent
-          if (modal.get_parent) {
-            const parent = modal.get_parent();
-            if (parent) {
-              // Try the official method first
-              try {
-                Main.layoutManager.removeChrome(modal);
-                log.debug("Modal removed from chrome successfully");
-              } catch (chromeError) {
-                log.debug(
-                  "Chrome removal failed, trying direct parent removal:",
-                  chromeError.message
-                );
-                // For GNOME 48+, try a gentler approach first
-                if (isGNOME48Plus) {
-                  try {
-                    // Try to hide first, then remove with delay
-                    if (modal.hide) modal.hide();
-                    // Do immediate removal instead of delayed
-                    try {
-                      parent.remove_child(modal);
-                      log.debug(
-                        "Modal removed from parent immediately (GNOME 48+)"
-                      );
-                    } catch (delayedError) {
-                      log.debug(
-                        "Immediate parent removal failed:",
-                        delayedError.message
-                      );
-                    }
-                  } catch (gnome48Error) {
-                    log.debug(
-                      "GNOME 48+ specific removal failed:",
-                      gnome48Error.message
-                    );
-                    // Fallback to direct removal
-                    try {
-                      parent.remove_child(modal);
-                      log.debug(
-                        "Modal removed from parent directly (fallback)"
-                      );
-                    } catch (parentError) {
-                      log.debug(
-                        "Direct parent removal also failed:",
-                        parentError.message
-                      );
-                    }
-                  }
-                } else {
-                  // Standard fallback for older GNOME versions
-                  try {
-                    parent.remove_child(modal);
-                    log.debug("Modal removed from parent directly");
-                  } catch (parentError) {
-                    log.debug(
-                      "Direct parent removal also failed:",
-                      parentError.message
-                    );
-                  }
-                }
-              }
-            }
-          }
-
-          // Finally, destroy the modal
-          if (modal.destroy) {
-            try {
-              modal.destroy();
-              log.debug("Modal destroyed successfully");
-            } catch (destroyError) {
-              log.debug("Modal destruction failed:", destroyError.message);
-            }
-          }
+          cleanupRecordingModal(modal, { isGNOME48Plus });
         } catch (cleanupError) {
           log.warn("Delayed cleanup failed:", cleanupError.message);
         }
