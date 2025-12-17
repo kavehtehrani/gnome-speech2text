@@ -8,7 +8,6 @@ export class RecordingStateManager {
     this.dbusManager = dbusManager;
     this.currentRecordingId = null;
     this.recordingDialog = null;
-    this.lastRecordingSettings = null; // Store settings for transcription handling
     this.isCancelled = false; // Flag to track if recording was cancelled
   }
 
@@ -32,13 +31,6 @@ export class RecordingStateManager {
       const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
       const whisperModel = settings.get_string("whisper-model") || "base";
       const whisperDevice = settings.get_string("whisper-device") || "cpu";
-
-      // Store settings for later use in transcription handling
-      this.lastRecordingSettings = {
-        recordingDuration,
-        copyToClipboard,
-        skipPreviewX11,
-      };
 
       // Always use preview mode for D-Bus service (it just controls service behavior)
       // We'll handle the skip-preview logic in the extension when we get the transcription
@@ -315,7 +307,6 @@ export class RecordingStateManager {
     // Reset all state
     this.currentRecordingId = null;
     this.isCancelled = false;
-    this.lastRecordingSettings = null;
 
     // Clean up dialog with error handling
     if (this.recordingDialog) {

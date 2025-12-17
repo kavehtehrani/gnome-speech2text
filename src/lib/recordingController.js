@@ -21,34 +21,9 @@ export class RecordingController {
   }
 
   async toggleRecording(settings) {
-    // Check if service is available and initialize if needed
-    if (!this.recordingStateManager || !this.serviceManager.isInitialized) {
-      console.log("Checking service manager and service status");
-
-      const serviceAvailable =
-        await this.serviceManager.ensureServiceAvailable();
-      if (!serviceAvailable) {
-        console.log("Service initialization failed");
-        this.uiManager.showServiceSetupDialog(
-          "Speech-to-text service is not available"
-        );
-        return;
-      }
-
-      const serviceStatus =
-        await this.serviceManager.dbusManager.checkServiceStatus();
-      if (!serviceStatus.available) {
-        console.log("Service not available:", serviceStatus.error);
-        this.uiManager.showServiceSetupDialog(serviceStatus.error);
-        return;
-      }
-
-      // Initialize recording state manager if not already done
-      if (!this.recordingStateManager) {
-        console.log("Initializing recording state manager");
-        this.initialize();
-      }
-    }
+    // Service readiness is handled by the extension entrypoint (single source of truth).
+    // Here we only ensure our local state manager exists.
+    if (!this.recordingStateManager) this.initialize();
 
     // Now handle the actual recording toggle
     if (this.recordingStateManager.isRecording()) {

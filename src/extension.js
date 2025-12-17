@@ -75,11 +75,10 @@ export default class Speech2TextExtension extends Extension {
         return;
       }
 
-      const serviceAvailable =
-        await this.serviceManager.ensureServiceAvailable();
-      if (!serviceAvailable) {
+      const serviceStatus = await this.serviceManager.ensureServiceAvailable();
+      if (!serviceStatus.available) {
         this.uiManager.showServiceSetupDialog(
-          "Speech-to-text service is not available"
+          serviceStatus.error || "Speech-to-text service is not available"
         );
         return;
       }

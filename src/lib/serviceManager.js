@@ -37,23 +37,29 @@ export class ServiceManager {
     const dbusReady = await this.initialize();
     if (!dbusReady || !this.dbusManager) {
       console.log("D-Bus manager initialization failed or was nullified");
-      return false;
+      return {
+        available: false,
+        error: "Failed to initialize Speech2Text service connection.",
+      };
     }
 
     // Double-check that dbusManager is still valid (race condition protection)
     if (!this.dbusManager) {
       console.log("D-Bus manager became null during initialization");
-      return false;
+      return {
+        available: false,
+        error: "Speech2Text service connection became unavailable.",
+      };
     }
 
     // Check service status
     const serviceStatus = await this.dbusManager.checkServiceStatus();
     if (!serviceStatus.available) {
       console.log("Service not available:", serviceStatus.error);
-      return false;
+      return { available: false, error: serviceStatus.error };
     }
 
-    return true;
+    return { available: true };
   }
 
   connectSignals(handlers) {
