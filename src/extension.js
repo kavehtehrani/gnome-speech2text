@@ -87,7 +87,7 @@ export default class Speech2TextExtension extends Extension {
       await this.recordingController.toggleRecording(this.settings);
     } catch (error) {
       console.error("Error in toggleRecording:", error);
-      this.uiManager.showErrorNotification(
+      this.uiManager.notify(
         "Speech2Text Error",
         "An error occurred while toggling recording. Please check the logs."
       );
@@ -132,7 +132,7 @@ export default class Speech2TextExtension extends Extension {
       }
     } catch (recoveryError) {
       console.error("Comprehensive auto-recovery failed:", recoveryError);
-      this.uiManager?.showErrorNotification(
+      this.uiManager?.notify(
         "Speech2Text Error",
         "Extension recovery failed. Please restart GNOME Shell: Alt+F2 → 'r' → Enter"
       );

@@ -55,18 +55,16 @@ export class UIManager {
   }
 
   _setupClickHandler() {
-    // Store reference to 'this' to avoid context issues in callback
-    const self = this;
     this.icon.connect("button-press-event", (actor, event) => {
       const buttonPressed = event.get_button();
 
       if (buttonPressed === 1) {
         // Left click - toggle recording
-        self.icon.menu.close(true);
+        this.icon.menu.close(true);
         log.debug("Click handler triggered");
 
         // Use direct reference to this extension instance
-        self.extensionCore.toggleRecording();
+        this.extensionCore.toggleRecording();
         return Clutter.EVENT_STOP;
       } else if (buttonPressed === 3) {
         // Right click - show menu
@@ -109,11 +107,7 @@ export class UIManager {
     setupDialog.show();
   }
 
-  showErrorNotification(title, message) {
-    Main.notify(title, message);
-  }
-
-  showSuccessNotification(title, message) {
+  notify(title, message) {
     Main.notify(title, message);
   }
 

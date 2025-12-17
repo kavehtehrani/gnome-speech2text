@@ -68,7 +68,7 @@ export class RecordingController {
             if (stopped) {
               this._beginTranscriptionUi();
             } else {
-              this.uiManager.showErrorNotification(
+              this.uiManager.notify(
                 "Speech2Text Error",
                 "Failed to stop recording."
               );
@@ -92,7 +92,7 @@ export class RecordingController {
             "Your installed Speech2Text service is outdated and doesn't support model/device selection yet. Reinstall/upgrade the service using the options below."
           );
         } else {
-          this.uiManager.showErrorNotification(
+          this.uiManager.notify(
             "Speech2Text Error",
             "Failed to start recording. Please try again."
           );
@@ -168,7 +168,7 @@ export class RecordingController {
         }
       } catch (e) {
         console.error(`Error copying to clipboard: ${e}`);
-        this.uiManager.showErrorNotification(
+        this.uiManager.notify(
           "Speech2Text Error",
           "Failed to handle transcription result."
         );
@@ -200,7 +200,7 @@ export class RecordingController {
         "non-blocking-transcription"
       )
     ) {
-      this.uiManager.showErrorNotification(
+      this.uiManager.notify(
         "Speech2Text Error",
         `Transcription failed: ${errorMessage}`
       );
@@ -258,10 +258,7 @@ export class RecordingController {
       );
     } catch (e) {
       console.error(`Error typing text: ${e}`);
-      this.uiManager.showErrorNotification(
-        "Speech2Text Error",
-        "Failed to insert text."
-      );
+      this.uiManager.notify("Speech2Text Error", "Failed to insert text.");
     }
   }
 

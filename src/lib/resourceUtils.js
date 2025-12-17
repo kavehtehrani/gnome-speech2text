@@ -14,7 +14,9 @@ export const log = {
   debug: (...args) => {
     if (isDebugEnabled()) console.log(...args);
   },
-  info: (...args) => console.log(...args),
+  info: (...args) => {
+    if (isDebugEnabled()) console.log(...args);
+  },
   warn: (...args) => console.warn(...args),
   error: (...args) => console.error(...args),
 };

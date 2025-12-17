@@ -27,8 +27,6 @@ export class KeybindingManager {
     }
 
     // Register keybinding
-    // Store reference to 'this' to avoid context issues in callback
-    const self = this;
     Main.wm.addKeybinding(
       "toggle-recording",
       this.extensionCore.settings,
@@ -37,7 +35,7 @@ export class KeybindingManager {
       () => {
         log.debug("Keyboard shortcut triggered");
         // Use direct reference to this extension instance
-        self.extensionCore.toggleRecording();
+        this.extensionCore.toggleRecording();
       }
     );
     log.debug(`Keybinding registered: ${this.currentKeybinding}`);
