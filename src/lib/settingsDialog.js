@@ -1,5 +1,4 @@
 import Clutter from "gi://Clutter";
-import GLib from "gi://GLib";
 import St from "gi://St";
 import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
@@ -32,7 +31,6 @@ export class SettingsDialog {
     this.skipPreviewCheckboxIcon = null;
     this.nonBlockingTranscriptionCheckbox = null;
     this.nonBlockingTranscriptionCheckboxIcon = null;
-    this.centerTimeoutId = null;
     this.keyPressHandler = null;
     this.clickHandler = null;
   }
@@ -48,12 +46,6 @@ export class SettingsDialog {
   }
 
   close() {
-    // Clean up timeout sources
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-      this.centerTimeoutId = null;
-    }
-
     if (this.overlay) {
       cleanupModal(this.overlay, {
         keyPressHandler: this.keyPressHandler,
@@ -67,8 +59,17 @@ export class SettingsDialog {
   }
 
   _createDialog() {
-    // Main settings window
-    let settingsWindow = new St.BoxLayout({
+    // Create modal overlay FIRST (same pattern as SetupDialog)
+    this.overlay = new St.Widget({
+      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Main settings window - use x_align/y_align for positioning (same as SetupDialog)
+    // This ensures proper hit-testing on GNOME 49+
+    this.settingsWindow = new St.BoxLayout({
       style_class: "settings-window",
       vertical: true,
       style: `
@@ -79,6 +80,8 @@ export class SettingsDialog {
         max-width: 600px;
         border: ${STYLES.DIALOG_BORDER};
       `,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     // Build all sections
@@ -88,23 +91,14 @@ export class SettingsDialog {
     const optionsSection = this._buildOptionsSection();
 
     // Assemble window
-    settingsWindow.add_child(headerBox);
-    settingsWindow.add_child(shortcutSection);
-    settingsWindow.add_child(createSeparator());
-    settingsWindow.add_child(durationSection);
-    settingsWindow.add_child(createSeparator());
-    settingsWindow.add_child(optionsSection);
+    this.settingsWindow.add_child(headerBox);
+    this.settingsWindow.add_child(shortcutSection);
+    this.settingsWindow.add_child(createSeparator());
+    this.settingsWindow.add_child(durationSection);
+    this.settingsWindow.add_child(createSeparator());
+    this.settingsWindow.add_child(optionsSection);
 
-    // Create modal overlay
-    this.overlay = new St.Widget({
-      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-
-    this.overlay.add_child(settingsWindow);
-    this.settingsWindow = settingsWindow;
+    this.overlay.add_child(this.settingsWindow);
   }
 
   _buildHeaderSection() {
@@ -537,27 +531,10 @@ export class SettingsDialog {
   }
 
   _showDialog() {
-    let monitor = Main.layoutManager.primaryMonitor;
-    this.overlay.set_size(monitor.width, monitor.height);
+    // Same pattern as SetupDialog: size overlay to screen, let x_align/y_align handle centering
+    const monitor = Main.layoutManager.primaryMonitor;
     this.overlay.set_position(monitor.x, monitor.y);
-
-    // Center the settings window
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-    }
-    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [windowWidth, windowHeight] = this.settingsWindow.get_size();
-      if (windowWidth === 0) windowWidth = 450;
-      if (windowHeight === 0)
-        windowHeight = Math.min(monitor.height * 0.8, 600);
-
-      // Use integer coordinates in overlay parent space to avoid subpixel blur
-      const centerX = Math.round((monitor.width - windowWidth) / 2);
-      const centerY = Math.round((monitor.height - windowHeight) / 2);
-      this.settingsWindow.set_position(centerX, centerY);
-      this.centerTimeoutId = null;
-      return false;
-    });
+    this.overlay.set_size(monitor.width, monitor.height);
 
     Main.layoutManager.addTopChrome(this.overlay);
     this.overlay.grab_key_focus();
