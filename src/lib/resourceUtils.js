@@ -21,6 +21,47 @@ export const log = {
   error: (...args) => console.error(...args),
 };
 
+/**
+ * Center a widget on a monitor after a brief delay (to allow size allocation).
+ * Returns a timeout ID that should be cleaned up on close.
+ *
+ * @param {St.Widget} widget - The widget to center
+ * @param {Object} monitor - The monitor object (from Main.layoutManager.primaryMonitor)
+ * @param {Object} options - Options
+ * @param {number} options.fallbackWidth - Fallback width if widget reports 0
+ * @param {number} options.fallbackHeight - Fallback height if widget reports 0
+ * @param {number|null} options.existingTimeoutId - Existing timeout to clear first
+ * @param {function} options.onComplete - Optional callback when centering is done
+ * @returns {number} The timeout ID (store this and clean up with GLib.Source.remove)
+ */
+export function centerWidgetOnMonitor(
+  widget,
+  monitor,
+  {
+    fallbackWidth = 400,
+    fallbackHeight = 300,
+    existingTimeoutId = null,
+    onComplete = null,
+  } = {}
+) {
+  if (existingTimeoutId) {
+    GLib.Source.remove(existingTimeoutId);
+  }
+
+  return GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+    let [width, height] = widget.get_size();
+    if (width === 0) width = fallbackWidth;
+    if (height === 0) height = fallbackHeight;
+
+    const centerX = Math.round((monitor.width - width) / 2);
+    const centerY = Math.round((monitor.height - height) / 2);
+    widget.set_position(centerX, centerY);
+
+    if (onComplete) onComplete();
+    return false; // GLib.SOURCE_REMOVE
+  });
+}
+
 // Helper to safely disconnect event handlers
 export function safeDisconnect(actor, handlerId, handlerName = "handler") {
   try {

@@ -1,11 +1,12 @@
 import Clutter from "gi://Clutter";
+import GLib from "gi://GLib";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { COLORS, STYLES } from "./constants.js";
 import { createCloseButton, createHeaderLayout } from "./buttonUtils.js";
 import { createStyledLabel, createHoverButton } from "./uiUtils.js";
-import { cleanupModal } from "./resourceUtils.js";
+import { cleanupModal, centerWidgetOnMonitor } from "./resourceUtils.js";
 
 export class ShortcutCapture {
   constructor() {
@@ -14,6 +15,7 @@ export class ShortcutCapture {
     this.keyPressHandler = null;
     this.keyReleaseHandler = null;
     this.clickHandler = null;
+    this.centerTimeoutId = null;
     this.callback = null;
   }
 
@@ -79,11 +81,19 @@ export class ShortcutCapture {
 
     this.overlay.add_child(this.captureWindow);
 
+    Main.layoutManager.addTopChrome(this.overlay);
+
     const monitor = Main.layoutManager.primaryMonitor;
     this.overlay.set_position(monitor.x, monitor.y);
     this.overlay.set_size(monitor.width, monitor.height);
 
-    Main.layoutManager.addTopChrome(this.overlay);
+    // Center the dialog
+    this.centerTimeoutId = centerWidgetOnMonitor(this.captureWindow, monitor, {
+      fallbackWidth: 400,
+      fallbackHeight: 250,
+      existingTimeoutId: this.centerTimeoutId,
+      onComplete: () => (this.centerTimeoutId = null),
+    });
 
     // State tracking for modifier keys
     let modifierState = {
@@ -240,6 +250,12 @@ export class ShortcutCapture {
   }
 
   cleanup() {
+    // Clean up timeout sources
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+      this.centerTimeoutId = null;
+    }
+
     if (this.overlay) {
       cleanupModal(this.overlay, {
         keyPressHandler: this.keyPressHandler,

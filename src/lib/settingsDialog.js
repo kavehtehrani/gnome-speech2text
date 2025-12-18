@@ -18,7 +18,7 @@ import {
   createCenteredBox,
   createHeaderLayout,
 } from "./buttonUtils.js";
-import { cleanupModal } from "./resourceUtils.js";
+import { cleanupModal, centerWidgetOnMonitor } from "./resourceUtils.js";
 
 export class SettingsDialog {
   constructor(extension) {
@@ -545,21 +545,12 @@ export class SettingsDialog {
     this.overlay.set_position(monitor.x, monitor.y);
     this.overlay.set_size(monitor.width, monitor.height);
 
-    // Center the dialog (same pattern as SetupDialog)
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-    }
-    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [windowWidth, windowHeight] = this.settingsWindow.get_size();
-      if (windowWidth === 0) windowWidth = 550;
-      if (windowHeight === 0) windowHeight = 500;
-
-      // Use integer coordinates to avoid subpixel blur
-      const centerX = Math.round((monitor.width - windowWidth) / 2);
-      const centerY = Math.round((monitor.height - windowHeight) / 2);
-      this.settingsWindow.set_position(centerX, centerY);
-      this.centerTimeoutId = null;
-      return false;
+    // Center the dialog
+    this.centerTimeoutId = centerWidgetOnMonitor(this.settingsWindow, monitor, {
+      fallbackWidth: 550,
+      fallbackHeight: 500,
+      existingTimeoutId: this.centerTimeoutId,
+      onComplete: () => (this.centerTimeoutId = null),
     });
 
     this.overlay.grab_key_focus();

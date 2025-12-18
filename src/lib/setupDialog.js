@@ -17,8 +17,7 @@ import {
   createCloseButton,
   createIncrementButton,
 } from "./buttonUtils.js";
-import { cleanupModal } from "./resourceUtils.js";
-import { log } from "./resourceUtils.js";
+import { cleanupModal, centerWidgetOnMonitor, log } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
   constructor(extension, errorMessage) {
@@ -844,21 +843,16 @@ If you're still having trouble, you can also:
     this.overlay.set_size(monitor.width, monitor.height);
 
     // Center the dialog
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-    }
-    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [dialogWidth, dialogHeight] = this.dialogContainer.get_size();
-      if (dialogWidth === 0) dialogWidth = 700;
-      if (dialogHeight === 0) dialogHeight = 500;
-
-      // Use integer coordinates in overlay parent space to avoid subpixel blur
-      const centerX = Math.round((monitor.width - dialogWidth) / 2);
-      const centerY = Math.round((monitor.height - dialogHeight) / 2);
-      this.dialogContainer.set_position(centerX, centerY);
-      this.centerTimeoutId = null;
-      return false;
-    });
+    this.centerTimeoutId = centerWidgetOnMonitor(
+      this.dialogContainer,
+      monitor,
+      {
+        fallbackWidth: 700,
+        fallbackHeight: 500,
+        existingTimeoutId: this.centerTimeoutId,
+        onComplete: () => (this.centerTimeoutId = null),
+      }
+    );
 
     this.overlay.grab_key_focus();
     this.overlay.set_reactive(true);

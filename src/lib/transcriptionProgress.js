@@ -68,7 +68,7 @@ export class TranscriptionProgress {
     });
 
     const buttons = createHorizontalBox("10px", "0px");
-    buttons.set_x_align(Clutter.ActorAlign.END);
+    buttons.set_x_align(Clutter.ActorAlign.CENTER);
 
     const cancelButton = createHoverButton(
       "Cancel",

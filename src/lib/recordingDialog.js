@@ -10,6 +10,7 @@ import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
 import {
   cleanupChromeWidget,
   cleanupRecordingModal,
+  centerWidgetOnMonitor,
   log,
 } from "./resourceUtils.js";
 
@@ -31,6 +32,7 @@ export class RecordingDialog {
     this.openFocusTimeoutId = null;
     this.cleanupTimeoutId = null;
     this.delayedCleanupTimeoutId = null;
+    this.centerTimeoutId = null;
     this.isPreviewMode = false;
     this.transcribedText = "";
 
@@ -398,6 +400,25 @@ export class RecordingDialog {
       this.cancelButton.hide();
     }
 
+    // Widen the container for preview mode (25% wider)
+    this.container.set_style(`
+      background-color: ${COLORS.TRANSPARENT_BLACK_85};
+      border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
+      padding: ${STYLES.DIALOG_PADDING};
+      border: ${STYLES.DIALOG_BORDER};
+      min-width: 560px;
+      max-width: 750px;
+    `);
+
+    // Re-center after resize
+    const monitor = Main.layoutManager.primaryMonitor;
+    this.centerTimeoutId = centerWidgetOnMonitor(this.container, monitor, {
+      fallbackWidth: 560,
+      fallbackHeight: 400,
+      existingTimeoutId: this.centerTimeoutId,
+      onComplete: () => (this.centerTimeoutId = null),
+    });
+
     // Add text display for editing
     const textEntry = new St.Entry({
       text: text,
@@ -409,7 +430,7 @@ export class RecordingDialog {
         font-size: 16px;
         padding: 15px;
         margin: 10px 0;
-        width: 400px;
+        width: 500px;
         caret-color: ${COLORS.PRIMARY};
       `,
       can_focus: true,
@@ -437,6 +458,7 @@ export class RecordingDialog {
 
     // Create new button box for preview
     const buttonBox = createHorizontalBox();
+    buttonBox.set_x_align(Clutter.ActorAlign.CENTER);
 
     // Only show insert button on X11
     let insertButton = null;
@@ -593,11 +615,13 @@ export class RecordingDialog {
       this.modalBarrier.set_position(monitor.x, monitor.y);
       this.modalBarrier.set_size(monitor.width, monitor.height);
 
-      // Center the dialog container within the barrier (matches original)
-      this.container.set_position(
-        (monitor.width - 450) / 2,
-        (monitor.height - 300) / 2
-      );
+      // Center the dialog container
+      this.centerTimeoutId = centerWidgetOnMonitor(this.container, monitor, {
+        fallbackWidth: 450,
+        fallbackHeight: 300,
+        existingTimeoutId: this.centerTimeoutId,
+        onComplete: () => (this.centerTimeoutId = null),
+      });
 
       this.modalBarrier.show();
 
@@ -689,6 +713,10 @@ export class RecordingDialog {
       if (this.delayedCleanupTimeoutId) {
         GLib.Source.remove(this.delayedCleanupTimeoutId);
         this.delayedCleanupTimeoutId = null;
+      }
+      if (this.centerTimeoutId) {
+        GLib.Source.remove(this.centerTimeoutId);
+        this.centerTimeoutId = null;
       }
 
       // Safely disconnect signal handlers using a more defensive approach
