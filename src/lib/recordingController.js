@@ -30,7 +30,6 @@ export class RecordingController {
       if (stopped) {
         this._beginTranscriptionUi();
       }
-      // Silently fail - no notification for stop failure
     } else {
       log.debug("Starting recording");
 
@@ -159,7 +158,6 @@ export class RecordingController {
         }
       } catch (e) {
         console.error(`Error copying to clipboard: ${e}`);
-        // Silently fail - error already logged
       }
       return;
     }
@@ -188,7 +186,6 @@ export class RecordingController {
         "non-blocking-transcription"
       )
     ) {
-      // Silently fail for transcription errors - error already logged
       console.error(`Transcription failed: ${errorMessage}`);
     }
 

@@ -124,7 +124,6 @@ export default class Speech2TextExtension extends Extension {
       }
     } catch (recoveryError) {
       console.error("Comprehensive auto-recovery failed:", recoveryError);
-      // Silently fail - error already logged
       throw recoveryError;
     }
   }
