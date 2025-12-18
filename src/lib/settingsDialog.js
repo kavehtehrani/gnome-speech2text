@@ -1,4 +1,5 @@
 import Clutter from "gi://Clutter";
+import GLib from "gi://GLib";
 import St from "gi://St";
 import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
@@ -31,6 +32,7 @@ export class SettingsDialog {
     this.skipPreviewCheckboxIcon = null;
     this.nonBlockingTranscriptionCheckbox = null;
     this.nonBlockingTranscriptionCheckboxIcon = null;
+    this.centerTimeoutId = null;
     this.keyPressHandler = null;
     this.clickHandler = null;
   }
@@ -46,6 +48,12 @@ export class SettingsDialog {
   }
 
   close() {
+    // Clean up timeout sources
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+      this.centerTimeoutId = null;
+    }
+
     if (this.overlay) {
       cleanupModal(this.overlay, {
         keyPressHandler: this.keyPressHandler,
@@ -531,12 +539,29 @@ export class SettingsDialog {
   }
 
   _showDialog() {
-    // Same pattern as SetupDialog: size overlay to screen, let x_align/y_align handle centering
+    Main.layoutManager.addTopChrome(this.overlay);
+
     const monitor = Main.layoutManager.primaryMonitor;
     this.overlay.set_position(monitor.x, monitor.y);
     this.overlay.set_size(monitor.width, monitor.height);
 
-    Main.layoutManager.addTopChrome(this.overlay);
+    // Center the dialog (same pattern as SetupDialog)
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+    }
+    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+      let [windowWidth, windowHeight] = this.settingsWindow.get_size();
+      if (windowWidth === 0) windowWidth = 550;
+      if (windowHeight === 0) windowHeight = 500;
+
+      // Use integer coordinates to avoid subpixel blur
+      const centerX = Math.round((monitor.width - windowWidth) / 2);
+      const centerY = Math.round((monitor.height - windowHeight) / 2);
+      this.settingsWindow.set_position(centerX, centerY);
+      this.centerTimeoutId = null;
+      return false;
+    });
+
     this.overlay.grab_key_focus();
     this.overlay.set_reactive(true);
   }
