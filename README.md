@@ -22,6 +22,7 @@ using OpenAI's automated speech recognition [Whisper](https://github.com/openai/
 - 🌍 **Multi-language Support** (depending on Whisper model)
 - 🔒 **Privacy-First** - All processing happens locally
 - ⌨️ **Automatic Text Insertion** at cursor location (only on X11)
+- 🔄 **Non-blocking Mode** - Continue working while transcription processes in the background
 
 ## Architecture
 
@@ -137,7 +138,7 @@ PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-ser
 
 ### Upgrading from older versions (CUDA/NVIDIA pip packages cleanup)
 
-Older versions of the service installer could pull GPU-related *pip packages* (e.g. `nvidia-*`) into the service’s
+Older versions of the service installer could pull GPU-related _pip packages_ (e.g. `nvidia-*`) into the service’s
 virtual environment. New versions default to **CPU-only** PyTorch wheels unless you explicitly choose GPU mode.
 
 If you are using **CPU mode** and want to remove legacy GPU-related pip packages, simply re-run the installer
@@ -187,6 +188,15 @@ You can read more about the D-Bus service here: [D-Bus Service Documentation](./
 4. **Review** the transcribed text in the preview dialog
 5. **Click Insert** to type the text, or **Copy** to clipboard
 
+#### Non-blocking Mode
+
+With non-blocking transcription enabled:
+
+1. Record your speech as usual
+2. The modal closes immediately when recording stops
+3. A "..." appears next to the microphone icon while processing
+4. Click the notification when transcription is ready to review/copy
+
 ### Settings
 
 Right-click the microphone icon to access:
@@ -195,7 +205,8 @@ Right-click the microphone icon to access:
   - **Keyboard Shortcuts**: Customize the recording hotkey
   - **Recording Duration**: Set maximum recording time (10-300 seconds)
   - **Copy to Clipboard**: Automatically copy transcribed text
-  - **Skip Preview (X11 only)**: Instantly insert text without preview
+  - **Non-blocking Transcription**: Process audio in the background while you continue working. When enabled, the recording modal closes immediately after you stop recording, and a clickable notification appears when transcription is ready
+  - **Skip Preview (X11 only)**: Instantly insert text without preview (not available with non-blocking mode)
 - **Setup Guide**: View service installation instructions anytime
 
 ## Troubleshooting
