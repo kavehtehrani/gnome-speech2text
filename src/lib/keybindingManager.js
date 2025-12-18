@@ -1,6 +1,7 @@
 import Meta from "gi://Meta";
 import Shell from "gi://Shell";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import { log } from "./resourceUtils.js";
 
 export class KeybindingManager {
   constructor(extensionCore) {
@@ -26,20 +27,18 @@ export class KeybindingManager {
     }
 
     // Register keybinding
-    // Store reference to 'this' to avoid context issues in callback
-    const self = this;
     Main.wm.addKeybinding(
       "toggle-recording",
       this.extensionCore.settings,
       Meta.KeyBindingFlags.NONE,
       Shell.ActionMode.NORMAL,
       () => {
-        console.log("Keyboard shortcut triggered");
+        log.debug("Keyboard shortcut triggered");
         // Use direct reference to this extension instance
-        self.extensionCore.toggleRecording();
+        this.extensionCore.toggleRecording();
       }
     );
-    console.log(`Keybinding registered: ${this.currentKeybinding}`);
+    log.debug(`Keybinding registered: ${this.currentKeybinding}`);
   }
 
   cleanup() {

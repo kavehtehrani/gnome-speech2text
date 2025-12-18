@@ -18,7 +18,7 @@ import {
   createCenteredBox,
   createHeaderLayout,
 } from "./buttonUtils.js";
-import { cleanupModal } from "./resourceUtils.js";
+import { cleanupModal, centerWidgetOnMonitor } from "./resourceUtils.js";
 
 export class SettingsDialog {
   constructor(extension) {
@@ -30,7 +30,11 @@ export class SettingsDialog {
     this.clipboardCheckboxIcon = null;
     this.skipPreviewCheckbox = null;
     this.skipPreviewCheckboxIcon = null;
+    this.nonBlockingTranscriptionCheckbox = null;
+    this.nonBlockingTranscriptionCheckboxIcon = null;
     this.centerTimeoutId = null;
+    this.keyPressHandler = null;
+    this.clickHandler = null;
   }
 
   show() {
@@ -51,14 +55,29 @@ export class SettingsDialog {
     }
 
     if (this.overlay) {
-      cleanupModal(this.overlay, {});
+      cleanupModal(this.overlay, {
+        keyPressHandler: this.keyPressHandler,
+        clickHandler: this.clickHandler,
+      });
       this.overlay = null;
     }
+
+    this.keyPressHandler = null;
+    this.clickHandler = null;
   }
 
   _createDialog() {
-    // Main settings window
-    let settingsWindow = new St.BoxLayout({
+    // Create modal overlay FIRST (same pattern as SetupDialog)
+    this.overlay = new St.Widget({
+      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    // Main settings window - use x_align/y_align for positioning (same as SetupDialog)
+    // This ensures proper hit-testing on GNOME 49+
+    this.settingsWindow = new St.BoxLayout({
       style_class: "settings-window",
       vertical: true,
       style: `
@@ -69,40 +88,25 @@ export class SettingsDialog {
         max-width: 600px;
         border: ${STYLES.DIALOG_BORDER};
       `,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
     // Build all sections
     const headerBox = this._buildHeaderSection();
     const shortcutSection = this._buildShortcutSection();
     const durationSection = this._buildDurationSection();
-    const clipboardSection = this._buildClipboardSection();
-    const skipPreviewSection = this._buildSkipPreviewSection();
+    const optionsSection = this._buildOptionsSection();
 
     // Assemble window
-    settingsWindow.add_child(headerBox);
-    settingsWindow.add_child(shortcutSection);
-    settingsWindow.add_child(createSeparator());
-    settingsWindow.add_child(durationSection);
-    settingsWindow.add_child(createSeparator());
-    settingsWindow.add_child(clipboardSection);
+    this.settingsWindow.add_child(headerBox);
+    this.settingsWindow.add_child(shortcutSection);
+    this.settingsWindow.add_child(createSeparator());
+    this.settingsWindow.add_child(durationSection);
+    this.settingsWindow.add_child(createSeparator());
+    this.settingsWindow.add_child(optionsSection);
 
-    // Only add skip preview section on X11
-    const isWayland = Meta.is_wayland_compositor();
-    if (!isWayland && skipPreviewSection) {
-      settingsWindow.add_child(createSeparator());
-      settingsWindow.add_child(skipPreviewSection);
-    }
-
-    // Create modal overlay
-    this.overlay = new St.Widget({
-      style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-
-    this.overlay.add_child(settingsWindow);
-    this.settingsWindow = settingsWindow;
+    this.overlay.add_child(this.settingsWindow);
   }
 
   _buildHeaderSection() {
@@ -123,10 +127,6 @@ export class SettingsDialog {
   _buildShortcutSection() {
     let shortcutSection = createVerticalBox();
     let shortcutLabel = createStyledLabel("Keyboard Shortcut", "subtitle");
-    let shortcutDescription = createStyledLabel(
-      "Set the keyboard combination to toggle recording on/off",
-      "description"
-    );
 
     // Current shortcut display
     let currentShortcutBox = createHorizontalBox();
@@ -178,7 +178,6 @@ export class SettingsDialog {
     shortcutButtonBox.add_child(this.removeShortcutButton);
 
     shortcutSection.add_child(shortcutLabel);
-    shortcutSection.add_child(shortcutDescription);
     shortcutSection.add_child(currentShortcutBox);
     shortcutSection.add_child(shortcutButtonBox);
 
@@ -187,18 +186,12 @@ export class SettingsDialog {
 
   _buildDurationSection() {
     let durationSection = createVerticalBox();
-    let durationLabel = createStyledLabel("Recording Duration", "subtitle");
-    let durationDescription = createStyledLabel(
-      "Maximum recording time (10 seconds to 5 minutes)",
-      "description"
-    );
+    // Clean single-row layout: label + control beside it
+    const row = createHorizontalBox("12px", "0px");
 
-    let durationSliderBox = createHorizontalBox();
-    let durationSliderLabel = createStyledLabel(
-      "Duration:",
-      "normal",
-      "min-width: 80px;"
-    );
+    let durationLabel = createStyledLabel("Recording duration", "subtitle");
+    durationLabel.set_x_expand(true);
+    durationLabel.set_x_align(Clutter.ActorAlign.START);
 
     let currentDuration = this.settings.get_int("recording-duration");
     this.durationValueLabel = createStyledLabel(
@@ -216,116 +209,125 @@ export class SettingsDialog {
     durationControlBox.add_child(this.durationValueLabel);
     durationControlBox.add_child(this.increaseButton);
 
-    durationSliderBox.add_child(durationSliderLabel);
-    durationSliderBox.add_child(durationControlBox);
+    row.add_child(durationLabel);
+    row.add_child(durationControlBox);
 
-    durationSection.add_child(durationLabel);
-    durationSection.add_child(durationDescription);
-    durationSection.add_child(durationSliderBox);
+    durationSection.add_child(row);
 
     return durationSection;
   }
 
-  _buildClipboardSection() {
-    let clipboardSection = createVerticalBox();
-    let clipboardLabel = createStyledLabel("Clipboard Options", "subtitle");
-    let clipboardDescription = createStyledLabel(
-      "Configure whether transcribed text should be copied to clipboard",
-      "description"
-    );
+  _buildOptionsSection() {
+    const section = createVerticalBox("10px", "10px", "0px");
 
-    let clipboardCheckboxBox = createHorizontalBox();
-    let clipboardCheckboxLabel = createStyledLabel(
-      "Copy to clipboard:",
-      "normal",
-      "min-width: 130px;"
-    );
+    // 1) copy-to-clipboard
+    {
+      const row = createHorizontalBox("12px", "0px");
+      const label = createStyledLabel(
+        "Copy to clipboard automatically",
+        "normal"
+      );
+      label.set_x_expand(true);
+      label.set_x_align(Clutter.ActorAlign.START);
 
-    let isClipboardEnabled = this.settings.get_boolean("copy-to-clipboard");
-    this.clipboardCheckbox = new St.Button({
-      style: `
-        width: 20px;
-        height: 20px;
-        border-radius: 3px;
-        border: 2px solid ${COLORS.SECONDARY};
-        background-color: ${
-          isClipboardEnabled ? COLORS.PRIMARY : "transparent"
-        };
-        margin-right: 10px;
-      `,
-      reactive: true,
-      can_focus: true,
-    });
+      const enabled = this.settings.get_boolean("copy-to-clipboard");
+      this.clipboardCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
+      this.clipboardCheckboxIcon = new St.Label({
+        text: enabled ? "✓" : "",
+        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+      });
+      this.clipboardCheckbox.add_child(this.clipboardCheckboxIcon);
 
-    this.clipboardCheckboxIcon = new St.Label({
-      text: isClipboardEnabled ? "✓" : "",
-      style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
-    });
-    this.clipboardCheckbox.add_child(this.clipboardCheckboxIcon);
-
-    clipboardCheckboxBox.add_child(clipboardCheckboxLabel);
-    clipboardCheckboxBox.add_child(this.clipboardCheckbox);
-
-    clipboardSection.add_child(clipboardLabel);
-    clipboardSection.add_child(clipboardDescription);
-    clipboardSection.add_child(clipboardCheckboxBox);
-
-    return clipboardSection;
-  }
-
-  _buildSkipPreviewSection() {
-    const isWayland = Meta.is_wayland_compositor();
-    if (isWayland) {
-      return null;
+      row.add_child(label);
+      row.add_child(this.clipboardCheckbox);
+      section.add_child(row);
     }
 
-    let skipPreviewSection = createVerticalBox();
-    let skipPreviewLabel = createStyledLabel(
-      "Auto-Insert Mode (X11 Only)",
-      "subtitle"
-    );
-    let skipPreviewDescription = createStyledLabel(
-      "Skip the preview dialog and insert text immediately after recording. Only works on X11.",
-      "description"
-    );
+    // 2) non-blocking transcription
+    {
+      const row = createHorizontalBox("12px", "0px");
+      const label = createStyledLabel("Non-blocking transcription", "normal");
+      label.set_x_expand(true);
+      label.set_x_align(Clutter.ActorAlign.START);
 
-    let skipPreviewCheckboxBox = createHorizontalBox();
-    let skipPreviewCheckboxLabel = createStyledLabel(
-      "Auto-insert:",
-      "normal",
-      "min-width: 130px;"
-    );
+      const enabled = this.settings.get_boolean("non-blocking-transcription");
+      this.nonBlockingTranscriptionCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
 
-    let isSkipPreviewEnabled = this.settings.get_boolean("skip-preview-x11");
-    this.skipPreviewCheckbox = new St.Button({
-      style: `
-        width: 20px;
-        height: 20px;
-        border-radius: 3px;
-        border: 2px solid ${COLORS.SECONDARY};
-        background-color: ${
-          isSkipPreviewEnabled ? COLORS.PRIMARY : "transparent"
-        };
-        margin-right: 10px;
-      `,
-      reactive: true,
-      can_focus: true,
-    });
+      this.nonBlockingTranscriptionCheckboxIcon = new St.Label({
+        text: enabled ? "✓" : "",
+        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+      });
+      this.nonBlockingTranscriptionCheckbox.add_child(
+        this.nonBlockingTranscriptionCheckboxIcon
+      );
 
-    this.skipPreviewCheckboxIcon = new St.Label({
-      text: isSkipPreviewEnabled ? "✓" : "",
-      style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
-    });
-    this.skipPreviewCheckbox.add_child(this.skipPreviewCheckboxIcon);
+      row.add_child(label);
+      row.add_child(this.nonBlockingTranscriptionCheckbox);
+      section.add_child(row);
+    }
 
-    skipPreviewCheckboxBox.add_child(skipPreviewCheckboxLabel);
-    skipPreviewCheckboxBox.add_child(this.skipPreviewCheckbox);
+    // 3) auto-insert (X11 only)
+    if (!Meta.is_wayland_compositor()) {
+      const row = createHorizontalBox("12px", "0px");
+      const label = createStyledLabel(
+        "Auto-insert mode at cursor (x11 only)",
+        "normal"
+      );
+      label.set_x_expand(true);
+      label.set_x_align(Clutter.ActorAlign.START);
 
-    skipPreviewSection.add_child(skipPreviewLabel);
-    skipPreviewSection.add_child(skipPreviewDescription);
-    skipPreviewSection.add_child(skipPreviewCheckboxBox);
+      const enabled = this.settings.get_boolean("skip-preview-x11");
+      this.skipPreviewCheckbox = new St.Button({
+        style: `
+          width: 20px;
+          height: 20px;
+          border-radius: 3px;
+          border: 2px solid ${COLORS.SECONDARY};
+          background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+          margin-right: 10px;
+        `,
+        reactive: true,
+        can_focus: true,
+      });
 
-    return skipPreviewSection;
+      this.skipPreviewCheckboxIcon = new St.Label({
+        text: enabled ? "✓" : "",
+        style: `color: white; font-size: 14px; font-weight: bold; text-align: center;`,
+      });
+      this.skipPreviewCheckbox.add_child(this.skipPreviewCheckboxIcon);
+
+      row.add_child(label);
+      row.add_child(this.skipPreviewCheckbox);
+      section.add_child(row);
+    } else {
+      // Ensure these references are null on Wayland.
+      this.skipPreviewCheckbox = null;
+      this.skipPreviewCheckboxIcon = null;
+    }
+
+    return section;
   }
 
   _setupEventHandlers() {
@@ -339,7 +341,6 @@ export class SettingsDialog {
           this.settings.set_strv("toggle-recording", [newShortcut]);
           this.currentShortcutDisplay.set_text(newShortcut);
           this.extension.keybindingManager?.setupKeybinding();
-          Main.notify("Speech2Text", `Shortcut changed to: ${newShortcut}`);
         }
       });
     });
@@ -349,17 +350,12 @@ export class SettingsDialog {
       this.settings.set_strv("toggle-recording", [defaultShortcut]);
       this.currentShortcutDisplay.set_text(defaultShortcut);
       this.extension.keybindingManager?.setupKeybinding();
-      Main.notify(
-        "Speech2Text",
-        `Shortcut reset to default: ${defaultShortcut}`
-      );
     });
 
     this.removeShortcutButton.connect("clicked", () => {
       Main.wm.removeKeybinding("toggle-recording");
       this.settings.set_strv("toggle-recording", []);
       this.currentShortcutDisplay.set_text("No shortcut set");
-      Main.notify("Speech2Text", "Keyboard shortcut removed");
     });
 
     // Duration controls
@@ -394,72 +390,147 @@ export class SettingsDialog {
       `);
 
       this.clipboardCheckboxIcon.set_text(newState ? "✓" : "");
-      Main.notify(
-        "Speech2Text",
-        `Clipboard copying ${newState ? "enabled" : "disabled"}`
-      );
     });
+
+    const _setSkipPreviewToggleUi = (enabled) => {
+      if (!this.skipPreviewCheckbox || !this.skipPreviewCheckboxIcon) return;
+      this.skipPreviewCheckbox.set_style(`
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+        margin-right: 10px;
+        opacity: ${enabled ? 1 : 1};
+      `);
+      this.skipPreviewCheckboxIcon.set_text(enabled ? "✓" : "");
+    };
+
+    const _setNonBlockingToggleUi = (enabled) => {
+      if (
+        !this.nonBlockingTranscriptionCheckbox ||
+        !this.nonBlockingTranscriptionCheckboxIcon
+      )
+        return;
+      this.nonBlockingTranscriptionCheckbox.set_style(`
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 2px solid ${COLORS.SECONDARY};
+        background-color: ${enabled ? COLORS.PRIMARY : "transparent"};
+        margin-right: 10px;
+      `);
+      this.nonBlockingTranscriptionCheckboxIcon.set_text(enabled ? "✓" : "");
+    };
+
+    const _setSkipPreviewEnabledState = (enabled) => {
+      // Disable interaction when non-blocking is enabled (mutual exclusion)
+      if (!this.skipPreviewCheckbox) return;
+      this.skipPreviewCheckbox.reactive = enabled;
+      this.skipPreviewCheckbox.can_focus = enabled;
+      // Visually indicate disabled state.
+      this.skipPreviewCheckbox.set_opacity(enabled ? 255 : 120);
+    };
+
+    // Non-blocking transcription checkbox
+    if (this.nonBlockingTranscriptionCheckbox) {
+      this.nonBlockingTranscriptionCheckbox.connect("clicked", () => {
+        const currentState = this.settings.get_boolean(
+          "non-blocking-transcription"
+        );
+        const newState = !currentState;
+
+        this.settings.set_boolean("non-blocking-transcription", newState);
+
+        // Enforce mutual exclusion with auto-insert on X11.
+        if (newState && this.settings.get_boolean("skip-preview-x11")) {
+          this.settings.set_boolean("skip-preview-x11", false);
+          _setSkipPreviewToggleUi(false);
+        }
+
+        // Disable/enable the auto-insert toggle UI depending on non-blocking state.
+        _setSkipPreviewEnabledState(!newState);
+
+        _setNonBlockingToggleUi(newState);
+      });
+
+      // Initialize auto-insert toggle disabled state based on current setting.
+      const nonBlockingEnabledNow = this.settings.get_boolean(
+        "non-blocking-transcription"
+      );
+      _setSkipPreviewEnabledState(!nonBlockingEnabledNow);
+    }
 
     // Skip preview checkbox (X11 only)
     if (this.skipPreviewCheckbox) {
       this.skipPreviewCheckbox.connect("clicked", () => {
+        // If non-blocking is enabled, don't allow auto-insert.
+        if (this.settings.get_boolean("non-blocking-transcription")) {
+          return;
+        }
+
         let currentState = this.settings.get_boolean("skip-preview-x11");
         let newState = !currentState;
 
         this.settings.set_boolean("skip-preview-x11", newState);
 
-        this.skipPreviewCheckbox.set_style(`
-          width: 20px;
-          height: 20px;
-          border-radius: 3px;
-          border: 2px solid ${COLORS.SECONDARY};
-          background-color: ${newState ? COLORS.PRIMARY : "transparent"};
-          margin-right: 10px;
-        `);
+        // If user enables auto-insert, ensure non-blocking is off.
+        if (
+          newState &&
+          this.settings.get_boolean("non-blocking-transcription")
+        ) {
+          this.settings.set_boolean("non-blocking-transcription", false);
+          _setNonBlockingToggleUi(false);
+        }
 
-        this.skipPreviewCheckboxIcon.set_text(newState ? "✓" : "");
-        Main.notify(
-          "Speech2Text",
-          `Auto-insert mode ${newState ? "enabled" : "disabled"} (X11 only)`
-        );
+        _setSkipPreviewToggleUi(newState);
       });
     }
 
     // Modal overlay handlers
-    this.overlay.connect("button-press-event", () => Clutter.EVENT_STOP);
-    this.overlay.connect("key-press-event", (actor, event) => {
-      if (event.get_key_symbol() === Clutter.KEY_Escape) {
-        this.close();
-        return Clutter.EVENT_STOP;
+    this.clickHandler = this.overlay.connect(
+      "button-press-event",
+      (actor, event) => {
+        try {
+          if (event.get_source() === this.overlay) {
+            this.close();
+            return Clutter.EVENT_STOP;
+          }
+          return Clutter.EVENT_PROPAGATE;
+        } catch {
+          return Clutter.EVENT_STOP;
+        }
       }
-      return Clutter.EVENT_STOP;
-    });
+    );
+
+    // Keyboard handling: Escape closes, others propagate.
+    this.keyPressHandler = this.overlay.connect(
+      "key-press-event",
+      (actor, event) => {
+        if (event.get_key_symbol() === Clutter.KEY_Escape) {
+          this.close();
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      }
+    );
   }
 
   _showDialog() {
-    let monitor = Main.layoutManager.primaryMonitor;
-    this.overlay.set_size(monitor.width, monitor.height);
+    Main.layoutManager.addTopChrome(this.overlay);
+
+    const monitor = Main.layoutManager.primaryMonitor;
     this.overlay.set_position(monitor.x, monitor.y);
+    this.overlay.set_size(monitor.width, monitor.height);
 
-    // Center the settings window
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-    }
-    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [windowWidth, windowHeight] = this.settingsWindow.get_size();
-      if (windowWidth === 0) windowWidth = 450;
-      if (windowHeight === 0)
-        windowHeight = Math.min(monitor.height * 0.8, 600);
-
-      // Use integer coordinates in overlay parent space to avoid subpixel blur
-      const centerX = Math.round((monitor.width - windowWidth) / 2);
-      const centerY = Math.round((monitor.height - windowHeight) / 2);
-      this.settingsWindow.set_position(centerX, centerY);
-      this.centerTimeoutId = null;
-      return false;
+    // Center the dialog
+    this.centerTimeoutId = centerWidgetOnMonitor(this.settingsWindow, monitor, {
+      fallbackWidth: 550,
+      fallbackHeight: 500,
+      existingTimeoutId: this.centerTimeoutId,
+      onComplete: () => (this.centerTimeoutId = null),
     });
 
-    Main.layoutManager.addTopChrome(this.overlay);
     this.overlay.grab_key_focus();
     this.overlay.set_reactive(true);
   }

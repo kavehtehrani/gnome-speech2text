@@ -3,8 +3,7 @@ import { UIManager } from "./lib/uiManager.js";
 import { RecordingController } from "./lib/recordingController.js";
 import { ServiceManager } from "./lib/serviceManager.js";
 import { KeybindingManager } from "./lib/keybindingManager.js";
-
-let extensionInstance = null;
+import { log } from "./lib/resourceUtils.js";
 
 export default class Speech2TextExtension extends Extension {
   constructor(metadata) {
@@ -18,7 +17,7 @@ export default class Speech2TextExtension extends Extension {
   }
 
   async enable() {
-    console.log("Enabling Speech2Text extension (D-Bus version)");
+    log.debug("Enabling Speech2Text extension (D-Bus version)");
     this.settings = this.getSettings("org.gnome.shell.extensions.speech2text");
 
     this.serviceManager = new ServiceManager();
@@ -38,8 +37,7 @@ export default class Speech2TextExtension extends Extension {
 
     this._setupSignalHandlers();
 
-    extensionInstance = this;
-    console.log("Extension enabled successfully");
+    log.debug("Extension enabled successfully");
   }
 
   _setupSignalHandlers() {
@@ -61,10 +59,10 @@ export default class Speech2TextExtension extends Extension {
 
   async toggleRecording() {
     try {
-      console.log("=== TOGGLE RECORDING (D-Bus) ===");
+      log.debug("=== TOGGLE RECORDING (D-Bus) ===");
 
       if (!this.settings || !this.uiManager) {
-        console.log(
+        log.debug(
           "Extension state inconsistent, attempting comprehensive auto-recovery"
         );
         await this._performAutoRecovery();
@@ -75,11 +73,10 @@ export default class Speech2TextExtension extends Extension {
         return;
       }
 
-      const serviceAvailable =
-        await this.serviceManager.ensureServiceAvailable();
-      if (!serviceAvailable) {
+      const serviceStatus = await this.serviceManager.ensureServiceAvailable();
+      if (!serviceStatus.available) {
         this.uiManager.showServiceSetupDialog(
-          "Speech-to-text service is not available"
+          serviceStatus.error || "Speech-to-text service is not available"
         );
         return;
       }
@@ -87,16 +84,12 @@ export default class Speech2TextExtension extends Extension {
       await this.recordingController.toggleRecording(this.settings);
     } catch (error) {
       console.error("Error in toggleRecording:", error);
-      this.uiManager.showErrorNotification(
-        "Speech2Text Error",
-        "An error occurred while toggling recording. Please check the logs."
-      );
     }
   }
 
   async _performAutoRecovery() {
     try {
-      console.log("Attempting full extension state recovery");
+      log.debug("Attempting full extension state recovery");
 
       if (!this.settings) {
         this.settings = this.getSettings(
@@ -127,23 +120,16 @@ export default class Speech2TextExtension extends Extension {
       }
 
       if (this.settings && this.uiManager) {
-        extensionInstance = this;
         this._setupSignalHandlers();
       }
     } catch (recoveryError) {
       console.error("Comprehensive auto-recovery failed:", recoveryError);
-      this.uiManager?.showErrorNotification(
-        "Speech2Text Error",
-        "Extension recovery failed. Please restart GNOME Shell: Alt+F2 → 'r' → Enter"
-      );
       throw recoveryError;
     }
   }
 
   disable() {
-    console.log("Disabling Speech2Text extension (D-Bus version)");
-
-    extensionInstance = null;
+    log.debug("Disabling Speech2Text extension (D-Bus version)");
 
     // Clean up components in reverse order of initialization
     if (this.keybindingManager) {
@@ -152,13 +138,13 @@ export default class Speech2TextExtension extends Extension {
     }
 
     if (this.recordingController) {
-      console.log("Cleaning up recording controller");
+      log.debug("Cleaning up recording controller");
       this.recordingController.cleanup();
       this.recordingController = null;
     }
 
     if (this.uiManager) {
-      console.log("Cleaning up UI manager");
+      log.debug("Cleaning up UI manager");
       this.uiManager.cleanup();
       this.uiManager = null;
     }

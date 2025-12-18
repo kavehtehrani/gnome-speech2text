@@ -7,16 +7,23 @@ import * as Config from "resource:///org/gnome/shell/misc/config.js";
 
 import { COLORS, STYLES } from "./constants.js";
 import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
+import {
+  cleanupChromeWidget,
+  cleanupRecordingModal,
+  centerWidgetOnMonitor,
+  log,
+} from "./resourceUtils.js";
 
 // Enhanced recording dialog for D-Bus version (matches original design)
 export class RecordingDialog {
-  constructor(onCancel, onInsert, onStop, maxDuration = 60) {
-    console.log("DBusRecordingDialog constructor called");
+  constructor(onCancel, onInsert, onStop, maxDuration = 60, options = {}) {
+    log.debug("DBusRecordingDialog constructor called");
 
     this.onCancel = onCancel;
     this.onInsert = onInsert;
     this.onStop = onStop;
     this.maxDuration = maxDuration;
+    this.allowInsert = options?.allowInsert !== false;
     this.startTime = null;
     this.elapsedTime = 0;
     this.timerInterval = null;
@@ -25,6 +32,7 @@ export class RecordingDialog {
     this.openFocusTimeoutId = null;
     this.cleanupTimeoutId = null;
     this.delayedCleanupTimeoutId = null;
+    this.centerTimeoutId = null;
     this.isPreviewMode = false;
     this.transcribedText = "";
 
@@ -158,8 +166,7 @@ export class RecordingDialog {
 
     // Connect button events
     this.stopButton.connect("clicked", () => {
-      console.log("Stop button clicked!");
-      this.showProcessing();
+      log.debug("Stop button clicked!");
       // Trigger the stop recording via the parent extension
       if (this.onStop) {
         this.onStop();
@@ -167,7 +174,7 @@ export class RecordingDialog {
     });
 
     this.cancelButton.connect("clicked", () => {
-      console.log("Cancel button clicked!");
+      log.debug("Cancel button clicked!");
       this.close();
       this.onCancel?.();
     });
@@ -186,7 +193,6 @@ export class RecordingDialog {
           keyval === Clutter.KEY_KP_Enter
         ) {
           if (!this.isPreviewMode) {
-            this.showProcessing();
             // Trigger the stop recording
             if (this.onStop) {
               this.onStop();
@@ -240,7 +246,6 @@ export class RecordingDialog {
 
     // Determine color based on progress
     let barColor = COLORS.PRIMARY;
-    let textColor = "white";
 
     if (progress > 0.8) {
       barColor = progress > 0.95 ? COLORS.DANGER : COLORS.WARNING;
@@ -259,7 +264,7 @@ export class RecordingDialog {
     // Update text style to match the progress bar
     this.timeDisplay.set_style(`
       font-size: 14px; 
-      color: ${textColor}; 
+      color: white; 
       font-weight: bold;
       text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
       padding: 0 12px;
@@ -267,7 +272,7 @@ export class RecordingDialog {
   }
 
   showProcessing() {
-    console.log("Showing processing state");
+    log.debug("Showing processing state");
 
     // Update the recording label to show processing
     if (this.recordingLabel) {
@@ -342,14 +347,11 @@ export class RecordingDialog {
       // Use St.Clipboard for proper GNOME Shell clipboard integration
       const clipboard = St.Clipboard.get_default();
       clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
-      console.log("✅ Text copied to clipboard successfully");
+      log.debug("✅ Text copied to clipboard successfully");
 
-      // Show a brief notification
-      Main.notify("Speech2Text", "Text copied to clipboard!");
       return true;
     } catch (e) {
       console.error(`❌ Error copying to clipboard: ${e}`);
-      Main.notify("Speech2Text Error", "Failed to copy to clipboard");
       return false;
     }
   }
@@ -358,7 +360,7 @@ export class RecordingDialog {
     this.isPreviewMode = true;
     this.transcribedText = text;
 
-    console.log(`Showing preview with text: "${text}"`);
+    log.debug(`Showing preview with text: "${text}"`);
 
     // Check if we're on Wayland
     const isWayland = Meta.is_wayland_compositor();
@@ -368,9 +370,7 @@ export class RecordingDialog {
       this.recordingIcon.set_text("📝");
     }
     if (this.recordingLabel) {
-      this.recordingLabel.set_text(
-        isWayland ? "Review & Copy" : "Review & Insert"
-      );
+      this.recordingLabel.set_text("Review");
     }
 
     // Update instructions
@@ -395,6 +395,24 @@ export class RecordingDialog {
       this.cancelButton.hide();
     }
 
+    this.container.set_style(`
+      background-color: ${COLORS.TRANSPARENT_BLACK_85};
+      border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
+      padding: ${STYLES.DIALOG_PADDING};
+      border: ${STYLES.DIALOG_BORDER};
+      min-width: 700px;
+      max-width: 900px;
+    `);
+
+    // Re-center after resize
+    const monitor = Main.layoutManager.primaryMonitor;
+    this.centerTimeoutId = centerWidgetOnMonitor(this.container, monitor, {
+      fallbackWidth: 585,
+      fallbackHeight: 400,
+      existingTimeoutId: this.centerTimeoutId,
+      onComplete: () => (this.centerTimeoutId = null),
+    });
+
     // Add text display for editing
     const textEntry = new St.Entry({
       text: text,
@@ -406,7 +424,7 @@ export class RecordingDialog {
         font-size: 16px;
         padding: 15px;
         margin: 10px 0;
-        width: 400px;
+        width: 500px;
         caret-color: ${COLORS.PRIMARY};
       `,
       can_focus: true,
@@ -434,10 +452,11 @@ export class RecordingDialog {
 
     // Create new button box for preview
     const buttonBox = createHorizontalBox();
+    buttonBox.set_x_align(Clutter.ActorAlign.CENTER);
 
     // Only show insert button on X11
     let insertButton = null;
-    if (!isWayland) {
+    if (!isWayland && this.allowInsert) {
       insertButton = createHoverButton(
         "Insert Text",
         COLORS.SUCCESS,
@@ -465,7 +484,7 @@ export class RecordingDialog {
     copyButton.connect("clicked", () => {
       // Copy to clipboard and close
       const finalText = textEntry.get_text();
-      console.log(`Copying text to clipboard: "${finalText}"`);
+      log.debug(`Copying text to clipboard: "${finalText}"`);
 
       // Copy to clipboard using our own method
       this._copyToClipboard(finalText);
@@ -525,7 +544,7 @@ export class RecordingDialog {
         ) {
           // Enter copies to clipboard and closes modal (default action)
           const finalText = textEntry.get_text();
-          console.log(`Copying text to clipboard (Enter key): "${finalText}"`);
+          log.debug(`Copying text to clipboard (Enter key): "${finalText}"`);
           this._copyToClipboard(finalText);
           this.close();
           this.onCancel?.();
@@ -537,7 +556,7 @@ export class RecordingDialog {
   }
 
   showError(message) {
-    console.log(`Showing error: ${message}`);
+    log.warn(`Showing error: ${message}`);
 
     // Update the recording label to show error
     if (this.recordingLabel) {
@@ -579,7 +598,7 @@ export class RecordingDialog {
   }
 
   open() {
-    console.log("Opening DBus recording dialog");
+    log.debug("Opening DBus recording dialog");
 
     try {
       // Add to UI
@@ -590,11 +609,13 @@ export class RecordingDialog {
       this.modalBarrier.set_position(monitor.x, monitor.y);
       this.modalBarrier.set_size(monitor.width, monitor.height);
 
-      // Center the dialog container within the barrier (matches original)
-      this.container.set_position(
-        (monitor.width - 450) / 2,
-        (monitor.height - 300) / 2
-      );
+      // Center the dialog container
+      this.centerTimeoutId = centerWidgetOnMonitor(this.container, monitor, {
+        fallbackWidth: 450,
+        fallbackHeight: 300,
+        existingTimeoutId: this.centerTimeoutId,
+        onComplete: () => (this.centerTimeoutId = null),
+      });
 
       this.modalBarrier.show();
 
@@ -622,18 +643,18 @@ export class RecordingDialog {
               // Try the safer approach first
               if (this.modalBarrier.grab_key_focus) {
                 this.modalBarrier.grab_key_focus();
-                console.log("Focus grabbed using grab_key_focus");
+                log.debug("Focus grabbed using grab_key_focus");
               }
 
               // Only try global.stage.set_key_focus on X11 or as fallback
               const isWayland = Meta.is_wayland_compositor();
               if (!isWayland && global.stage?.set_key_focus) {
                 global.stage.set_key_focus(this.modalBarrier);
-                console.log("Focus set using global.stage.set_key_focus");
+                log.debug("Focus set using global.stage.set_key_focus");
               }
             }
           } catch (error) {
-            console.log(
+            log.debug(
               "Failed to set focus (this is non-critical):",
               error.message
             );
@@ -646,18 +667,19 @@ export class RecordingDialog {
     } catch (error) {
       console.error("Error opening recording dialog:", error);
       if (this.modalBarrier) {
-        Main.layoutManager.removeChrome(this.modalBarrier);
+        // Keep behavior: remove from chrome only (no destroy) on open failure.
+        cleanupChromeWidget(this.modalBarrier, { destroy: false });
       }
       throw error;
     }
   }
 
   close() {
-    console.log("Closing DBus recording dialog");
+    log.debug("Closing DBus recording dialog");
 
     // Prevent multiple cleanup attempts
     if (!this.modalBarrier) {
-      console.log("Modal already cleaned up");
+      log.debug("Modal already cleaned up");
       return;
     }
 
@@ -686,6 +708,10 @@ export class RecordingDialog {
         GLib.Source.remove(this.delayedCleanupTimeoutId);
         this.delayedCleanupTimeoutId = null;
       }
+      if (this.centerTimeoutId) {
+        GLib.Source.remove(this.centerTimeoutId);
+        this.centerTimeoutId = null;
+      }
 
       // Safely disconnect signal handlers using a more defensive approach
       if (this.keyboardHandlerId) {
@@ -693,10 +719,10 @@ export class RecordingDialog {
           // Check if the connection is still valid before disconnecting
           if (this.modalBarrier && this.modalBarrier.disconnect) {
             this.modalBarrier.disconnect(this.keyboardHandlerId);
-            console.log("Keyboard handler disconnected successfully");
+            log.debug("Keyboard handler disconnected successfully");
           }
         } catch (error) {
-          console.log(
+          log.debug(
             "Signal handler already disconnected or invalid:",
             error.message
           );
@@ -711,7 +737,7 @@ export class RecordingDialog {
         try {
           this.modalBarrier.hide();
         } catch (hideError) {
-          console.log("Could not hide modal:", hideError.message);
+          log.warn("Could not hide modal:", hideError.message);
         }
 
         // Use timeout to ensure the hide operation completes before destruction
@@ -730,114 +756,16 @@ export class RecordingDialog {
           }
         })();
 
-        // Cleanup will be done immediately to avoid timeout issues
+        // Cleanup will be done immediately to avoid timeout issues.
+        try {
+          if (this.cleanupTimeoutId) {
+            GLib.Source.remove(this.cleanupTimeoutId);
+          }
 
-        // Do immediate cleanup instead of delayed to avoid timeout issues on disable
-        import("gi://GLib")
-          .then(({ default: GLib }) => {
-            if (this.cleanupTimeoutId) {
-              GLib.Source.remove(this.cleanupTimeoutId);
-            }
-            // Execute cleanup immediately instead of creating a timeout
-            (() => {
-              try {
-                // Remove from chrome if it has a parent
-                if (modal.get_parent) {
-                  const parent = modal.get_parent();
-                  if (parent) {
-                    // Try the official method first
-                    try {
-                      Main.layoutManager.removeChrome(modal);
-                      console.log("Modal removed from chrome successfully");
-                    } catch (chromeError) {
-                      console.log(
-                        "Chrome removal failed, trying direct parent removal:",
-                        chromeError.message
-                      );
-                      // For GNOME 48+, try a gentler approach first
-                      if (isGNOME48Plus) {
-                        try {
-                          // Try to hide first, then remove with delay
-                          if (modal.hide) modal.hide();
-                          // Do immediate removal instead of delayed
-                          try {
-                            parent.remove_child(modal);
-                            console.log(
-                              "Modal removed from parent immediately (GNOME 48+)"
-                            );
-                          } catch (delayedError) {
-                            console.log(
-                              "Immediate parent removal failed:",
-                              delayedError.message
-                            );
-                          }
-                        } catch (gnome48Error) {
-                          console.log(
-                            "GNOME 48+ specific removal failed:",
-                            gnome48Error.message
-                          );
-                          // Fallback to direct removal
-                          try {
-                            parent.remove_child(modal);
-                            console.log(
-                              "Modal removed from parent directly (fallback)"
-                            );
-                          } catch (parentError) {
-                            console.log(
-                              "Direct parent removal also failed:",
-                              parentError.message
-                            );
-                          }
-                        }
-                      } else {
-                        // Standard fallback for older GNOME versions
-                        try {
-                          parent.remove_child(modal);
-                          console.log("Modal removed from parent directly");
-                        } catch (parentError) {
-                          console.log(
-                            "Direct parent removal also failed:",
-                            parentError.message
-                          );
-                        }
-                      }
-                    }
-                  }
-                }
-
-                // Finally, destroy the modal
-                if (modal.destroy) {
-                  try {
-                    modal.destroy();
-                    console.log("Modal destroyed successfully");
-                  } catch (destroyError) {
-                    console.log(
-                      "Modal destruction failed:",
-                      destroyError.message
-                    );
-                  }
-                }
-              } catch (cleanupError) {
-                console.log("Delayed cleanup failed:", cleanupError.message);
-              }
-            })();
-          })
-          .catch(() => {
-            // Fallback if GLib import fails - try immediate cleanup
-            try {
-              if (modal.get_parent && modal.get_parent()) {
-                Main.layoutManager.removeChrome(modal);
-              }
-              if (modal.destroy) {
-                modal.destroy();
-              }
-            } catch (immediateError) {
-              console.log(
-                "Immediate fallback cleanup failed:",
-                immediateError.message
-              );
-            }
-          });
+          cleanupRecordingModal(modal, { isGNOME48Plus });
+        } catch (cleanupError) {
+          log.warn("Delayed cleanup failed:", cleanupError.message);
+        }
       }
     } catch (error) {
       console.error("Error closing recording dialog:", error.message);

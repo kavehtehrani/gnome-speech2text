@@ -17,7 +17,7 @@ import {
   createCloseButton,
   createIncrementButton,
 } from "./buttonUtils.js";
-import { cleanupModal } from "./resourceUtils.js";
+import { cleanupModal, centerWidgetOnMonitor, log } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
   constructor(extension, errorMessage) {
@@ -609,19 +609,14 @@ This service is installed separately from the extension (following GNOME guideli
         null
       );
 
-      Main.notify("Speech2Text", "Opening GitHub repository in browser...");
+      log.debug("Opening GitHub repository in browser...");
     } catch (e) {
       console.error(`Error opening URL via portal: ${e}`);
       try {
         // Fallback to xdg-open if portal fails
         Gio.app_info_launch_default_for_uri(url, null);
-        Main.notify("Speech2Text", "Opening GitHub repository in browser...");
       } catch (fallbackError) {
         console.error(`Error opening URL: ${fallbackError}`);
-        Main.notify(
-          "Speech2Text Error",
-          "Failed to open browser. URL copied to clipboard."
-        );
         this._copyToClipboard(url);
       }
     }
@@ -647,8 +642,7 @@ This service is installed separately from the extension (following GNOME guideli
 
       const gpuFlag = this._selectedDevice === "gpu" ? " --gpu" : "";
       const modelFlag = ` --whisper-model ${this._selectedModel}`;
-      const command = `bash -c "'${scriptPath}' --pypi --non-interactive${gpuFlag}; echo; echo 'Press Enter to close...'; read"`;
-      const commandWithModel = `bash -c "'${scriptPath}' --pypi --non-interactive${gpuFlag}${modelFlag}; echo; echo 'Press Enter to close...'; read"`;
+      const command = `bash -c "'${scriptPath}' --pypi --non-interactive${gpuFlag}${modelFlag}; echo; echo 'Press Enter to close...'; read"`;
 
       // Detect available terminal emulator
       const terminal = this._detectTerminal();
@@ -658,17 +652,13 @@ This service is installed separately from the extension (following GNOME guideli
           const terminalArgs = this._getTerminalArgs(
             terminal,
             workingDir,
-            commandWithModel
+            command
           );
           Gio.Subprocess.new(
             [terminal, ...terminalArgs],
             Gio.SubprocessFlags.NONE
           );
 
-          Main.notify(
-            "Speech2Text",
-            "🔧 Opening service installation in terminal..."
-          );
           this.close();
         } catch (terminalError) {
           console.error(`Could not open ${terminal}: ${terminalError}`);
@@ -676,18 +666,10 @@ This service is installed separately from the extension (following GNOME guideli
         }
       } else {
         console.error("No terminal emulator found");
-        Main.notify(
-          "Speech2Text Error",
-          "No terminal emulator found. Please install a terminal like gnome-terminal, ptyxis, terminator, or xterm."
-        );
         this._fallbackToClipboard(scriptPath);
       }
     } catch (e) {
       console.error(`Error running automatic install: ${e}`);
-      Main.notify(
-        "Speech2Text Error",
-        "Automatic installation failed. Please use manual method."
-      );
     }
   }
 
@@ -704,7 +686,7 @@ This service is installed separately from the extension (following GNOME guideli
       try {
         const foundPath = GLib.find_program_in_path(terminal);
         if (foundPath && foundPath.length > 0) {
-          console.log(`Found terminal: ${terminal} at ${foundPath}`);
+          log.debug(`Found terminal: ${terminal} at ${foundPath}`);
           return terminal;
         }
       } catch (_e) {
@@ -747,9 +729,8 @@ This service is installed separately from the extension (following GNOME guideli
     const localInstallCmd = `bash "${scriptPath}" --pypi --non-interactive${gpuFlag}${modelFlag}`;
     this._copyToClipboard(localInstallCmd);
 
-    Main.notify(
-      "Speech2Text",
-      "Could not open terminal. Installation command copied to clipboard - please open a terminal manually and paste the command."
+    log.debug(
+      "Could not open terminal. Installation command copied to clipboard."
     );
 
     // Show additional help dialog
@@ -844,21 +825,16 @@ If you're still having trouble, you can also:
     this.overlay.set_size(monitor.width, monitor.height);
 
     // Center the dialog
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-    }
-    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [dialogWidth, dialogHeight] = this.dialogContainer.get_size();
-      if (dialogWidth === 0) dialogWidth = 700;
-      if (dialogHeight === 0) dialogHeight = 500;
-
-      // Use integer coordinates in overlay parent space to avoid subpixel blur
-      const centerX = Math.round((monitor.width - dialogWidth) / 2);
-      const centerY = Math.round((monitor.height - dialogHeight) / 2);
-      this.dialogContainer.set_position(centerX, centerY);
-      this.centerTimeoutId = null;
-      return false;
-    });
+    this.centerTimeoutId = centerWidgetOnMonitor(
+      this.dialogContainer,
+      monitor,
+      {
+        fallbackWidth: 700,
+        fallbackHeight: 500,
+        existingTimeoutId: this.centerTimeoutId,
+        onComplete: () => (this.centerTimeoutId = null),
+      }
+    );
 
     this.overlay.grab_key_focus();
     this.overlay.set_reactive(true);
