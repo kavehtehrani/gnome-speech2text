@@ -39,6 +39,7 @@ install:
 	@echo "📦 Installing extension to $(EXTENSION_DIR)..."
 	@mkdir -p $(EXTENSION_DIR)
 	@cp -r $(SOURCE_DIR)/* $(EXTENSION_DIR)/
+	@rm -f $(SCHEMAS_DIR)/gschemas.compiled
 	@echo "✅ Extension files installed successfully!"
 	@echo "🔧 Compiling GSettings schemas..."
 	@glib-compile-schemas $(SCHEMAS_DIR)
@@ -153,8 +154,10 @@ package:
 	mkdir -p "$$PACKAGE_DIR" && \
 	echo "   Copying extension files..." && \
 	cp -r $(SOURCE_DIR)/* "$$PACKAGE_DIR/" && \
-	echo "   Recompiling schemas for package..." && \
-	glib-compile-schemas "$$PACKAGE_DIR/schemas/" && \
+	echo "   Validating schemas..." && \
+	glib-compile-schemas --strict "$$PACKAGE_DIR/schemas/" && \
+	echo "   Removing compiled schema (will be compiled on target system)..." && \
+	rm -f "$$PACKAGE_DIR/schemas/gschemas.compiled" && \
 	echo "   Service is now separate (not included in extension package)..." && \
 	echo "   Creating ZIP package..." && \
 	cd "$$PACKAGE_DIR" && \
