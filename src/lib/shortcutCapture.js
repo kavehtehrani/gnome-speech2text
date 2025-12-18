@@ -1,10 +1,10 @@
 import Clutter from "gi://Clutter";
-import GLib from "gi://GLib";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { COLORS, STYLES } from "./constants.js";
-import { createStyledLabel } from "./uiUtils.js";
+import { createCloseButton, createHeaderLayout } from "./buttonUtils.js";
+import { createStyledLabel, createHoverButton } from "./uiUtils.js";
 import { cleanupModal } from "./resourceUtils.js";
 
 export class ShortcutCapture {
@@ -13,33 +13,14 @@ export class ShortcutCapture {
     this.captureWindow = null;
     this.keyPressHandler = null;
     this.keyReleaseHandler = null;
-    this.centerTimeoutId = null;
+    this.clickHandler = null;
+    this.callback = null;
   }
 
   capture(callback) {
-    // Create a modal dialog to capture new shortcut
-    this.captureWindow = new St.BoxLayout({
-      style_class: "capture-shortcut-window",
-      vertical: true,
-      style: `
-        background-color: rgba(20, 20, 20, 0.95);
-        border-radius: 12px;
-        padding: 30px;
-        min-width: 400px;
-        border: ${STYLES.DIALOG_BORDER};
-      `,
-    });
+    this.callback = callback;
 
-    let instructionLabel = createStyledLabel(
-      "Press the key combination you want to use",
-      "subtitle"
-    );
-    let hintLabel = createStyledLabel("Press Escape to cancel", "description");
-
-    this.captureWindow.add_child(instructionLabel);
-    this.captureWindow.add_child(hintLabel);
-
-    // Create modal overlay
+    // Create modal overlay FIRST (same pattern as other dialogs)
     this.overlay = new St.Widget({
       style: `background-color: ${COLORS.TRANSPARENT_BLACK_70};`,
       reactive: true,
@@ -47,28 +28,60 @@ export class ShortcutCapture {
       track_hover: true,
     });
 
+    // Create a modal dialog to capture new shortcut
+    this.captureWindow = new St.BoxLayout({
+      style_class: "capture-shortcut-window",
+      vertical: true,
+      style: `
+        background-color: rgba(20, 20, 20, 0.95);
+        border-radius: 12px;
+        padding: 24px;
+        min-width: 400px;
+        border: ${STYLES.DIALOG_BORDER};
+      `,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    // Header with close button (matching other modals)
+    const titleContainer = new St.BoxLayout({
+      vertical: false,
+      style: "spacing: 10px;",
+      x_align: Clutter.ActorAlign.START,
+      x_expand: true,
+    });
+    const titleIcon = createStyledLabel("⌨️", "icon", "font-size: 24px;");
+    const titleLabel = createStyledLabel("Set Keyboard Shortcut", "subtitle");
+    titleContainer.add_child(titleIcon);
+    titleContainer.add_child(titleLabel);
+
+    this.closeButton = createCloseButton(28);
+    this.closeButton.connect("clicked", () => {
+      this._cancel();
+    });
+
+    const headerBox = createHeaderLayout(titleContainer, this.closeButton);
+    this.captureWindow.add_child(headerBox);
+
+    // Instructions
+    const instructionLabel = createStyledLabel(
+      "Press the key combination you want to use",
+      "normal",
+      `color: ${COLORS.LIGHT_GRAY}; margin-top: 15px; margin-bottom: 5px;`
+    );
+    const hintLabel = createStyledLabel(
+      "Use modifier keys (Ctrl, Alt, Shift, Super) + a letter or key",
+      "description"
+    );
+
+    this.captureWindow.add_child(instructionLabel);
+    this.captureWindow.add_child(hintLabel);
+
     this.overlay.add_child(this.captureWindow);
 
-    let monitor = Main.layoutManager.primaryMonitor;
-    this.overlay.set_size(monitor.width, monitor.height);
+    const monitor = Main.layoutManager.primaryMonitor;
     this.overlay.set_position(monitor.x, monitor.y);
-
-    // Center the capture window
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-    }
-    this.centerTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
-      let [windowWidth, windowHeight] = this.captureWindow.get_size();
-      if (windowWidth === 0) windowWidth = 400;
-      if (windowHeight === 0) windowHeight = 200;
-
-      this.captureWindow.set_position(
-        (monitor.width - windowWidth) / 2,
-        (monitor.height - windowHeight) / 2
-      );
-      this.centerTimeoutId = null;
-      return false;
-    });
+    this.overlay.set_size(monitor.width, monitor.height);
 
     Main.layoutManager.addTopChrome(this.overlay);
 
@@ -80,12 +93,38 @@ export class ShortcutCapture {
       super: false,
     };
 
-    let statusLabel = createStyledLabel(
+    // Status display
+    const statusLabel = createStyledLabel(
       "Waiting for key combination...",
       "normal",
-      `color: ${COLORS.LIGHT_GRAY}; font-size: 14px; margin-top: 10px;`
+      `
+        color: ${COLORS.WARNING};
+        font-size: 14px;
+        margin-top: 15px;
+        background-color: rgba(255, 140, 0, 0.1);
+        padding: 10px 15px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 140, 0, 0.3);
+      `
     );
     this.captureWindow.add_child(statusLabel);
+
+    // Cancel button
+    const buttonBox = new St.BoxLayout({
+      vertical: false,
+      style: "margin-top: 20px;",
+      x_align: Clutter.ActorAlign.CENTER,
+    });
+    const cancelButton = createHoverButton(
+      "Cancel",
+      COLORS.SECONDARY,
+      COLORS.DANGER
+    );
+    cancelButton.connect("clicked", () => {
+      this._cancel();
+    });
+    buttonBox.add_child(cancelButton);
+    this.captureWindow.add_child(buttonBox);
 
     // Function to update the display
     const updateDisplay = () => {
@@ -100,6 +139,22 @@ export class ShortcutCapture {
       statusLabel.set_text(display);
     };
 
+    // Modal overlay click handler (close on backdrop click)
+    this.clickHandler = this.overlay.connect(
+      "button-press-event",
+      (actor, event) => {
+        try {
+          if (event.get_source() === this.overlay) {
+            this._cancel();
+            return Clutter.EVENT_STOP;
+          }
+          return Clutter.EVENT_PROPAGATE;
+        } catch {
+          return Clutter.EVENT_STOP;
+        }
+      }
+    );
+
     // Capture keyboard input with better modifier handling
     this.keyPressHandler = this.overlay.connect(
       "key-press-event",
@@ -108,9 +163,7 @@ export class ShortcutCapture {
         const keyName = Clutter.keyval_name(keyval);
 
         if (keyval === Clutter.KEY_Escape) {
-          // Cancel capture
-          this.cleanup();
-          callback(null);
+          this._cancel();
           return Clutter.EVENT_STOP;
         }
 
@@ -155,8 +208,7 @@ export class ShortcutCapture {
           shortcut += keyName.toLowerCase();
 
           // Clean up and return result
-          this.cleanup();
-          callback(shortcut);
+          this._complete(shortcut);
           return Clutter.EVENT_STOP;
         }
 
@@ -175,22 +227,31 @@ export class ShortcutCapture {
     this.overlay.set_reactive(true);
   }
 
-  cleanup() {
-    // Clean up timeout sources
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-      this.centerTimeoutId = null;
-    }
+  _cancel() {
+    const cb = this.callback;
+    this.cleanup();
+    if (cb) cb(null);
+  }
 
+  _complete(shortcut) {
+    const cb = this.callback;
+    this.cleanup();
+    if (cb) cb(shortcut);
+  }
+
+  cleanup() {
     if (this.overlay) {
       cleanupModal(this.overlay, {
         keyPressHandler: this.keyPressHandler,
         keyReleaseHandler: this.keyReleaseHandler,
+        clickHandler: this.clickHandler,
       });
       this.overlay = null;
       this.captureWindow = null;
       this.keyPressHandler = null;
       this.keyReleaseHandler = null;
+      this.clickHandler = null;
     }
+    this.callback = null;
   }
 }
