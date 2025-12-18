@@ -341,7 +341,6 @@ export class SettingsDialog {
           this.settings.set_strv("toggle-recording", [newShortcut]);
           this.currentShortcutDisplay.set_text(newShortcut);
           this.extension.keybindingManager?.setupKeybinding();
-          Main.notify("Speech2Text", `Shortcut changed to: ${newShortcut}`);
         }
       });
     });
@@ -351,17 +350,12 @@ export class SettingsDialog {
       this.settings.set_strv("toggle-recording", [defaultShortcut]);
       this.currentShortcutDisplay.set_text(defaultShortcut);
       this.extension.keybindingManager?.setupKeybinding();
-      Main.notify(
-        "Speech2Text",
-        `Shortcut reset to default: ${defaultShortcut}`
-      );
     });
 
     this.removeShortcutButton.connect("clicked", () => {
       Main.wm.removeKeybinding("toggle-recording");
       this.settings.set_strv("toggle-recording", []);
       this.currentShortcutDisplay.set_text("No shortcut set");
-      Main.notify("Speech2Text", "Keyboard shortcut removed");
     });
 
     // Duration controls
@@ -396,10 +390,6 @@ export class SettingsDialog {
       `);
 
       this.clipboardCheckboxIcon.set_text(newState ? "✓" : "");
-      Main.notify(
-        "Speech2Text",
-        `Clipboard copying ${newState ? "enabled" : "disabled"}`
-      );
     });
 
     const _setSkipPreviewToggleUi = (enabled) => {
@@ -462,10 +452,6 @@ export class SettingsDialog {
         _setSkipPreviewEnabledState(!newState);
 
         _setNonBlockingToggleUi(newState);
-        Main.notify(
-          "Speech2Text",
-          `Non-blocking transcription ${newState ? "enabled" : "disabled"}`
-        );
       });
 
       // Initialize auto-insert toggle disabled state based on current setting.
@@ -480,10 +466,6 @@ export class SettingsDialog {
       this.skipPreviewCheckbox.connect("clicked", () => {
         // If non-blocking is enabled, don't allow auto-insert.
         if (this.settings.get_boolean("non-blocking-transcription")) {
-          Main.notify(
-            "Speech2Text",
-            "Disable non-blocking transcription to enable auto-insert."
-          );
           return;
         }
 
@@ -502,10 +484,6 @@ export class SettingsDialog {
         }
 
         _setSkipPreviewToggleUi(newState);
-        Main.notify(
-          "Speech2Text",
-          `Auto-insert mode ${newState ? "enabled" : "disabled"} (X11 only)`
-        );
       });
     }
 

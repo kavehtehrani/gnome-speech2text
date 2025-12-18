@@ -60,19 +60,14 @@ export class RecordingStateManager {
               "Service does not support SetWhisperConfig yet; continuing with default base+cpu."
             );
           } else {
-            Main.notify(
-              "Speech2Text",
-              "Your installed service is outdated and doesn't support model/device selection yet. Please reinstall/upgrade the service."
+            log.warn(
+              "Service does not support SetWhisperConfig; selected model/device requires service upgrade."
             );
             return false;
           }
         }
       } catch (e) {
         console.error(`Failed to set Whisper config: ${e.message}`);
-        Main.notify(
-          "Speech2Text Error",
-          `Failed to apply Whisper settings: ${e.message}`
-        );
         return false;
       }
 

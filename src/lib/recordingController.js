@@ -1,7 +1,6 @@
 import St from "gi://St";
 import { RecordingStateManager } from "./recordingStateManager.js";
 import { RecordingDialog } from "./recordingDialog.js";
-import { TranscriptionProgress } from "./transcriptionProgress.js";
 import { log } from "./resourceUtils.js";
 
 export class RecordingController {
@@ -9,7 +8,6 @@ export class RecordingController {
     this.uiManager = uiManager;
     this.serviceManager = serviceManager;
     this.recordingStateManager = null;
-    this.transcriptionProgress = null;
   }
 
   initialize() {
@@ -31,9 +29,8 @@ export class RecordingController {
       const stopped = await this.recordingStateManager.stopRecording();
       if (stopped) {
         this._beginTranscriptionUi();
-      } else {
-        this.uiManager.notify("Speech2Text Error", "Failed to stop recording.");
       }
+      // Silently fail - no notification for stop failure
     } else {
       log.debug("Starting recording");
 
@@ -71,11 +68,6 @@ export class RecordingController {
             const stopped = await this.recordingStateManager.stopRecording();
             if (stopped) {
               this._beginTranscriptionUi();
-            } else {
-              this.uiManager.notify(
-                "Speech2Text Error",
-                "Failed to stop recording."
-              );
             }
           },
           settings.get_int("recording-duration")
@@ -94,11 +86,6 @@ export class RecordingController {
         if (selectedModel !== "base" || selectedDevice !== "cpu") {
           this.uiManager.showServiceSetupDialog(
             "Your installed Speech2Text service is outdated and doesn't support model/device selection yet. Reinstall/upgrade the service using the options below."
-          );
-        } else {
-          this.uiManager.notify(
-            "Speech2Text Error",
-            "Failed to start recording. Please try again."
           );
         }
       }
@@ -172,10 +159,7 @@ export class RecordingController {
         }
       } catch (e) {
         console.error(`Error copying to clipboard: ${e}`);
-        this.uiManager.notify(
-          "Speech2Text Error",
-          "Failed to handle transcription result."
-        );
+        // Silently fail - error already logged
       }
       return;
     }
@@ -204,10 +188,8 @@ export class RecordingController {
         "non-blocking-transcription"
       )
     ) {
-      this.uiManager.notify(
-        "Speech2Text Error",
-        `Transcription failed: ${errorMessage}`
-      );
+      // Silently fail for transcription errors - error already logged
+      console.error(`Transcription failed: ${errorMessage}`);
     }
 
     this.recordingStateManager.handleRecordingError(recordingId, errorMessage);
@@ -262,7 +244,6 @@ export class RecordingController {
       );
     } catch (e) {
       console.error(`Error typing text: ${e}`);
-      this.uiManager.notify("Speech2Text Error", "Failed to insert text.");
     }
   }
 
@@ -283,17 +264,8 @@ export class RecordingController {
         }
       }
 
-      if (this.transcriptionProgress) {
-        this.transcriptionProgress.close();
-        this.transcriptionProgress = null;
-      }
-
-      this.transcriptionProgress = new TranscriptionProgress(() => {
-        // Cancel processing: discard audio and stop waiting.
-        this.recordingStateManager.cancelRecording();
-        this._endTranscriptionUi();
-      });
-      this.transcriptionProgress.open();
+      // Show processing state in tray icon (no notification - just visual indicator)
+      this.uiManager.showProcessingState();
       return;
     }
 
@@ -305,14 +277,8 @@ export class RecordingController {
   }
 
   _endTranscriptionUi() {
-    if (this.transcriptionProgress) {
-      try {
-        this.transcriptionProgress.close();
-      } catch (e) {
-        // Ignore cleanup errors.
-      }
-      this.transcriptionProgress = null;
-    }
+    // Hide the processing state in tray icon
+    this.uiManager.hideProcessingState();
   }
 
   cleanup() {

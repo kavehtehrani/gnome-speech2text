@@ -609,19 +609,14 @@ This service is installed separately from the extension (following GNOME guideli
         null
       );
 
-      Main.notify("Speech2Text", "Opening GitHub repository in browser...");
+      log.debug("Opening GitHub repository in browser...");
     } catch (e) {
       console.error(`Error opening URL via portal: ${e}`);
       try {
         // Fallback to xdg-open if portal fails
         Gio.app_info_launch_default_for_uri(url, null);
-        Main.notify("Speech2Text", "Opening GitHub repository in browser...");
       } catch (fallbackError) {
         console.error(`Error opening URL: ${fallbackError}`);
-        Main.notify(
-          "Speech2Text Error",
-          "Failed to open browser. URL copied to clipboard."
-        );
         this._copyToClipboard(url);
       }
     }
@@ -664,10 +659,6 @@ This service is installed separately from the extension (following GNOME guideli
             Gio.SubprocessFlags.NONE
           );
 
-          Main.notify(
-            "Speech2Text",
-            "🔧 Opening service installation in terminal..."
-          );
           this.close();
         } catch (terminalError) {
           console.error(`Could not open ${terminal}: ${terminalError}`);
@@ -675,18 +666,10 @@ This service is installed separately from the extension (following GNOME guideli
         }
       } else {
         console.error("No terminal emulator found");
-        Main.notify(
-          "Speech2Text Error",
-          "No terminal emulator found. Please install a terminal like gnome-terminal, ptyxis, terminator, or xterm."
-        );
         this._fallbackToClipboard(scriptPath);
       }
     } catch (e) {
       console.error(`Error running automatic install: ${e}`);
-      Main.notify(
-        "Speech2Text Error",
-        "Automatic installation failed. Please use manual method."
-      );
     }
   }
 
@@ -746,9 +729,8 @@ This service is installed separately from the extension (following GNOME guideli
     const localInstallCmd = `bash "${scriptPath}" --pypi --non-interactive${gpuFlag}${modelFlag}`;
     this._copyToClipboard(localInstallCmd);
 
-    Main.notify(
-      "Speech2Text",
-      "Could not open terminal. Installation command copied to clipboard - please open a terminal manually and paste the command."
+    log.debug(
+      "Could not open terminal. Installation command copied to clipboard."
     );
 
     // Show additional help dialog

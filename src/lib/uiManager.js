@@ -14,6 +14,8 @@ export class UIManager {
   constructor(extensionCore) {
     this.extensionCore = extensionCore;
     this.icon = null;
+    this.iconWidget = null;
+    this.processingLabel = null;
     this.settingsDialog = null;
   }
 
@@ -21,12 +23,28 @@ export class UIManager {
     // Create the panel button
     this.icon = new PanelMenu.Button(0.0, "Speech2Text Indicator");
 
+    // Container to hold icon and processing indicator
+    const iconBox = new St.BoxLayout({
+      style_class: "panel-status-indicators-box",
+    });
+
     // Set up the icon
-    let icon = new St.Icon({
+    this.iconWidget = new St.Icon({
       icon_name: "microphone-symbolic",
       style_class: "system-status-icon",
     });
-    this.icon.add_child(icon);
+    iconBox.add_child(this.iconWidget);
+
+    // Processing label (hidden by default)
+    this.processingLabel = new St.Label({
+      text: "...",
+      style: "font-weight: bold; margin-left: 2px;",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    this.processingLabel.hide();
+    iconBox.add_child(this.processingLabel);
+
+    this.icon.add_child(iconBox);
 
     // Create popup menu
     this.createPopupMenu();
@@ -85,6 +103,18 @@ export class UIManager {
     }
 
     Main.panel.addToStatusArea("speech2text-indicator", this.icon);
+  }
+
+  showProcessingState() {
+    if (this.processingLabel) {
+      this.processingLabel.show();
+    }
+  }
+
+  hideProcessingState() {
+    if (this.processingLabel) {
+      this.processingLabel.hide();
+    }
   }
 
   showSettingsWindow() {

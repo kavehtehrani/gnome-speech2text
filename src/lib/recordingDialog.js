@@ -349,12 +349,9 @@ export class RecordingDialog {
       clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
       log.debug("✅ Text copied to clipboard successfully");
 
-      // Show a brief notification
-      Main.notify("Speech2Text", "Text copied to clipboard!");
       return true;
     } catch (e) {
       console.error(`❌ Error copying to clipboard: ${e}`);
-      Main.notify("Speech2Text Error", "Failed to copy to clipboard");
       return false;
     }
   }
@@ -373,9 +370,7 @@ export class RecordingDialog {
       this.recordingIcon.set_text("📝");
     }
     if (this.recordingLabel) {
-      this.recordingLabel.set_text(
-        isWayland ? "Review & Copy" : "Review & Insert"
-      );
+      this.recordingLabel.set_text("Review");
     }
 
     // Update instructions
@@ -400,20 +395,19 @@ export class RecordingDialog {
       this.cancelButton.hide();
     }
 
-    // Widen the container for preview mode (25% wider)
     this.container.set_style(`
       background-color: ${COLORS.TRANSPARENT_BLACK_85};
       border-radius: ${STYLES.DIALOG_BORDER_RADIUS};
       padding: ${STYLES.DIALOG_PADDING};
       border: ${STYLES.DIALOG_BORDER};
-      min-width: 560px;
-      max-width: 750px;
+      min-width: 700px;
+      max-width: 900px;
     `);
 
     // Re-center after resize
     const monitor = Main.layoutManager.primaryMonitor;
     this.centerTimeoutId = centerWidgetOnMonitor(this.container, monitor, {
-      fallbackWidth: 560,
+      fallbackWidth: 585,
       fallbackHeight: 400,
       existingTimeoutId: this.centerTimeoutId,
       onComplete: () => (this.centerTimeoutId = null),
