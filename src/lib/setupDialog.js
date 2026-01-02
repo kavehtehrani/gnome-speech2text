@@ -23,10 +23,6 @@ export class ServiceSetupDialog {
   constructor(extension, errorMessage) {
     this.extension = extension;
     this.errorMessage = errorMessage;
-    this.isManualRequest = errorMessage === "Manual setup guide requested";
-    this.isReinstallRequired =
-      typeof errorMessage === "string" &&
-      errorMessage.startsWith("reinstall_required:");
     this.overlay = null;
     this.centerTimeoutId = null;
 
@@ -97,25 +93,11 @@ export class ServiceSetupDialog {
     titleContainer.set_x_align(Clutter.ActorAlign.START);
     titleContainer.set_x_expand(true);
 
-    const headerIcon = createStyledLabel(
-      this.isManualRequest ? "📚" : this.isReinstallRequired ? "🔧" : "⚠️",
-      "icon",
-      "font-size: 36px;"
-    );
+    const headerIcon = createStyledLabel("⚠️", "icon", "font-size: 36px;");
     const headerText = createStyledLabel(
-      this.isManualRequest
-        ? "GNOME Speech2Text Service Setup Guide"
-        : this.isReinstallRequired
-        ? "Service Reinstall Required"
-        : "Service Installation Required",
+      "GNOME Speech2Text Service Setup",
       "title",
-      `color: ${
-        this.isManualRequest
-          ? COLORS.INFO
-          : this.isReinstallRequired
-          ? COLORS.WARNING
-          : COLORS.PRIMARY
-      };`
+      `color: ${COLORS.PRIMARY};`
     );
 
     titleContainer.add_child(headerIcon);
@@ -125,60 +107,50 @@ export class ServiceSetupDialog {
     this.closeButton = createCloseButton(32);
     const headerBox = createHeaderLayout(titleContainer, this.closeButton);
 
-    // Initialize selection from settings (or reinstall_required hint) early,
+    // Initialize selection from settings early,
     // so we can show the current selection in the dialog text.
     this._initWhisperSelection();
 
     // Status message
     const statusText = (() => {
-      if (this.isManualRequest) {
-        let text = `Setup & reinstall options (current: ${
-          this._selectedModel
-        } on ${this._selectedDevice.toUpperCase()})`;
-        // Add installation timestamp if service is installed
-        if (this._installStateKnown && this._installedAt) {
-          // Format timestamp for display (e.g., "2024-01-15T10:30:00Z" -> "Jan 15, 2024 10:30")
-          try {
-            const date = new Date(this._installedAt);
-            const formattedDate = date.toLocaleString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-            text += ` • Installed: ${formattedDate}`;
-          } catch (_e) {
-            // If date parsing fails, just show the raw timestamp
-            text += ` • Installed: ${this._installedAt}`;
-          }
+      let text = `Current configuration: ${
+        this._selectedModel
+      } on ${this._selectedDevice.toUpperCase()}`;
+      // Add installation timestamp if service is installed
+      if (this._installStateKnown && this._installedAt) {
+        // Format timestamp for display (e.g., "2024-01-15T10:30:00Z" -> "Jan 15, 2024 10:30")
+        try {
+          const date = new Date(this._installedAt);
+          const formattedDate = date.toLocaleString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          text += ` • Installed: ${formattedDate}`;
+        } catch (_e) {
+          // If date parsing fails, just show the raw timestamp
+          text += ` • Installed: ${this._installedAt}`;
         }
-        return text;
+      } else if (!this._installStateKnown) {
+        // Service not installed
+        text = `Service Status: ${
+          this.errorMessage || "Service not installed"
+        }`;
       }
-      if (this.isReinstallRequired) {
-        const device = this.errorMessage.split(":", 2)[1] || "gpu";
-        return `Service reinstall required to switch to ${device.toUpperCase()} mode`;
-      }
-      return `Service Status: ${this.errorMessage}`;
+      return text;
     })();
     const statusLabel = new St.Label({
       text: statusText,
       style: `
         font-size: 14px;
-        color: ${
-          this.isManualRequest
-            ? COLORS.INFO
-            : this.isReinstallRequired
-            ? COLORS.WARNING
-            : COLORS.DANGER
-        };
+        color: ${this._installStateKnown ? COLORS.INFO : COLORS.DANGER};
         margin: 10px 0;
         padding: 10px;
         background-color: ${
-          this.isManualRequest
+          this._installStateKnown
             ? "rgba(23, 162, 184, 0.1)"
-            : this.isReinstallRequired
-            ? "rgba(255, 140, 0, 0.1)"
             : "rgba(255, 0, 0, 0.1)"
         };
         border-radius: 5px;
@@ -186,18 +158,9 @@ export class ServiceSetupDialog {
     });
 
     // Main explanation
-    const explanation = (() => {
-      if (this.isManualRequest) {
-        return `Instructions for installing and troubleshooting the Speech2Text service.
-Use this if you need to reinstall the d-bus service.`;
-      }
-      if (this.isReinstallRequired) {
-        return `You changed the Whisper compute device (CPU/GPU).
-The background service uses a Python environment; switching devices may require reinstalling it so the correct ML dependencies are installed.`;
-      }
-      return `GNOME Speech2Text requires a background service for speech processing.
-This service is installed separately from the extension (following GNOME guidelines).`;
-    })();
+    const explanation = `GNOME Speech2Text requires a background service for speech processing.
+This service is installed separately from the extension (following GNOME guidelines).
+Copy the command below and run it in your terminal to install or reinstall the service.`;
     const explanationText = new St.Label({
       text: explanation,
       style: `
@@ -245,54 +208,22 @@ This service is installed separately from the extension (following GNOME guideli
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0;`,
     });
 
-    const repoLinkBox = new St.Button({
+    const repoLink = new St.Button({
       label: "https://github.com/kavehtehrani/gnome-speech2text",
       style: `
-        background-color: ${COLORS.LIGHT_GRAY};
-        border: 1px solid ${COLORS.INFO};
-        border-radius: 5px;
+        background-color: transparent;
+        border: none;
         color: ${COLORS.INFO};
-        font-size: 12px;
-        padding: 10px;
-        margin: 5px 0 10px 20px;
-        width: 400px;
+        font-size: 14px;
+        padding: 0;
+        margin: 5px 0 10px 0;
         text-decoration: underline;
       `,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
+      x_align: Clutter.ActorAlign.START,
     });
 
-    repoLinkBox.connect("clicked", () => {
+    repoLink.connect("clicked", () => {
       this._openUrl("https://github.com/kavehtehrani/gnome-speech2text");
-    });
-
-    repoLinkBox.connect("enter-event", () => {
-      repoLinkBox.set_style(`
-        background-color: ${COLORS.INFO};
-        border: 1px solid ${COLORS.INFO};
-        border-radius: 5px;
-        color: ${COLORS.WHITE};
-        font-size: 12px;
-        padding: 10px;
-        margin: 5px 0 10px 20px;
-        width: 400px;
-        text-decoration: underline;
-      `);
-    });
-
-    repoLinkBox.connect("leave-event", () => {
-      repoLinkBox.set_style(`
-        background-color: ${COLORS.DARK_GRAY};
-        border: 1px solid ${COLORS.INFO};
-        border-radius: 5px;
-        color: ${COLORS.INFO};
-        font-size: 12px;
-        padding: 10px;
-        margin: 5px 0 10px 20px;
-        width: 400px;
-        text-decoration: underline;
-      `);
     });
 
     // Action buttons
@@ -314,7 +245,7 @@ This service is installed separately from the extension (following GNOME guideli
     // Keep only the GitHub link for manual instructions
     this.dialogContainer.add_child(manualTitle);
     this.dialogContainer.add_child(manualText);
-    this.dialogContainer.add_child(repoLinkBox);
+    this.dialogContainer.add_child(repoLink);
     this.dialogContainer.add_child(buttonBox);
 
     this.overlay.add_child(this.dialogContainer);
@@ -377,16 +308,6 @@ This service is installed separately from the extension (following GNOME guideli
         }
       } catch (_e) {
         // Ignore and fall back to defaults
-      }
-    }
-
-    // If dialog is opened as reinstall-required, prefer the requested device
-    if (this.isReinstallRequired) {
-      const requested = (
-        this.errorMessage.split(":", 2)[1] || ""
-      ).toLowerCase();
-      if (this._whisperDevices.includes(requested)) {
-        this._selectedDevice = requested;
       }
     }
   }
@@ -529,10 +450,7 @@ This service is installed separately from the extension (following GNOME guideli
     const updateDeviceStyle = () => {
       this.deviceValueLabel?.set_text(this._selectedDevice);
       this.deviceValueLabel?.set_style(
-        createAccentDisplayStyle(
-          this._selectedDevice === "gpu" ? COLORS.WARNING : COLORS.SUCCESS,
-          "160px"
-        )
+        createAccentDisplayStyle(COLORS.SUCCESS, "160px")
       );
     };
 
