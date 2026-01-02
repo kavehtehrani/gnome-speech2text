@@ -46,14 +46,14 @@ After installation, you need to register the D-Bus service and desktop entry. Re
 
 ```bash
 # From the repo root
-./src/install-service.sh --local
+./src/service/install-service.sh --local
 ```
 
 2. Using the bundled installer (PyPI install)
 
 ```bash
 # From the repo root
-./src/install-service.sh --pypi
+./src/service/install-service.sh --pypi
 ```
 
 The installer will:

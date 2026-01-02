@@ -104,7 +104,7 @@ export class ServiceSetupDialog {
     );
     const headerText = createStyledLabel(
       this.isManualRequest
-        ? "GNOME Speech2Text Setup Guide"
+        ? "GNOME Speech2Text Service Setup Guide"
         : this.isReinstallRequired
         ? "Service Reinstall Required"
         : "Service Installation Required",
@@ -132,9 +132,28 @@ export class ServiceSetupDialog {
     // Status message
     const statusText = (() => {
       if (this.isManualRequest) {
-        return `Setup & reinstall options (current: ${
+        let text = `Setup & reinstall options (current: ${
           this._selectedModel
         } on ${this._selectedDevice.toUpperCase()})`;
+        // Add installation timestamp if service is installed
+        if (this._installStateKnown && this._installedAt) {
+          // Format timestamp for display (e.g., "2024-01-15T10:30:00Z" -> "Jan 15, 2024 10:30")
+          try {
+            const date = new Date(this._installedAt);
+            const formattedDate = date.toLocaleString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            text += ` • Installed: ${formattedDate}`;
+          } catch (_e) {
+            // If date parsing fails, just show the raw timestamp
+            text += ` • Installed: ${this._installedAt}`;
+          }
+        }
+        return text;
       }
       if (this.isReinstallRequired) {
         const device = this.errorMessage.split(":", 2)[1] || "gpu";
@@ -186,24 +205,6 @@ This service is installed separately from the extension (following GNOME guideli
         color: ${COLORS.WHITE};
         margin: 15px 0;
         line-height: 1.5;
-      `,
-    });
-
-    // Show installed state (from installer marker file), and selection (local, not persisted until install)
-    this.installedConfigLabel = new St.Label({
-      text: this._getInstalledConfigText(),
-      style: `
-        font-size: 13px;
-        color: ${COLORS.LIGHT_GRAY};
-        margin: 0 0 8px 0;
-      `,
-    });
-    this.selectedConfigLabel = new St.Label({
-      text: this._getSelectedConfigText(),
-      style: `
-        font-size: 13px;
-        color: ${COLORS.LIGHT_GRAY};
-        margin: 0 0 8px 0;
       `,
     });
 
@@ -302,8 +303,6 @@ This service is installed separately from the extension (following GNOME guideli
     this.dialogContainer.add_child(headerBox);
     this.dialogContainer.add_child(statusLabel);
     this.dialogContainer.add_child(explanationText);
-    this.dialogContainer.add_child(this.installedConfigLabel);
-    this.dialogContainer.add_child(this.selectedConfigLabel);
     this.dialogContainer.add_child(autoInstallTitle);
     this.dialogContainer.add_child(autoInstallDescription);
     if (whisperConfigSection) {
@@ -440,11 +439,6 @@ This service is installed separately from the extension (following GNOME guideli
     return `Selected for (re)install: model=${this._selectedModel}, device=${this._selectedDevice}`;
   }
 
-  _refreshConfigLabels() {
-    this.installedConfigLabel?.set_text(this._getInstalledConfigText());
-    this.selectedConfigLabel?.set_text(this._getSelectedConfigText());
-  }
-
   _buildWhisperConfigSection() {
     const section = createVerticalBox("6px", "5px", "5px");
 
@@ -524,13 +518,11 @@ This service is installed separately from the extension (following GNOME guideli
         -1
       );
       this.modelValueLabel?.set_text(this._selectedModel);
-      this._refreshConfigLabels();
       this._updateCommand();
     });
     this.modelNextButton.connect("clicked", () => {
       this._selectedModel = rotate(this._whisperModels, this._selectedModel, 1);
       this.modelValueLabel?.set_text(this._selectedModel);
-      this._refreshConfigLabels();
       this._updateCommand();
     });
 
@@ -551,7 +543,6 @@ This service is installed separately from the extension (following GNOME guideli
         -1
       );
       updateDeviceStyle();
-      this._refreshConfigLabels();
       this._updateCommand();
     });
     this.deviceNextButton.connect("clicked", () => {
@@ -561,7 +552,6 @@ This service is installed separately from the extension (following GNOME guideli
         1
       );
       updateDeviceStyle();
-      this._refreshConfigLabels();
       this._updateCommand();
     });
 

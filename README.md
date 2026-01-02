@@ -124,13 +124,13 @@ If you only want to manually install the D-Bus service (for development or advan
 
 ```bash
 # Install just the service from local source
-./src/install-service.sh --local
+./src/service/install-service.sh --local
 
 # Or install from PyPI
-./src/install-service.sh --pypi
+./src/service/install-service.sh --pypi
 
 # Install with GPU-enabled ML dependencies (advanced)
-./src/install-service.sh --pypi --gpu
+./src/service/install-service.sh --pypi --gpu
 ```
 
 The service is available as a Python package on
