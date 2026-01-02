@@ -10,6 +10,7 @@ LOCAL_SOURCE_DIR=""
 PYTHON_OVERRIDE=""
 GPU_MODE=false
 WHISPER_MODEL=""
+SERVICE_VERSION=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -47,6 +48,14 @@ while [[ $# -gt 0 ]]; do
             WHISPER_MODEL="$2"
             shift 2
             ;;
+        --service-version)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --service-version requires a value (e.g. --service-version 1.1.0)"
+                exit 1
+            fi
+            SERVICE_VERSION="$2"
+            shift 2
+            ;;
         --help|-h)
             echo "GNOME Speech2Text Service Installer"
             echo ""
@@ -58,6 +67,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --pypi            Force installation from PyPI"
             echo "  --gpu             Install GPU-enabled ML dependencies (CUDA/accelerator support)"
             echo "  --whisper-model <name>  Record selected Whisper model (for UI display; does not affect deps)"
+            echo "  --service-version <version>  Specify exact service package version to install from PyPI (e.g. 1.1.0)"
             echo "  --non-interactive Run without user prompts (auto-accept defaults)"
             echo "  --help            Show this help message"
             echo ""
@@ -475,16 +485,30 @@ install_service_package() {
             
         "pypi")
             print_status "Installing gnome-speech2text-service from PyPI..."
-            REQUIRED_SERVICE_VERSION="1.1.0"
+            
+            # Use provided service version, or fall back to default for backwards compatibility
+            if [ -n "$SERVICE_VERSION" ]; then
+                REQUIRED_SERVICE_VERSION="$SERVICE_VERSION"
+                print_status "Installing exact version: $REQUIRED_SERVICE_VERSION"
+                PIP_SPEC="gnome-speech2text-service==$REQUIRED_SERVICE_VERSION"
+            else
+                REQUIRED_SERVICE_VERSION="1.1.0"
+                print_status "Using default minimum version: $REQUIRED_SERVICE_VERSION"
+                PIP_SPEC="gnome-speech2text-service>=$REQUIRED_SERVICE_VERSION"
+            fi
             
             # Try PyPI installation with fallback
             # Require the service version that includes dbus-next (no dbus-python/PyGObject build deps).
-            if "$VENV_DIR/bin/pip" install --upgrade --no-deps --index-url "https://pypi.org/simple" "gnome-speech2text-service>=$REQUIRED_SERVICE_VERSION"; then
+            if "$VENV_DIR/bin/pip" install --upgrade --no-deps --index-url "https://pypi.org/simple" "$PIP_SPEC"; then
                 echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
             else
                 echo ""
                 print_warning "PyPI installation failed!"
-                echo "This installer requires gnome-speech2text-service >= $REQUIRED_SERVICE_VERSION."
+                if [ -n "$SERVICE_VERSION" ]; then
+                    echo "This installer requires gnome-speech2text-service == $REQUIRED_SERVICE_VERSION."
+                else
+                    echo "This installer requires gnome-speech2text-service >= $REQUIRED_SERVICE_VERSION."
+                fi
                 echo "If you are developing locally, re-run with --local to install from this repository."
                 
                 # Offer local fallback if available

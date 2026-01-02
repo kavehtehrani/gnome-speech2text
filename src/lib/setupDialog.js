@@ -61,6 +61,8 @@ export class ServiceSetupDialog {
     this.deviceNextButton = null;
     this.installedConfigLabel = null;
     this.selectedConfigLabel = null;
+    this.commandLabel = null;
+    this.copyButton = null;
 
     this._buildDialog();
   }
@@ -207,7 +209,7 @@ This service is installed separately from the extension (following GNOME guideli
 
     // Automatic installation option
     const autoInstallTitle = new St.Label({
-      text: "Automatic Installation (Recommended):",
+      text: "Installation Command:",
       style: `
         font-size: 18px;
         font-weight: bold;
@@ -217,28 +219,14 @@ This service is installed separately from the extension (following GNOME guideli
     });
 
     const autoInstallDescription = new St.Label({
-      text: "Select CPU/GPU and model, then click below to install/reinstall the service in a terminal:",
+      text: "Select CPU/GPU and model, then copy and run the command below in your terminal:",
       style: `font-size: 14px; color: ${COLORS.WHITE}; margin: 5px 0 15px 0;`,
     });
 
     const whisperConfigSection = this._buildWhisperConfigSection();
 
-    const autoInstallButtonWidget = createHoverButton(
-      this.isManualRequest
-        ? "🔧 Reinstall Service"
-        : this.isReinstallRequired
-        ? "🔧 Reinstall Service"
-        : "🚀 Automatic Installation",
-      COLORS.SUCCESS,
-      "#28a745"
-    );
-
-    autoInstallButtonWidget.connect("clicked", () => {
-      this._runAutomaticInstall();
-    });
-
-    // Use the button as the install section
-    const autoInstallSection = autoInstallButtonWidget;
+    // Command display section with copy button
+    const commandSection = this._buildCommandSection();
 
     // Link to manual instructions on GitHub
     const manualTitle = new St.Label({
@@ -321,7 +309,9 @@ This service is installed separately from the extension (following GNOME guideli
     if (whisperConfigSection) {
       this.dialogContainer.add_child(whisperConfigSection);
     }
-    this.dialogContainer.add_child(autoInstallSection);
+    if (commandSection) {
+      this.dialogContainer.add_child(commandSection);
+    }
     // Keep only the GitHub link for manual instructions
     this.dialogContainer.add_child(manualTitle);
     this.dialogContainer.add_child(manualText);
@@ -329,6 +319,9 @@ This service is installed separately from the extension (following GNOME guideli
     this.dialogContainer.add_child(buttonBox);
 
     this.overlay.add_child(this.dialogContainer);
+
+    // Initialize command display after dialog is built
+    this._initializeCommand();
 
     // Close button handler
     this.closeButton.connect("clicked", () => this.close());
@@ -532,11 +525,13 @@ This service is installed separately from the extension (following GNOME guideli
       );
       this.modelValueLabel?.set_text(this._selectedModel);
       this._refreshConfigLabels();
+      this._updateCommand();
     });
     this.modelNextButton.connect("clicked", () => {
       this._selectedModel = rotate(this._whisperModels, this._selectedModel, 1);
       this.modelValueLabel?.set_text(this._selectedModel);
       this._refreshConfigLabels();
+      this._updateCommand();
     });
 
     const updateDeviceStyle = () => {
@@ -557,6 +552,7 @@ This service is installed separately from the extension (following GNOME guideli
       );
       updateDeviceStyle();
       this._refreshConfigLabels();
+      this._updateCommand();
     });
     this.deviceNextButton.connect("clicked", () => {
       this._selectedDevice = rotate(
@@ -566,6 +562,7 @@ This service is installed separately from the extension (following GNOME guideli
       );
       updateDeviceStyle();
       this._refreshConfigLabels();
+      this._updateCommand();
     });
 
     section.add_child(title);
@@ -622,201 +619,240 @@ This service is installed separately from the extension (following GNOME guideli
     }
   }
 
-  _runAutomaticInstall() {
+  _getExtensionVersion() {
+    // Try to get version from metadata
     try {
-      const workingDir = GLib.get_home_dir();
-      const scriptPath = `${this.extension.path}/install-service.sh`;
-      // Persist final selection (important for first-time setup).
-      try {
-        this.extension?.settings?.set_string(
-          "whisper-model",
-          this._selectedModel
-        );
-        this.extension?.settings?.set_string(
-          "whisper-device",
-          this._selectedDevice
-        );
-      } catch (_e) {
-        // Ignore; still proceed to run installer with selected flags.
-      }
-
-      const gpuFlag = this._selectedDevice === "gpu" ? " --gpu" : "";
-      const modelFlag = ` --whisper-model ${this._selectedModel}`;
-      const command = `bash -c "'${scriptPath}' --pypi --non-interactive${gpuFlag}${modelFlag}; echo; echo 'Press Enter to close...'; read"`;
-
-      // Detect available terminal emulator
-      const terminal = this._detectTerminal();
-
-      if (terminal) {
-        try {
-          const terminalArgs = this._getTerminalArgs(
-            terminal,
-            workingDir,
-            command
-          );
-          Gio.Subprocess.new(
-            [terminal, ...terminalArgs],
-            Gio.SubprocessFlags.NONE
-          );
-
-          this.close();
-        } catch (terminalError) {
-          console.error(`Could not open ${terminal}: ${terminalError}`);
-          this._fallbackToClipboard(scriptPath);
+      if (this.extension?.metadata) {
+        // Try version-name first (display version like "1.1")
+        let version = this.extension.metadata["version-name"];
+        if (!version && this.extension.metadata.version) {
+          version = this.extension.metadata.version;
         }
-      } else {
-        console.error("No terminal emulator found");
-        this._fallbackToClipboard(scriptPath);
+
+        if (version) {
+          return version;
+        }
       }
-    } catch (e) {
-      console.error(`Error running automatic install: ${e}`);
+    } catch (_e) {
+      // Ignore errors
     }
-  }
 
-  _detectTerminal() {
-    // Non-blocking detection using PATH lookup to avoid freezing GNOME Shell
-    const terminals = [
-      "ptyxis", // Fedora GNOME default
-      "gnome-terminal", // Traditional GNOME terminal
-      "terminator", // Popular alternative
-      "xterm", // Universal fallback
-    ];
-
-    for (const terminal of terminals) {
-      try {
-        const foundPath = GLib.find_program_in_path(terminal);
-        if (foundPath && foundPath.length > 0) {
-          log.debug(`Found terminal: ${terminal} at ${foundPath}`);
-          return terminal;
+    // Fallback: try to read from metadata.json file directly
+    try {
+      const metadataPath = `${this.extension.path}/metadata.json`;
+      const file = Gio.File.new_for_path(metadataPath);
+      if (file.query_exists(null)) {
+        const [ok, contents] = file.load_contents(null);
+        if (ok) {
+          const text = new TextDecoder().decode(contents);
+          const metadata = JSON.parse(text);
+          if (metadata["version-name"]) {
+            return metadata["version-name"];
+          }
+          if (metadata.version) {
+            return metadata.version;
+          }
         }
-      } catch (_e) {
-        // Ignore and continue
       }
+    } catch (_e) {
+      // Ignore errors
     }
 
     return null;
   }
 
-  _getTerminalArgs(terminal, workingDir, command) {
-    // Return appropriate arguments for each terminal type
-    switch (terminal) {
-      case "ptyxis":
-        return ["--working-directory", workingDir, "--", "bash", "-c", command];
-      case "gnome-terminal":
-        return [
-          `--working-directory=${workingDir}`,
-          "--",
-          "bash",
-          "-c",
-          command,
-        ];
-      case "terminator":
-        return ["--working-directory", workingDir, "-e", "bash", "-c", command];
-      case "xterm":
-        return ["-e", "bash", "-c", `cd "${workingDir}" && ${command}`];
-      default:
-        // Generic fallback
-        return ["-e", "bash", "-c", `cd "${workingDir}" && ${command}`];
+  _mapExtensionVersionToServiceVersion(extensionVersion) {
+    if (!extensionVersion) {
+      return "1.1.0"; // Safe default
+    }
+
+    // Simple mapping: if version is "1.1", convert to "1.1.0"
+    // If it's already "1.1.0", use as-is
+    // For more complex cases, we can add a mapping table later
+
+    const versionStr = String(extensionVersion).trim();
+
+    // If it already has 3 parts (major.minor.patch), use as-is
+    if (/^\d+\.\d+\.\d+/.test(versionStr)) {
+      return versionStr;
+    }
+
+    // If it has 2 parts (major.minor), append .0
+    if (/^\d+\.\d+/.test(versionStr)) {
+      return `${versionStr}.0`;
+    }
+
+    // If it's just a number, treat as major version
+    if (/^\d+$/.test(versionStr)) {
+      return `${versionStr}.0.0`;
+    }
+
+    // Fallback to default
+    return "1.1.0";
+  }
+
+  _generateInstallCommand() {
+    // Persist final selection (important for first-time setup)
+    try {
+      this.extension?.settings?.set_string(
+        "whisper-model",
+        this._selectedModel
+      );
+      this.extension?.settings?.set_string(
+        "whisper-device",
+        this._selectedDevice
+      );
+    } catch (_e) {
+      // Ignore; still proceed to generate command
+    }
+
+    // Get extension version and map to service version
+    const extensionVersion = this._getExtensionVersion();
+    const serviceVersion =
+      this._mapExtensionVersionToServiceVersion(extensionVersion);
+
+    // Build the remote installation command
+    const baseUrl =
+      "https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/src/install-service.sh";
+    const flags = [
+      "--pypi",
+      "--non-interactive",
+      `--service-version ${serviceVersion}`,
+    ];
+
+    if (this._selectedDevice === "gpu") {
+      flags.push("--gpu");
+    }
+
+    flags.push(`--whisper-model ${this._selectedModel}`);
+
+    const command = `curl -sSL ${baseUrl} | bash -s -- ${flags.join(" ")}`;
+
+    return command;
+  }
+
+  _buildCommandSection() {
+    const section = createVerticalBox("8px", "5px", "5px");
+
+    // Command display box with copy button
+    const commandBox = new St.BoxLayout({
+      style: `
+        background-color: rgba(0, 0, 0, 0.5);
+        border: 1px solid ${COLORS.LIGHT_GRAY};
+        border-radius: 5px;
+        padding: 12px;
+        spacing: 10px;
+      `,
+    });
+
+    // Command label (selectable text)
+    this.commandLabel = new St.Label({
+      text: this._generateInstallCommand(),
+      style: `
+        font-family: monospace;
+        font-size: 13px;
+        color: ${COLORS.WHITE};
+        selectable: true;
+      `,
+    });
+    // Enable line wrapping
+    this.commandLabel.clutter_text.set_line_wrap(true);
+    this.commandLabel.clutter_text.set_ellipsize(0); // No ellipsize, use wrapping
+    // Set wrap mode to WORD for better word breaking
+    this.commandLabel.clutter_text.set_line_wrap_mode(2); // Pango.WrapMode.WORD
+    this.commandLabel.set_x_expand(true);
+    commandBox.add_child(this.commandLabel);
+
+    // Copy button (icon only)
+    this.copyButton = new St.Button({
+      style: `
+        background-color: ${COLORS.PRIMARY};
+        border-radius: 4px;
+        padding: 8px;
+        min-width: 32px;
+        min-height: 32px;
+      `,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    const copyIcon = createStyledLabel("📋", "icon", "font-size: 16px;");
+    this.copyButton.set_child(copyIcon);
+
+    this.copyButton.connect("clicked", () => {
+      const command = this._generateInstallCommand();
+      if (this._copyToClipboard(command)) {
+        // Show feedback
+        copyIcon.set_text("✅");
+        this.copyButton.set_style(`
+          background-color: ${COLORS.SUCCESS};
+          border-radius: 4px;
+          padding: 8px;
+          min-width: 32px;
+          min-height: 32px;
+        `);
+
+        // Reset after 2 seconds
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+          copyIcon.set_text("📋");
+          this.copyButton.set_style(`
+            background-color: ${COLORS.PRIMARY};
+            border-radius: 4px;
+            padding: 8px;
+            min-width: 32px;
+            min-height: 32px;
+          `);
+          return false;
+        });
+      }
+    });
+
+    this.copyButton.connect("enter-event", () => {
+      this.copyButton.set_style(`
+        background-color: ${COLORS.WARNING};
+        border-radius: 4px;
+        padding: 8px;
+        min-width: 32px;
+        min-height: 32px;
+      `);
+    });
+
+    this.copyButton.connect("leave-event", () => {
+      this.copyButton.set_style(`
+        background-color: ${COLORS.PRIMARY};
+        border-radius: 4px;
+        padding: 8px;
+        min-width: 32px;
+        min-height: 32px;
+      `);
+    });
+
+    commandBox.add_child(this.copyButton);
+
+    section.add_child(commandBox);
+    return section;
+  }
+
+  _updateCommand() {
+    if (this.commandLabel) {
+      const command = this._generateInstallCommand();
+      this.commandLabel.set_text(command);
     }
   }
 
-  _fallbackToClipboard(scriptPath) {
-    // Copy the local installation command to clipboard
-    // Note: --pypi installs the companion service package from PyPI.
-    // If you are developing from a git clone, use --local instead.
-    const gpuFlag = this._selectedDevice === "gpu" ? " --gpu" : "";
-    const modelFlag = ` --whisper-model ${this._selectedModel}`;
-    const localInstallCmd = `bash "${scriptPath}" --pypi --non-interactive${gpuFlag}${modelFlag}`;
-    this._copyToClipboard(localInstallCmd);
-
-    log.debug(
-      "Could not open terminal. Installation command copied to clipboard."
-    );
-
-    // Show additional help dialog
-    this._showTerminalHelpDialog();
-  }
-
-  _showTerminalHelpDialog() {
-    const helpText = `No supported terminal emulator was found on your system.
-
-To install the Speech2Text service, you need to:
-
-1. Open a terminal manually (Ctrl+Alt+T or search for "Terminal" in your applications)
-2. Paste the command that was copied to your clipboard
-3. Press Enter and follow the installation instructions
-
-Common ways to open a terminal:
-• Press Ctrl+Alt+T (works on most Linux distributions)
-• Search for "Terminal" in your application menu
-• Right-click on desktop and select "Open Terminal" (if available)
-• Use Alt+F2, type "gnome-terminal" and press Enter
-
-Supported terminal emulators:
-• ptyxis (Fedora GNOME default)
-• gnome-terminal (traditional GNOME terminal)
-• terminator (popular alternative)
-• xterm (universal fallback)
-
-If you're still having trouble, you can also:
-• Visit the GitHub repository for manual instructions
-• Install one of the supported terminal emulators`;
-
-    const helpDialog = new St.Modal({
-      style: `
-        background-color: rgba(20, 20, 20, 0.95);
-        border-radius: 12px;
-        padding: 24px;
-        min-width: 500px;
-        max-width: 600px;
-        border: ${STYLES.DIALOG_BORDER};
-      `,
-    });
-
-    const helpContainer = new St.BoxLayout({
-      vertical: true,
-      style: "spacing: 15px;",
-    });
-
-    // Header
-    const headerBox = new St.BoxLayout({
-      style: "spacing: 10px;",
-    });
-    const headerIcon = createStyledLabel("💻", "icon", "font-size: 24px;");
-    const headerText = createStyledLabel(
-      "Terminal Not Found",
-      "title",
-      `color: ${COLORS.WARNING};`
-    );
-    headerBox.add_child(headerIcon);
-    headerBox.add_child(headerText);
-
-    // Help text
-    const helpLabel = new St.Label({
-      text: helpText,
-      style: `
-        font-size: 14px;
-        color: ${COLORS.WHITE};
-        line-height: 1.4;
-      `,
-    });
-
-    // Close button
-    const closeButton = createHoverButton("Got it!", COLORS.PRIMARY, "#ff8c00");
-    closeButton.connect("clicked", () => {
-      helpDialog.close();
-    });
-
-    helpContainer.add_child(headerBox);
-    helpContainer.add_child(helpLabel);
-    helpContainer.add_child(closeButton);
-
-    helpDialog.set_content(helpContainer);
-    helpDialog.open();
+  _initializeCommand() {
+    // Initialize command when dialog is built
+    if (this.commandLabel) {
+      this._updateCommand();
+    }
   }
 
   show() {
     if (!this.overlay) return;
+
+    // Update command when dialog is shown
+    this._updateCommand();
 
     Main.layoutManager.addTopChrome(this.overlay);
 

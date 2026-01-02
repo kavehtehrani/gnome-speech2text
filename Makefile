@@ -154,11 +154,13 @@ package:
 	mkdir -p "$$PACKAGE_DIR" && \
 	echo "   Copying extension files..." && \
 	cp -r $(SOURCE_DIR)/* "$$PACKAGE_DIR/" && \
+	echo "   Removing install-service.sh (now installed remotely from GitHub)..." && \
+	rm -f "$$PACKAGE_DIR/install-service.sh" && \
 	echo "   Validating schemas..." && \
 	glib-compile-schemas --strict "$$PACKAGE_DIR/schemas/" && \
 	echo "   Removing compiled schema (will be compiled on target system)..." && \
 	rm -f "$$PACKAGE_DIR/schemas/gschemas.compiled" && \
-	echo "   Service is now separate (not included in extension package)..." && \
+	echo "   Service installer is now remote-only (downloaded from GitHub)..." && \
 	echo "   Creating ZIP package..." && \
 	cd "$$PACKAGE_DIR" && \
 	zip -r "../$$PACKAGE_FILE" . && \
