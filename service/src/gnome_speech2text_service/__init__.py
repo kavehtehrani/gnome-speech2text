@@ -1,9 +1,9 @@
-"""GNOME Speech2Text Service
+"""Speech2Text Service
 
 A D-Bus service that provides speech-to-text functionality for the GNOME Shell extension.
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __author__ = "Kaveh Tehrani"
 __email__ = "codemonkey13x@gmail.com"
 

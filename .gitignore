@@ -17,3 +17,4 @@
 **/*.pyc
 **/*.pyo
 **/*.pyd
+/service/src/speech2text_extension_service.egg-info/

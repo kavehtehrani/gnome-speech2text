@@ -402,7 +402,7 @@ export class DBusManager {
 
       // Get the user's home directory
       const homeDir = GLib.get_home_dir();
-      const servicePath = `${homeDir}/.local/share/gnome-speech2text-service/gnome-speech2text-service`;
+      const servicePath = `${homeDir}/.local/share/speech2text-extension-service/speech2text-extension-service`;
 
       // Check if the service file exists
       const serviceFile = Gio.File.new_for_path(servicePath);

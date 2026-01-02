@@ -34,7 +34,7 @@ find_crash_details() {
     journalctl --since "$time_range" | grep -i "speech2text\|org.gnome.Shell.Extensions.Speech2Text" | tail -20
     
     # Also check local log file if it exists
-    LOCAL_LOG="$HOME/.local/share/gnome-speech2text-service/logs/speech2text-service.log"
+    LOCAL_LOG="$HOME/.local/share/speech2text-extension-service/logs/speech2text-service.log"
     if [ -f "$LOCAL_LOG" ]; then
         echo ""
         echo ">>> Local Service Log (last 50 lines):"
@@ -115,7 +115,7 @@ check_extension_details() {
     echo "=== EXTENSION DETAILS ==="
     
     # Check if extension is installed
-    EXT_DIR="$HOME/.local/share/gnome-shell/extensions/gnome-speech2text@kaveh.page"
+    EXT_DIR="$HOME/.local/share/gnome-shell/extensions/speech2text-extension@kaveh.page"
     if [ -d "$EXT_DIR" ]; then
         echo "Extension installed at: $EXT_DIR"
         echo "Extension files:"
@@ -134,7 +134,7 @@ check_extension_details() {
     
     # Check extension status
     echo "Extension status:"
-    gnome-extensions show gnome-speech2text@kaveh.page 2>/dev/null || echo "Extension not found/enabled"
+    gnome-extensions show speech2text-extension@kaveh.page 2>/dev/null || echo "Extension not found/enabled"
 }
 
 # Generate output filename with timestamp

@@ -1,4 +1,4 @@
-# GNOME Speech2Text
+# Speech2Text
 
 ![GPLv3](https://img.shields.io/badge/License-GPLv3-yellow.svg)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=black)
@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
 ![D-Bus](https://img.shields.io/badge/D--Bus-000000?style=flat&logo=dbus&logoColor=white)
 ![Whisper](https://img.shields.io/badge/Whisper-412991?style=flat&logo=openai&logoColor=white)
-[![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/gnome-speech2text/)
+[![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/speech2text-extension/)
 
 A GNOME Shell extension that adds speech-to-text functionality
 using OpenAI's automated speech recognition [Whisper](https://github.com/openai/whisper) model. Speak into your microphone and have your words transcribed with the option to automatically insert at your cursor (on X11 only).
@@ -37,7 +37,7 @@ This separation ensures the extension follows GNOME's best practices and securit
 D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over
 D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension
 and must be installed separately as a dependency. This extension requires the external background
-service [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/) to be installed. The first time
+service [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/) to be installed. The first time
 you run the extension you will get a popup to guide you through this setup.
 
 ## Requirements
@@ -58,9 +58,9 @@ If you are missing any of the required dependencies the installation script will
 
 ### GNOME Extensions Store
 
-[![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/gnome-speech2text/)
+[![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/speech2text-extension/)
 
-1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/8238/gnome-speech2text/) and click "Install"
+1. Visit [GNOME Extensions](https://extensions.gnome.org/extension/8238/speech2text-extension/) and click "Install"
 2. The extension will automatically detect required system packages and let you know what you will need to install
 3. Follow the setup dialog to install the required D-Bus service (automatically downloads from PyPI)
 4. Restart GNOME Shell to complete the installation
@@ -70,8 +70,8 @@ If you are missing any of the required dependencies the installation script will
 For the manual installation experience, use the repository installer script:
 
 ```bash
-git clone https://github.com/kavehtehrani/gnome-speech2text.git
-cd gnome-speech2text
+git clone https://github.com/kavehtehrani/speech2text-extension.git
+cd speech2text-extension
 make install
 ```
 
@@ -94,12 +94,12 @@ Important: switching CPU/GPU will require reinstalling the background service so
 
 Notes about installers and distributions:
 
-- The extension bundle includes `src/service/install-service.sh`, a distro-agnostic service installer that only verifies system
-  dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
+- This repository includes `service/install-service.sh`, a distro-agnostic service installer that only verifies system
+  dependencies and installs the Python D-Bus service into `~/.local/share/speech2text-extension-service`.
 - You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
   packages.
   - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
-    use `./src/service/install-service.sh --local` instead.
+    use `./service/install-service.sh --local` instead.
   - Note: the installer supports **GPU mode** via `--gpu`. If you are in GPU mode in the extension settings, the setup
     dialog will run the installer with `--gpu`.
 
@@ -122,17 +122,17 @@ If you only want to manually install the D-Bus service (for development or advan
 
 ```bash
 # Install just the service from local source
-./src/service/install-service.sh --local
+./service/install-service.sh --local
 
 # Or install from PyPI
-./src/service/install-service.sh --pypi
+./service/install-service.sh --pypi
 
 # Install with GPU-enabled ML dependencies (advanced)
-./src/service/install-service.sh --pypi --gpu
+./service/install-service.sh --pypi --gpu
 ```
 
 The service is available as a Python package on
-PyPI: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/)
+PyPI: [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/)
 
 ### Upgrading from older versions (CUDA/NVIDIA pip packages cleanup)
 
@@ -182,7 +182,7 @@ First make sure 1- extension is enabled in the GNOME Extensions, and 2- you have
 
 ```bash
 # View extension logs
-journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text|Whisper|transcrib)"
+journalctl -f | grep -E "(gnome-shell|speech2text-extension-service|speech2text|ffmpeg|org\.gnome\.Speech2Text|Whisper|transcrib)"
 
 # Check installation status
 make status
@@ -199,7 +199,7 @@ If the D-Bus service isn't working:
 dbus-send --session --print-reply --dest=org.gnome.Shell.Extensions.Speech2Text /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
 
 # Start the service manually
-~/.local/share/gnome-speech2text-service/gnome-speech2text-service
+~/.local/share/speech2text-extension-service/speech2text-extension-service
 
 # Check D-Bus service file
 ls ~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service

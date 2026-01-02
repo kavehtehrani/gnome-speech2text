@@ -95,7 +95,7 @@ export class ServiceSetupDialog {
 
     const headerIcon = createStyledLabel("⚠️", "icon", "font-size: 36px;");
     const headerText = createStyledLabel(
-      "GNOME Speech2Text Service Setup",
+      "Speech2Text Service Setup",
       "title",
       `color: ${COLORS.PRIMARY};`
     );
@@ -158,7 +158,7 @@ export class ServiceSetupDialog {
     });
 
     // Main explanation
-    const explanation = `GNOME Speech2Text requires a background service for speech processing.
+    const explanation = `Speech2Text requires a background service for speech processing.
 This service is installed separately from the extension (following GNOME guidelines).
 Copy the command below and run it in your terminal to install or reinstall the service.`;
     const explanationText = new St.Label({
@@ -209,7 +209,7 @@ Copy the command below and run it in your terminal to install or reinstall the s
     });
 
     const repoLink = new St.Button({
-      label: "https://github.com/kavehtehrani/gnome-speech2text",
+      label: "https://github.com/kavehtehrani/speech2text-extension",
       style: `
         background-color: transparent;
         border: none;
@@ -223,7 +223,7 @@ Copy the command below and run it in your terminal to install or reinstall the s
     });
 
     repoLink.connect("clicked", () => {
-      this._openUrl("https://github.com/kavehtehrani/gnome-speech2text");
+      this._openUrl("https://github.com/kavehtehrani/speech2text-extension");
     });
 
     // Action buttons
@@ -315,7 +315,7 @@ Copy the command below and run it in your terminal to install or reinstall the s
   _loadInstallState() {
     try {
       const home = GLib.get_home_dir();
-      const path = `${home}/.local/share/gnome-speech2text-service/install-state.conf`;
+      const path = `${home}/.local/share/speech2text-extension-service/install-state.conf`;
       const file = Gio.File.new_for_path(path);
       if (!file.query_exists(null)) {
         this._installStateKnown = false;
@@ -571,11 +571,11 @@ Copy the command below and run it in your terminal to install or reinstall the s
 
   _mapExtensionVersionToServiceVersion(extensionVersion) {
     if (!extensionVersion) {
-      return "1.1.0"; // Safe default
+      return "1.2.0"; // Safe default
     }
 
-    // Simple mapping: if version is "1.1", convert to "1.1.0"
-    // If it's already "1.1.0", use as-is
+    // Simple mapping: if version is "1.2", convert to "1.2.0"
+    // If it's already "1.2.0", use as-is
     // For more complex cases, we can add a mapping table later
 
     const versionStr = String(extensionVersion).trim();
@@ -596,7 +596,7 @@ Copy the command below and run it in your terminal to install or reinstall the s
     }
 
     // Fallback to default
-    return "1.1.0";
+    return "1.2.0";
   }
 
   _generateInstallCommand() {
@@ -621,7 +621,7 @@ Copy the command below and run it in your terminal to install or reinstall the s
 
     // Build the remote installation command
     const baseUrl =
-      "https://raw.githubusercontent.com/kavehtehrani/gnome-speech2text/main/src/install-service.sh";
+      "https://raw.githubusercontent.com/kavehtehrani/speech2text-extension/main/service/install-service.sh";
     const flags = [
       "--pypi",
       "--non-interactive",

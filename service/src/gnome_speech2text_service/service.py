@@ -51,7 +51,7 @@ class Speech2TextService(ServiceInterface):
         self.missing_deps = []
 
         # Initialize syslog for proper journalctl logging
-        syslog.openlog("gnome-speech2text-service", syslog.LOG_PID, syslog.LOG_USER)
+        syslog.openlog("speech2text-extension-service", syslog.LOG_PID, syslog.LOG_USER)
         syslog.syslog(syslog.LOG_INFO, "Speech2Text D-Bus service started")
         print("Speech2Text D-Bus service started")
 

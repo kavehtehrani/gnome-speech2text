@@ -50,14 +50,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --service-version)
             if [[ -z "${2:-}" ]]; then
-                echo "Error: --service-version requires a value (e.g. --service-version 1.1.0)"
+                echo "Error: --service-version requires a value (e.g. --service-version 1.2.0)"
                 exit 1
             fi
             SERVICE_VERSION="$2"
             shift 2
             ;;
         --help|-h)
-            echo "GNOME Speech2Text Service Installer"
+            echo "Speech2Text Service Installer"
             echo ""
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -67,7 +67,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --pypi            Force installation from PyPI"
             echo "  --gpu             Install GPU-enabled ML dependencies (CUDA/accelerator support)"
             echo "  --whisper-model <name>  Record selected Whisper model (for UI display; does not affect deps)"
-            echo "  --service-version <version>  Specify exact service package version to install from PyPI (e.g. 1.1.0)"
+            echo "  --service-version <version>  Specify exact service package version to install from PyPI (e.g. 1.2.0)"
             echo "  --non-interactive Run without user prompts (auto-accept defaults)"
             echo "  --help            Show this help message"
             echo ""
@@ -256,9 +256,9 @@ ask_user() {
 
 # Detect installation mode
 detect_install_mode() {
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # .../gnome-speech2text/src
-    REPO_ROOT="$(dirname "$SCRIPT_DIR")"                           # .../gnome-speech2text
-    SERVICE_SRC_DIR="$REPO_ROOT/service"                            # .../gnome-speech2text/service
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"    # .../speech2text-extension/service
+    REPO_ROOT="$(dirname "$SCRIPT_DIR")"                           # .../speech2text-extension
+    SERVICE_SRC_DIR="$REPO_ROOT/service"                            # .../speech2text-extension/service
 
     if [ "$FORCE_MODE" = true ]; then
         echo "🔧 Installation mode forced: $INSTALL_MODE"
@@ -287,7 +287,7 @@ detect_install_mode() {
     echo "📦 PyPI installation mode - no local source found"
 }
 
-print_status "Installing GNOME Speech2Text D-Bus Service"
+print_status "Installing Speech2Text D-Bus Service"
 
 # Detect installation mode early
 detect_install_mode
@@ -392,7 +392,7 @@ print_status "Checking system dependencies..."
 check_system_dependencies
 
 # Create virtual environment for the service
-SERVICE_DIR="$HOME/.local/share/gnome-speech2text-service"
+SERVICE_DIR="$HOME/.local/share/speech2text-extension-service"
 VENV_DIR="$SERVICE_DIR/venv"
 
 print_status "Creating service directory: $SERVICE_DIR"
@@ -402,8 +402,8 @@ print_status "Stopping any running Speech2Text service (best-effort)..."
 # The service is D-Bus activated; if it's running while we rebuild the venv, it may keep old libs loaded.
 # Ignore errors if no process is running.
 if command_exists pkill; then
-    pkill -f "$SERVICE_DIR/venv/bin/gnome-speech2text-service" 2>/dev/null || true
-    pkill -f "$SERVICE_DIR/gnome-speech2text-service" 2>/dev/null || true
+    pkill -f "$SERVICE_DIR/venv/bin/speech2text-extension-service" 2>/dev/null || true
+    pkill -f "$SERVICE_DIR/speech2text-extension-service" 2>/dev/null || true
 else
     print_warning "pkill not found; skipping best-effort service stop."
     print_warning "If the service is currently running, consider logging out/in (Wayland) or restarting GNOME Shell (X11)."
@@ -473,41 +473,41 @@ install_ml_dependencies
 install_service_package() {
     case "$INSTALL_MODE" in
         "local")
-            print_status "Installing gnome-speech2text-service from local source..."
+            print_status "Installing speech2text-extension-service from local source..."
             SRC_DIR="$LOCAL_SOURCE_DIR"
             if [ -z "$SRC_DIR" ] || [ ! -f "$SRC_DIR/pyproject.toml" ]; then
                 error_exit "Local installation requested but pyproject.toml not found in $SRC_DIR. Run from repo root or use --pypi."
             fi
             
-            "$VENV_DIR/bin/pip" install --no-deps "$SRC_DIR" || error_exit "Failed to install local gnome-speech2text-service package"
+            "$VENV_DIR/bin/pip" install --no-deps "$SRC_DIR" || error_exit "Failed to install local speech2text-extension-service package"
             echo "✅ Installed from local source: $SRC_DIR"
             ;;
             
         "pypi")
-            print_status "Installing gnome-speech2text-service from PyPI..."
+            print_status "Installing speech2text-extension-service from PyPI..."
             
             # Use provided service version, or fall back to default for backwards compatibility
             if [ -n "$SERVICE_VERSION" ]; then
                 REQUIRED_SERVICE_VERSION="$SERVICE_VERSION"
                 print_status "Installing exact version: $REQUIRED_SERVICE_VERSION"
-                PIP_SPEC="gnome-speech2text-service==$REQUIRED_SERVICE_VERSION"
+                PIP_SPEC="speech2text-extension-service==$REQUIRED_SERVICE_VERSION"
             else
-                REQUIRED_SERVICE_VERSION="1.1.0"
+                REQUIRED_SERVICE_VERSION="1.2.0"
                 print_status "Using default minimum version: $REQUIRED_SERVICE_VERSION"
-                PIP_SPEC="gnome-speech2text-service>=$REQUIRED_SERVICE_VERSION"
+                PIP_SPEC="speech2text-extension-service>=$REQUIRED_SERVICE_VERSION"
             fi
             
             # Try PyPI installation with fallback
             # Require the service version that includes dbus-next (no dbus-python/PyGObject build deps).
             if "$VENV_DIR/bin/pip" install --upgrade --no-deps --index-url "https://pypi.org/simple" "$PIP_SPEC"; then
-                echo "✅ Installed from PyPI: https://pypi.org/project/gnome-speech2text-service/"
+                echo "✅ Installed from PyPI: https://pypi.org/project/speech2text-extension-service/"
             else
                 echo ""
                 print_warning "PyPI installation failed!"
                 if [ -n "$SERVICE_VERSION" ]; then
-                    echo "This installer requires gnome-speech2text-service == $REQUIRED_SERVICE_VERSION."
+                    echo "This installer requires speech2text-extension-service == $REQUIRED_SERVICE_VERSION."
                 else
-                    echo "This installer requires gnome-speech2text-service >= $REQUIRED_SERVICE_VERSION."
+                    echo "This installer requires speech2text-extension-service >= $REQUIRED_SERVICE_VERSION."
                 fi
                 echo "If you are developing locally, re-run with --local to install from this repository."
                 
@@ -542,14 +542,14 @@ install_service_package
 
 print_status "Creating service wrapper script..."
 # Create a wrapper script that activates the venv and runs the service
-cat > "$SERVICE_DIR/gnome-speech2text-service" << 'EOF'
+cat > "$SERVICE_DIR/speech2text-extension-service" << 'EOF'
 #!/bin/bash
-# GNOME Speech2Text Service Wrapper
+# Speech2Text Service Wrapper
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/venv"
-exec "$VENV_DIR/bin/gnome-speech2text-service" "$@"
+exec "$VENV_DIR/bin/speech2text-extension-service" "$@"
 EOF
-chmod +x "$SERVICE_DIR/gnome-speech2text-service"
+chmod +x "$SERVICE_DIR/speech2text-extension-service"
 
 print_status "Installing D-Bus service..."
 # Install D-Bus service file
@@ -566,7 +566,7 @@ install_dbus_service_file() {
                 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
             fi
             if [ -f "$SRC_DIR/data/org.gnome.Shell.Extensions.Speech2Text.service" ]; then
-                sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/gnome-speech2text-service|g" \
+                sed "s|/usr/bin/speech2text-service|$SERVICE_DIR/speech2text-extension-service|g" \
                     "$SRC_DIR/data/org.gnome.Shell.Extensions.Speech2Text.service" | \
                     grep -vE '^User=' > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service"
                 echo "✅ D-Bus service file installed from local data"
@@ -575,7 +575,7 @@ install_dbus_service_file() {
                 cat > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service" << EOF
 [D-BUS Service]
 Name=org.gnome.Shell.Extensions.Speech2Text
-Exec=$SERVICE_DIR/gnome-speech2text-service
+Exec=$SERVICE_DIR/speech2text-extension-service
 EOF
                 echo "✅ D-Bus service file created (fallback)"
             fi
@@ -586,7 +586,7 @@ EOF
             cat > "$DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service" << EOF
 [D-BUS Service]
 Name=org.gnome.Shell.Extensions.Speech2Text
-Exec=$SERVICE_DIR/gnome-speech2text-service
+Exec=$SERVICE_DIR/speech2text-extension-service
 EOF
             echo "✅ D-Bus service file created for PyPI installation"
             ;;
@@ -599,25 +599,25 @@ print_status "Creating desktop entry..."
 DESKTOP_DIR="$HOME/.local/share/applications"
 mkdir -p "$DESKTOP_DIR"
 
-echo "[Desktop Entry]" > "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "Type=Application" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "Name=GNOME Speech2Text Service" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "Comment=D-Bus service for speech-to-text functionality" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "Exec=$SERVICE_DIR/gnome-speech2text-service" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "Icon=audio-input-microphone" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "StartupNotify=false" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "NoDisplay=true" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
-echo "Categories=Utility;" >> "$DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "[Desktop Entry]" > "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "Type=Application" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "Name=Speech2Text Service" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "Comment=D-Bus service for speech-to-text functionality" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "Exec=$SERVICE_DIR/speech2text-extension-service" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "Icon=audio-input-microphone" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "StartupNotify=false" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "NoDisplay=true" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
+echo "Categories=Utility;" >> "$DESKTOP_DIR/speech2text-extension-service.desktop"
 
 print_status "Installation complete!"
 echo ""
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  GNOME Speech2Text Service Installed  ${NC}"
+echo -e "${BLUE}  Speech2Text Service Installed  ${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 echo -e "${YELLOW}Installation mode: $INSTALL_MODE${NC}"
 if [ "$INSTALL_MODE" = "pypi" ]; then
-    echo -e "${YELLOW}Package source: https://pypi.org/project/gnome-speech2text-service/${NC}"
+    echo -e "${YELLOW}Package source: https://pypi.org/project/speech2text-extension-service/${NC}"
 else
     echo -e "${YELLOW}Package source: Local repository${NC}"
 fi
@@ -642,7 +642,7 @@ echo -e "${YELLOW}The D-Bus service has been installed and registered.${NC}"
 echo -e "${YELLOW}It will start automatically when the GNOME extension requests it.${NC}"
 echo ""
 echo -e "${YELLOW}To manually test the service:${NC}"
-echo "  $SERVICE_DIR/gnome-speech2text-service"
+echo "  $SERVICE_DIR/speech2text-extension-service"
 echo ""
 echo -e "${YELLOW}To verify D-Bus registration:${NC}"
 echo "  dbus-send --session --dest=org.gnome.Shell.Extensions.Speech2Text --print-reply /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus"
@@ -650,7 +650,7 @@ echo ""
 echo -e "${YELLOW}To uninstall the service:${NC}"
 echo "  rm -rf $SERVICE_DIR"
 echo "  rm $DBUS_SERVICE_DIR/org.gnome.Shell.Extensions.Speech2Text.service"
-echo "  rm $DESKTOP_DIR/gnome-speech2text-service.desktop"
+echo "  rm $DESKTOP_DIR/speech2text-extension-service.desktop"
 echo ""
 echo -e "${GREEN}🎉 Service installation completed successfully!${NC}"
 echo -e "${GREEN}The service is ready to be used by the GNOME Shell extension.${NC}"

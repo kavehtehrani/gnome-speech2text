@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gnome-speech2text-service"
-version = "1.1.0"
+name = "speech2text-extension-service"
+version = "1.2.0"
 description = "D-Bus service providing speech-to-text functionality for GNOME Shell"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -52,13 +52,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kavehtehrani/gnome-speech2text"
-Repository = "https://github.com/kavehtehrani/gnome-speech2text"
-Issues = "https://github.com/kavehtehrani/gnome-speech2text/issues"
-Documentation = "https://github.com/kavehtehrani/gnome-speech2text/blob/main/README.md"
+Homepage = "https://github.com/kavehtehrani/speech2text-extension"
+Repository = "https://github.com/kavehtehrani/speech2text-extension"
+Issues = "https://github.com/kavehtehrani/speech2text-extension/issues"
+Documentation = "https://github.com/kavehtehrani/speech2text-extension/blob/main/README.md"
 
 [project.scripts]
-gnome-speech2text-service = "gnome_speech2text_service.cli:main"
+speech2text-extension-service = "gnome_speech2text_service.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

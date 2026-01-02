@@ -1,12 +1,12 @@
-# GNOME Speech2Text Extension - Makefile
+# Speech2Text Extension - Makefile
 # Automates common development and installation tasks
 
-EXTENSION_UUID = gnome-speech2text@kaveh.page
+EXTENSION_UUID = speech2text-extension@kaveh.page
 EXTENSION_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas
 SCHEMA_ID = org.gnome.shell.extensions.speech2text
-SERVICE_INSTALLER = $(SOURCE_DIR)/install-service.sh
+SERVICE_INSTALLER = service/install-service.sh
 
 # Optional: override the python interpreter used by the service installer.
 # Example: make install-service PYTHON=python3.12
@@ -16,7 +16,7 @@ PYTHON ?=
 
 # Default target
 help:
-	@echo "GNOME Speech2Text Extension - Development Automation"
+	@echo "Speech2Text Extension - Development Automation"
 	@echo "=================================================="
 	@echo ""
 	@echo "🚀 For easy installation, run: ./install.sh"
@@ -86,7 +86,7 @@ setup: clean install compile-schemas install-service
 
 # Install the D-Bus service (Python + venv + D-Bus registration)
 install-service:
-	@echo "🧩 Installing GNOME Speech2Text D-Bus service..."
+	@echo "🧩 Installing Speech2Text D-Bus service..."
 	@if [ ! -x "$(SERVICE_INSTALLER)" ]; then \
 		echo "❌ Service installer not found or not executable: $(SERVICE_INSTALLER)"; \
 		exit 1; \
@@ -112,7 +112,7 @@ clean:
 		echo "ℹ️  Extension not found at $(EXTENSION_DIR)"; \
 	fi
 	@echo "🧹 Removing D-Bus service..."
-	@PID=$$(ps aux | grep -E "gnome-speech2text-service|speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
+	@PID=$$(ps aux | grep -E "speech2text-extension-service|speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
 	if [ ! -z "$$PID" ]; then \
 		echo "   Found process $$PID, terminating..."; \
 		kill $$PID 2>/dev/null || true; \
@@ -121,8 +121,8 @@ clean:
 	else \
 		echo "   No speech2text processes found"; \
 	fi
-	@if [ -d "$(HOME)/.local/share/gnome-speech2text-service" ]; then \
-		rm -rf $(HOME)/.local/share/gnome-speech2text-service; \
+	@if [ -d "$(HOME)/.local/share/speech2text-extension-service" ]; then \
+		rm -rf $(HOME)/.local/share/speech2text-extension-service; \
 		echo "✅ Service directory removed"; \
 	else \
 		echo "ℹ️  Service directory not found"; \
@@ -133,8 +133,8 @@ clean:
 	else \
 		echo "ℹ️  D-Bus service file not found"; \
 	fi
-	@if [ -f "$(HOME)/.local/share/applications/gnome-speech2text-service.desktop" ]; then \
-		rm $(HOME)/.local/share/applications/gnome-speech2text-service.desktop; \
+	@if [ -f "$(HOME)/.local/share/applications/speech2text-extension-service.desktop" ]; then \
+		rm $(HOME)/.local/share/applications/speech2text-extension-service.desktop; \
 		echo "✅ Desktop entry removed"; \
 	else \
 		echo "ℹ️  Desktop entry not found"; \
@@ -179,7 +179,7 @@ package:
 # Clean only D-Bus service (for testing)
 clean-service:
 	@echo "🧹 Removing D-Bus service only..."
-	@PID=$$(ps aux | grep -E "gnome-speech2text-service|speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
+	@PID=$$(ps aux | grep -E "speech2text-extension-service|speech2text_service.py" | grep -v grep | awk '{print $$2}' | head -1); \
 	if [ ! -z "$$PID" ]; then \
 		echo "   Found process $$PID, terminating..."; \
 		kill $$PID 2>/dev/null || true; \
@@ -188,8 +188,8 @@ clean-service:
 	else \
 		echo "   No speech2text processes found"; \
 	fi
-	@if [ -d "$(HOME)/.local/share/gnome-speech2text-service" ]; then \
-		rm -rf $(HOME)/.local/share/gnome-speech2text-service; \
+	@if [ -d "$(HOME)/.local/share/speech2text-extension-service" ]; then \
+		rm -rf $(HOME)/.local/share/speech2text-extension-service; \
 		echo "✅ Service directory removed"; \
 	else \
 		echo "ℹ️  Service directory not found"; \
@@ -200,8 +200,8 @@ clean-service:
 	else \
 		echo "ℹ️  D-Bus service file not found"; \
 	fi
-	@if [ -f "$(HOME)/.local/share/applications/gnome-speech2text-service.desktop" ]; then \
-		rm $(HOME)/.local/share/applications/gnome-speech2text-service.desktop; \
+	@if [ -f "$(HOME)/.local/share/applications/speech2text-extension-service.desktop" ]; then \
+		rm $(HOME)/.local/share/applications/speech2text-extension-service.desktop; \
 		echo "✅ Desktop entry removed"; \
 	else \
 		echo "ℹ️  Desktop entry not found"; \
@@ -229,11 +229,11 @@ status:
 	@echo "   Session: $(XDG_SESSION_TYPE)"
 	@echo ""
 	@echo "🔧 D-Bus Service Status:"
-	@SERVICE_DIR="$(HOME)/.local/share/gnome-speech2text-service" && \
+	@SERVICE_DIR="$(HOME)/.local/share/speech2text-extension-service" && \
 	echo "   Directory: $$SERVICE_DIR" && \
 	if [ -d "$$SERVICE_DIR" ]; then \
 		echo "   ✅ Service installed"; \
-		if [ -f "$$SERVICE_DIR/gnome-speech2text-service" ]; then \
+		if [ -f "$$SERVICE_DIR/speech2text-extension-service" ]; then \
 			echo "   ✅ Service executable found"; \
 		else \
 			echo "   ❌ Service executable missing"; \
@@ -256,7 +256,7 @@ status:
 		echo "   ❌ D-Bus service file not registered"; \
 	fi
 	@echo "   Process status:" && \
-	PID=$$(ps aux | grep "gnome-speech2text-service" | grep -v grep | awk '{print $$2}' | head -1); \
+	PID=$$(ps aux | grep "speech2text-extension-service" | grep -v grep | awk '{print $$2}' | head -1); \
 	if [ ! -z "$$PID" ]; then \
 		echo "   ✅ Service running (PID: $$PID)"; \
 		echo "   📋 Process details:" && \

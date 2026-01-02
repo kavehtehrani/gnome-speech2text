@@ -1,4 +1,4 @@
-# GNOME Speech2Text Service
+# Speech2Text Service
 
 A D-Bus service that provides speech-to-text functionality for the GNOME Shell Speech2Text extension.
 
@@ -26,10 +26,10 @@ This service requires several system packages to be installed (e.g. ffmpeg, clip
 The service is available on PyPI and is typically installed into a per-user virtual environment by the extension’s installer.
 
 ```bash
-pip install gnome-speech2text-service
+pip install speech2text-extension-service
 ```
 
-**PyPI Package**: [gnome-speech2text-service](https://pypi.org/project/gnome-speech2text-service/)
+**PyPI Package**: [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/)
 
 Or from the source repository:
 
@@ -46,22 +46,22 @@ After installation, you need to register the D-Bus service and desktop entry. Re
 
 ```bash
 # From the repo root
-./src/service/install-service.sh --local
+./service/install-service.sh --local
 ```
 
 2. Using the bundled installer (PyPI install)
 
 ```bash
 # From the repo root
-./src/service/install-service.sh --pypi
+./service/install-service.sh --pypi
 ```
 
 The installer will:
 
-- Create a per-user virtual environment under `~/.local/share/gnome-speech2text-service/venv`
-- Install the `gnome-speech2text-service` package
+- Create a per-user virtual environment under `~/.local/share/speech2text-extension-service/venv`
+- Install the `speech2text-extension-service` package
 - Register the D-Bus service at `~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service`
-- Create a desktop entry at `~/.local/share/applications/gnome-speech2text-service.desktop`
+- Create a desktop entry at `~/.local/share/applications/speech2text-extension-service.desktop`
 
 ## Usage
 
@@ -71,10 +71,10 @@ The service is D-Bus activated and starts automatically when requested by the ex
 
 ```bash
 # If the entry point is on PATH (pip install)
-gnome-speech2text-service
+speech2text-extension-service
 
 # Or via the per-user wrapper created by the installer
-~/.local/share/gnome-speech2text-service/gnome-speech2text-service
+~/.local/share/speech2text-extension-service/speech2text-extension-service
 ```
 
 ### Configuration
@@ -115,4 +115,4 @@ This project is licensed under the GPL-3.0-or-later license. See the LICENSE fil
 ## Contributing
 
 Contributions are welcome! Please see the main repository for contribution guidelines:
-https://github.com/kavehtehrani/gnome-speech2text
+https://github.com/kavehtehrani/speech2text-extension

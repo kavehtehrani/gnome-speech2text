@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Command-line interface for the GNOME Speech2Text Service.
+Command-line interface for the Speech2Text Service.
 
-This is the entry point that gets called when users run 'gnome-speech2text-service'.
+This is the entry point that gets called when users run 'speech2text-extension-service'.
 """
 
 import sys
@@ -13,22 +13,16 @@ from .service import main as service_main
 def main():
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
-        description="GNOME Speech2Text D-Bus Service",
+        description="Speech2Text D-Bus Service",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  gnome-speech2text-service          # Start the D-Bus service
-  gnome-speech2text-service --help   # Show this help message
-
-This service provides speech-to-text functionality via D-Bus for the
-GNOME Shell Speech2Text extension.
         """
     )
     
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s 1.1.0"
+        version="%(prog)s 1.2.0"
     )
     
     parser.add_argument(
