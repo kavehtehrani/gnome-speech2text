@@ -683,9 +683,17 @@ Copy the command below and run it in your terminal to install or reinstall the s
       reactive: true,
       can_focus: true,
       track_hover: true,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
     });
 
-    const copyIcon = createStyledLabel("📋", "icon", "font-size: 16px;");
+    const copyIcon = createStyledLabel(
+      "📋",
+      "icon",
+      "font-size: 16px; margin: 0; text-align: center;"
+    );
+    copyIcon.set_x_align(Clutter.ActorAlign.CENTER);
+    copyIcon.set_y_align(Clutter.ActorAlign.CENTER);
     this.copyButton.set_child(copyIcon);
 
     this.copyButton.connect("clicked", () => {

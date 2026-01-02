@@ -72,10 +72,8 @@ For the manual installation experience, use the repository installer script:
 ```bash
 git clone https://github.com/kavehtehrani/gnome-speech2text.git
 cd gnome-speech2text
-make setup
+make install
 ```
-
-`make setup` installs both the extension and the D-Bus service. (Use `make install` if you only want the extension.)
 
 ### First Time Setup
 
@@ -86,22 +84,22 @@ automatic or manual installation options.
 
 Speech2Text uses OpenAI Whisper locally. You can configure:
 
-- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants (including `*.en`, `large-v2`, `large-v3`).
+- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants (including `*.en`, `large-v2`, `large-v3`). See [here](https://github.com/openai/whisper) for more info.
 - **Device**:
   - **CPU (default)**: recommended for most users; easier install and compatibility.
   - **GPU**: attempts to use an accelerator backend via PyTorch. On Linux this usually means **NVIDIA CUDA**.
     (Advanced users may be able to use other backends depending on their PyTorch build.)
 
-Important: switching CPU/GPU may require reinstalling the background service so the correct ML dependencies are installed.
+Important: switching CPU/GPU will require reinstalling the background service so the correct ML dependencies are installed.
 
 Notes about installers and distributions:
 
-- The extension bundle includes `src/install-service.sh`, a distro-agnostic service installer that only verifies system
+- The extension bundle includes `src/service/install-service.sh`, a distro-agnostic service installer that only verifies system
   dependencies and installs the Python D-Bus service into `~/.local/share/gnome-speech2text-service`.
 - You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
   packages.
   - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
-    use `./src/install-service.sh --local` instead.
+    use `./src/service/install-service.sh --local` instead.
   - Note: the installer supports **GPU mode** via `--gpu`. If you are in GPU mode in the extension settings, the setup
     dialog will run the installer with `--gpu`.
 
@@ -145,39 +143,6 @@ If you are using **CPU mode** and want to remove legacy GPU-related pip packages
 (from the setup dialog or manually). The installer rebuilds the service virtual environment from scratch, so it will
 remove any old GPU-related pip packages from the service venv automatically.
 
-#### Troubleshooting Installation
-
-If the extension doesn't appear in GNOME Extensions:
-
-First make sure 1- extension is enabled in the GNOME Extensions, and 2- you have restarted your shell already. Otherwise, proceed to troubleshoot:
-
-```bash
-# View extension logs
-journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text|Whisper|transcrib)"
-
-# Check installation status
-make status
-
-# Verify schema compilation
-make verify-schema
-
-```
-
-If the D-Bus service isn't working:
-
-```bash
-# Check if service is running
-dbus-send --session --print-reply --dest=org.gnome.Shell.Extensions.Speech2Text /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
-
-# Start the service manually
-~/.local/share/gnome-speech2text-service/gnome-speech2text-service
-
-# Check D-Bus service file
-ls ~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service
-```
-
-You can read more about the D-Bus service here: [D-Bus Service Documentation](./service/README.md).
-
 ## Usage
 
 ### Quick Start
@@ -210,6 +175,37 @@ Right-click the microphone icon to access:
 - **Setup Guide**: View service installation instructions anytime
 
 ## Troubleshooting
+
+If the extension doesn't appear in GNOME Extensions:
+
+First make sure 1- extension is enabled in the GNOME Extensions, and 2- you have restarted your shell already. Otherwise, proceed to troubleshoot:
+
+```bash
+# View extension logs
+journalctl -f | grep -E "(gnome-shell|gnome-speech2text-service|speech2text|ffmpeg|org\.gnome\.Speech2Text|Whisper|transcrib)"
+
+# Check installation status
+make status
+
+# Verify schema compilation
+make verify-schema
+
+```
+
+If the D-Bus service isn't working:
+
+```bash
+# Check if service is running
+dbus-send --session --print-reply --dest=org.gnome.Shell.Extensions.Speech2Text /org/gnome/Shell/Extensions/Speech2Text org.gnome.Shell.Extensions.Speech2Text.GetServiceStatus
+
+# Start the service manually
+~/.local/share/gnome-speech2text-service/gnome-speech2text-service
+
+# Check D-Bus service file
+ls ~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service
+```
+
+You can read more about the D-Bus service here: [D-Bus Service Documentation](./service/README.md).
 
 ### GNOME Shell Crashes
 
@@ -268,7 +264,7 @@ This project is licensed under the GPLv3 - see the LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request or open issues.
+Contributions are welcome! Please feel free to submit a pull request or open issues.
 
 ### Reporting Issues
 
