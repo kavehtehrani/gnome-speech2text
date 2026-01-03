@@ -36,7 +36,7 @@ D-Bus service for speech processing. The extension itself is lightweight and com
 D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension
 and must be installed separately as a dependency. This extension requires the external background
 service [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/) to be installed.
-See [Service Installation](Service-Installation) below.
+See [Service Installation](#Service-Installation) below.
 
 ## Requirements
 
@@ -94,11 +94,11 @@ The D-Bus service has to be manually installed per GNOME's guidelines. For most 
 curl -sSL https://raw.githubusercontent.com/kavehtehrani/speech2text-extension/refs/heads/main/service/install-service.sh | bash -s -- --pypi --non-interactive --service-version 1.2.0 --whisper-model base
 ```
 
-## Whisper model & CPU/GPU settings
+#### Whisper model & CPU/GPU settings
 
 Speech2Text uses OpenAI Whisper locally. You configure model/device by (re)installing the D-Bus service with the appropriate installer flags:
 
-- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants (including `*.en`, `large-v2`, `large-v3`). See [here](https://github.com/openai/whisper) for more info.
+- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants. See [here](https://github.com/openai/whisper) for more info.
 - **Device**:
   - **CPU (default)**: recommended for most users; easier install and compatibility.
   - **GPU**: attempts to use an accelerator backend via PyTorch. On Linux this usually means **NVIDIA CUDA**.
