@@ -1,4 +1,5 @@
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
@@ -34,8 +35,7 @@ export const log = {
  */
 export function readInstalledServiceConfig() {
   try {
-    const home = GLib.get_home_dir();
-    const path = `${home}/.local/share/speech2text-extension-service/install-state.conf`;
+    const path = `${getServiceDir()}/install-state.conf`;
     const file = Gio.File.new_for_path(path);
     if (!file.query_exists(null)) return { known: false };
     const [ok, contents] = file.load_contents(null);
@@ -197,6 +197,106 @@ export function cleanupChromeWidget(widget, { destroy = true } = {}) {
     log.warn("Failed to cleanup chrome widget:", e?.message || String(e));
     return false;
   }
+}
+
+/**
+ * Get the service installation directory path.
+ * @returns {string} Path to ~/.local/share/speech2text-extension-service
+ */
+export function getServiceDir() {
+  return `${GLib.get_home_dir()}/.local/share/speech2text-extension-service`;
+}
+
+/**
+ * Get the service binary executable path.
+ * @returns {string} Path to the speech2text-extension-service binary
+ */
+export function getServiceBinaryPath() {
+  return `${getServiceDir()}/speech2text-extension-service`;
+}
+
+/**
+ * Show a modal dialog with standard positioning, centering, and focus handling.
+ * This is the common pattern used by SetupDialog, SettingsDialog, and ShortcutCapture.
+ *
+ * @param {St.Widget} overlay - The modal overlay widget
+ * @param {St.Widget} dialogWidget - The dialog container widget to center
+ * @param {Object} options - Configuration options
+ * @param {number} options.fallbackWidth - Fallback width if widget reports 0
+ * @param {number} options.fallbackHeight - Fallback height if widget reports 0
+ * @param {number|null} options.existingTimeoutId - Existing center timeout to clear first
+ * @param {function} options.onComplete - Optional callback when centering completes
+ * @returns {number} The center timeout ID (store for cleanup)
+ */
+export function showModalDialog(overlay, dialogWidget, options = {}) {
+  Main.layoutManager.addTopChrome(overlay);
+
+  const monitor = Main.layoutManager.primaryMonitor;
+  overlay.set_position(monitor.x, monitor.y);
+  overlay.set_size(monitor.width, monitor.height);
+
+  const timeoutId = centerWidgetOnMonitor(dialogWidget, monitor, {
+    fallbackWidth: options.fallbackWidth || 600,
+    fallbackHeight: options.fallbackHeight || 400,
+    existingTimeoutId: options.existingTimeoutId || null,
+    onComplete: () => {
+      if (options.onComplete) options.onComplete();
+    },
+  });
+
+  overlay.grab_key_focus();
+  overlay.set_reactive(true);
+
+  return timeoutId;
+}
+
+/**
+ * Close a modal dialog with standard cleanup (timeout removal and modal cleanup).
+ *
+ * @param {St.Widget|null} overlay - The modal overlay widget (may be null)
+ * @param {Object} handlers - Event handler IDs to disconnect
+ * @param {number|null} handlers.keyPressHandler - Key press handler ID
+ * @param {number|null} handlers.keyReleaseHandler - Key release handler ID (optional)
+ * @param {number|null} handlers.clickHandler - Click handler ID
+ * @param {number|null} centerTimeoutId - Center timeout ID to remove
+ */
+export function closeModalDialog(overlay, handlers, centerTimeoutId) {
+  if (centerTimeoutId) {
+    GLib.Source.remove(centerTimeoutId);
+  }
+
+  if (overlay) {
+    cleanupModal(overlay, handlers);
+  }
+}
+
+/**
+ * Set up standard modal event handlers (Escape key to close, click outside to close).
+ * Returns handler IDs that should be passed to closeModalDialog() for cleanup.
+ *
+ * @param {St.Widget} overlay - The modal overlay widget
+ * @param {function} onClose - Callback function to call when dialog should close
+ * @returns {Object} Handler IDs: { keyPressHandler, clickHandler }
+ */
+export function setupModalEventHandlers(overlay, onClose) {
+  const keyPressHandler = overlay.connect("key-press-event", (actor, event) => {
+    const keyval = event.get_key_symbol();
+    if (keyval === Clutter.KEY_Escape) {
+      onClose();
+      return Clutter.EVENT_STOP;
+    }
+    return Clutter.EVENT_PROPAGATE;
+  });
+
+  const clickHandler = overlay.connect("button-press-event", (actor, event) => {
+    if (event.get_source() === overlay) {
+      onClose();
+      return Clutter.EVENT_STOP;
+    }
+    return Clutter.EVENT_PROPAGATE;
+  });
+
+  return { keyPressHandler, clickHandler };
 }
 
 /**

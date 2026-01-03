@@ -1,6 +1,6 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import { log } from "./resourceUtils.js";
+import { log, getServiceBinaryPath } from "./resourceUtils.js";
 
 // D-Bus interface XML for the speech2text service
 const Speech2TextInterface = `
@@ -400,9 +400,7 @@ export class DBusManager {
     try {
       log.debug("Starting Speech2Text service...");
 
-      // Get the user's home directory
-      const homeDir = GLib.get_home_dir();
-      const servicePath = `${homeDir}/.local/share/speech2text-extension-service/speech2text-extension-service`;
+      const servicePath = getServiceBinaryPath();
 
       // Check if the service file exists
       const serviceFile = Gio.File.new_for_path(servicePath);

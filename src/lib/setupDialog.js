@@ -12,10 +12,11 @@ import {
   createCloseButton,
 } from "./buttonUtils.js";
 import {
-  cleanupModal,
-  centerWidgetOnMonitor,
   log,
   readInstalledServiceConfig,
+  showModalDialog,
+  closeModalDialog,
+  setupModalEventHandlers,
 } from "./resourceUtils.js";
 
 export class ServiceSetupDialog {
@@ -188,30 +189,10 @@ Installation instructions are maintained in the project repository.`;
     // Close button handler
     this.closeButton.connect("clicked", () => this.close());
 
-    // Keyboard handling
-    this.keyPressHandler = this.overlay.connect(
-      "key-press-event",
-      (actor, event) => {
-        const keyval = event.get_key_symbol();
-        if (keyval === Clutter.KEY_Escape) {
-          this.close();
-          return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
-      }
-    );
-
-    // Click outside to close
-    this.clickHandler = this.overlay.connect(
-      "button-press-event",
-      (actor, event) => {
-        if (event.get_source() === this.overlay) {
-          this.close();
-          return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
-      }
-    );
+    // Set up standard modal event handlers (Escape key + click outside to close)
+    const handlers = setupModalEventHandlers(this.overlay, () => this.close());
+    this.keyPressHandler = handlers.keyPressHandler;
+    this.clickHandler = handlers.clickHandler;
   }
 
   _getInstalledConfigText() {
@@ -272,41 +253,24 @@ Installation instructions are maintained in the project repository.`;
     if (!this.overlay) return;
     this._refreshStatusLabel();
 
-    Main.layoutManager.addTopChrome(this.overlay);
-
-    const monitor = Main.layoutManager.primaryMonitor;
-    this.overlay.set_position(monitor.x, monitor.y);
-    this.overlay.set_size(monitor.width, monitor.height);
-
-    // Center the dialog
-    this.centerTimeoutId = centerWidgetOnMonitor(
-      this.dialogContainer,
-      monitor,
-      {
-        fallbackWidth: 700,
-        fallbackHeight: 500,
-        existingTimeoutId: this.centerTimeoutId,
-        onComplete: () => (this.centerTimeoutId = null),
-      }
-    );
-
-    this.overlay.grab_key_focus();
-    this.overlay.set_reactive(true);
+    this.centerTimeoutId = showModalDialog(this.overlay, this.dialogContainer, {
+      fallbackWidth: 700,
+      fallbackHeight: 500,
+      existingTimeoutId: this.centerTimeoutId,
+      onComplete: () => (this.centerTimeoutId = null),
+    });
   }
 
   close() {
-    // Clean up timeout sources
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-      this.centerTimeoutId = null;
-    }
-
-    if (this.overlay) {
-      cleanupModal(this.overlay, {
+    closeModalDialog(
+      this.overlay,
+      {
         keyPressHandler: this.keyPressHandler,
         clickHandler: this.clickHandler,
-      });
-      this.overlay = null;
-    }
+      },
+      this.centerTimeoutId
+    );
+    this.centerTimeoutId = null;
+    this.overlay = null;
   }
 }

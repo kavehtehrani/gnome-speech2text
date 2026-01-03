@@ -6,7 +6,11 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { COLORS, STYLES } from "./constants.js";
 import { createCloseButton, createHeaderLayout } from "./buttonUtils.js";
 import { createStyledLabel, createHoverButton } from "./uiUtils.js";
-import { cleanupModal, centerWidgetOnMonitor } from "./resourceUtils.js";
+import {
+  cleanupModal,
+  showModalDialog,
+  closeModalDialog,
+} from "./resourceUtils.js";
 
 export class ShortcutCapture {
   constructor() {
@@ -81,14 +85,7 @@ export class ShortcutCapture {
 
     this.overlay.add_child(this.captureWindow);
 
-    Main.layoutManager.addTopChrome(this.overlay);
-
-    const monitor = Main.layoutManager.primaryMonitor;
-    this.overlay.set_position(monitor.x, monitor.y);
-    this.overlay.set_size(monitor.width, monitor.height);
-
-    // Center the dialog
-    this.centerTimeoutId = centerWidgetOnMonitor(this.captureWindow, monitor, {
+    this.centerTimeoutId = showModalDialog(this.overlay, this.captureWindow, {
       fallbackWidth: 400,
       fallbackHeight: 250,
       existingTimeoutId: this.centerTimeoutId,
@@ -228,9 +225,6 @@ export class ShortcutCapture {
       // This allows holding multiple modifiers before pressing the final key
       return Clutter.EVENT_STOP;
     });
-
-    this.overlay.grab_key_focus();
-    this.overlay.set_reactive(true);
   }
 
   _cancel() {
@@ -246,24 +240,21 @@ export class ShortcutCapture {
   }
 
   cleanup() {
-    // Clean up timeout sources
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-      this.centerTimeoutId = null;
-    }
-
-    if (this.overlay) {
-      cleanupModal(this.overlay, {
+    closeModalDialog(
+      this.overlay,
+      {
         keyPressHandler: this.keyPressHandler,
         keyReleaseHandler: this.keyReleaseHandler,
         clickHandler: this.clickHandler,
-      });
-      this.overlay = null;
-      this.captureWindow = null;
-      this.keyPressHandler = null;
-      this.keyReleaseHandler = null;
-      this.clickHandler = null;
-    }
+      },
+      this.centerTimeoutId
+    );
+    this.centerTimeoutId = null;
+    this.overlay = null;
+    this.captureWindow = null;
+    this.keyPressHandler = null;
+    this.keyReleaseHandler = null;
+    this.clickHandler = null;
     this.callback = null;
   }
 }

@@ -18,7 +18,12 @@ import {
   createCenteredBox,
   createHeaderLayout,
 } from "./buttonUtils.js";
-import { cleanupModal, centerWidgetOnMonitor } from "./resourceUtils.js";
+import {
+  cleanupModal,
+  showModalDialog,
+  closeModalDialog,
+  setupModalEventHandlers,
+} from "./resourceUtils.js";
 
 export class SettingsDialog {
   constructor(extension) {
@@ -48,20 +53,16 @@ export class SettingsDialog {
   }
 
   close() {
-    // Clean up timeout sources
-    if (this.centerTimeoutId) {
-      GLib.Source.remove(this.centerTimeoutId);
-      this.centerTimeoutId = null;
-    }
-
-    if (this.overlay) {
-      cleanupModal(this.overlay, {
+    closeModalDialog(
+      this.overlay,
+      {
         keyPressHandler: this.keyPressHandler,
         clickHandler: this.clickHandler,
-      });
-      this.overlay = null;
-    }
-
+      },
+      this.centerTimeoutId
+    );
+    this.centerTimeoutId = null;
+    this.overlay = null;
     this.keyPressHandler = null;
     this.clickHandler = null;
   }
@@ -487,47 +488,18 @@ export class SettingsDialog {
       });
     }
 
-    // Modal overlay handlers
-    this.clickHandler = this.overlay.connect(
-      "button-press-event",
-      (actor, event) => {
-        if (event.get_source() === this.overlay) {
-          this.close();
-          return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
-      }
-    );
-
-    // Keyboard handling: Escape closes, others propagate.
-    this.keyPressHandler = this.overlay.connect(
-      "key-press-event",
-      (actor, event) => {
-        if (event.get_key_symbol() === Clutter.KEY_Escape) {
-          this.close();
-          return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
-      }
-    );
+    // Set up standard modal event handlers (Escape key + click outside to close)
+    const handlers = setupModalEventHandlers(this.overlay, () => this.close());
+    this.keyPressHandler = handlers.keyPressHandler;
+    this.clickHandler = handlers.clickHandler;
   }
 
   _showDialog() {
-    Main.layoutManager.addTopChrome(this.overlay);
-
-    const monitor = Main.layoutManager.primaryMonitor;
-    this.overlay.set_position(monitor.x, monitor.y);
-    this.overlay.set_size(monitor.width, monitor.height);
-
-    // Center the dialog
-    this.centerTimeoutId = centerWidgetOnMonitor(this.settingsWindow, monitor, {
+    this.centerTimeoutId = showModalDialog(this.overlay, this.settingsWindow, {
       fallbackWidth: 550,
       fallbackHeight: 500,
       existingTimeoutId: this.centerTimeoutId,
       onComplete: () => (this.centerTimeoutId = null),
     });
-
-    this.overlay.grab_key_focus();
-    this.overlay.set_reactive(true);
   }
 }
