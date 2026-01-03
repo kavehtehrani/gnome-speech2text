@@ -52,9 +52,11 @@ See [Service Installation](#Service-Installation) below.
 
 If you are missing any of the required dependencies the installation script will let you know.
 
-## Installation
+# Installation
 
-### GNOME Extensions Store
+## 1- Extension Installation
+
+### GNOME Extensions Store (recommended)
 
 [![Download from GNOME Extensions](https://img.shields.io/badge/Download%20from-GNOME%20Extensions-blue)](https://extensions.gnome.org/extension/8238/speech2text-extension/)
 
@@ -86,7 +88,7 @@ make install
 1. Log out of your current session
 2. Log back in
 
-### Service Installation
+## 2- Service Installation
 
 The D-Bus service has to be manually installed per GNOME's guidelines. For most people, the 'base' model and 'cpu' processing is sufficient and most compatible across platforms.
 
