@@ -36,6 +36,7 @@ D-Bus service for speech processing. The extension itself is lightweight and com
 D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension
 and must be installed separately as a dependency. This extension requires the external background
 service [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/) to be installed.
+See [Service Installation](Service-Installation) below.
 
 ## Requirements
 
@@ -62,7 +63,7 @@ If you are missing any of the required dependencies the installation script will
 3. Follow the setup dialog to install the required D-Bus service (automatically downloads from PyPI)
 4. Restart GNOME Shell to complete the installation
 
-### 1- Manual Installation
+### Manual Installation
 
 For the manual installation experience, use the repository installer script:
 
