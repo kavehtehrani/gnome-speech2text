@@ -177,37 +177,11 @@ export class UIManager {
           }
         };
 
-        // Banner/body activation
-        try {
-          notification.connect("activated", handler);
-        } catch {
-          // ignore
-        }
+        notification.connect("activated", handler);
 
-        // Some versions also emit action-invoked for default action
-        try {
-          notification.connect("action-invoked", handler);
-        } catch {
-          // ignore
-        }
-      }
-
-      // Add an explicit action button where supported (more reliable than body click).
-      if (onActivate && typeof notification.addAction === "function") {
-        try {
-          notification.addAction("View", () => {
-            try {
-              onActivate();
-            } catch (e) {
-              console.error("Notification action handler failed:", e);
-              Main.notify(
-                "Speech2Text Error",
-                "Failed to open transcription view."
-              );
-            }
-          });
-        } catch {
-          // Optional, ignore if unsupported.
+        // Add an explicit action button where supported (more reliable than body click).
+        if (typeof notification.addAction === "function") {
+          notification.addAction("View", handler);
         }
       }
 

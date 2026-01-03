@@ -1,4 +1,5 @@
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 let _debugEnabled = null;
@@ -22,6 +23,53 @@ export const log = {
 };
 
 /**
+ * Read the installed service configuration from install-state.conf.
+ * This file is created by the official installer script.
+ *
+ * @returns {Object} Configuration object with:
+ *   - known: boolean - true if install-state.conf exists and was readable
+ *   - model: string|null - Whisper model name (e.g. "base", "medium")
+ *   - device: string|null - Device type ("cpu" or "gpu")
+ *   - installedAt: string|null - ISO timestamp when service was installed
+ */
+export function readInstalledServiceConfig() {
+  try {
+    const home = GLib.get_home_dir();
+    const path = `${home}/.local/share/speech2text-extension-service/install-state.conf`;
+    const file = Gio.File.new_for_path(path);
+    if (!file.query_exists(null)) return { known: false };
+    const [ok, contents] = file.load_contents(null);
+    if (!ok) return { known: false };
+
+    const text = new TextDecoder().decode(contents);
+    const lines = text.split("\n");
+    const kv = {};
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const idx = trimmed.indexOf("=");
+      if (idx <= 0) continue;
+      const k = trimmed.slice(0, idx).trim();
+      const v = trimmed.slice(idx + 1).trim();
+      kv[k] = v;
+    }
+
+    return {
+      known: true,
+      model: kv.model || null,
+      device: kv.device || null,
+      installedAt: kv.installed_at || null,
+    };
+  } catch (e) {
+    log.debug(
+      "Failed to read installed service config (non-fatal):",
+      e?.message || String(e)
+    );
+    return { known: false };
+  }
+}
+
+/**
  * Center a widget on a monitor after a brief delay (to allow size allocation).
  * Returns a timeout ID that should be cleaned up on close.
  *
@@ -42,13 +90,14 @@ export function centerWidgetOnMonitor(
     fallbackHeight = 300,
     existingTimeoutId = null,
     onComplete = null,
+    sourceName = "speech2text-extension: centerWidgetOnMonitor",
   } = {}
 ) {
   if (existingTimeoutId) {
     GLib.Source.remove(existingTimeoutId);
   }
 
-  return GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+  const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
     let [width, height] = widget.get_size();
     if (width === 0) width = fallbackWidth;
     if (height === 0) height = fallbackHeight;
@@ -60,6 +109,10 @@ export function centerWidgetOnMonitor(
     if (onComplete) onComplete();
     return false; // GLib.SOURCE_REMOVE
   });
+
+  GLib.Source.set_name_by_id(timeoutId, sourceName);
+
+  return timeoutId;
 }
 
 // Helper to safely disconnect event handlers
@@ -135,22 +188,10 @@ export function cleanupChromeWidget(widget, { destroy = true } = {}) {
   if (!widget) return false;
 
   try {
-    try {
-      if (widget.get_parent && widget.get_parent()) {
-        Main.layoutManager.removeChrome(widget);
-      }
-    } catch (e) {
-      log.warn("Failed to remove chrome widget:", e?.message || String(e));
+    if (widget.get_parent?.()) {
+      Main.layoutManager.removeChrome(widget);
     }
-
-    if (destroy && widget.destroy) {
-      try {
-        widget.destroy();
-      } catch (e) {
-        log.warn("Failed to destroy chrome widget:", e?.message || String(e));
-      }
-    }
-
+    if (destroy && widget.destroy) widget.destroy();
     return true;
   } catch (e) {
     log.warn("Failed to cleanup chrome widget:", e?.message || String(e));
@@ -166,81 +207,41 @@ export function cleanupChromeWidget(widget, { destroy = true } = {}) {
  * can be very sensitive across versions. Keep changes minimal.
  */
 export function cleanupRecordingModal(modal, { isGNOME48Plus } = {}) {
-  try {
-    // Remove from chrome if it has a parent
-    if (modal?.get_parent) {
-      const parent = modal.get_parent();
-      if (parent) {
-        // Try the official method first
-        try {
-          Main.layoutManager.removeChrome(modal);
-          log.debug("Modal removed from chrome successfully");
-        } catch (chromeError) {
-          log.debug(
-            "Chrome removal failed, trying direct parent removal:",
-            chromeError?.message || String(chromeError)
-          );
+  if (!modal) return;
 
-          // For GNOME 48+, try a gentler approach first
-          if (isGNOME48Plus) {
-            try {
-              // Try to hide first, then remove with delay
-              if (modal.hide) modal.hide();
-              // Do immediate removal instead of delayed
-              try {
-                parent.remove_child(modal);
-                log.debug("Modal removed from parent immediately (GNOME 48+)");
-              } catch (delayedError) {
-                log.debug(
-                  "Immediate parent removal failed:",
-                  delayedError?.message || String(delayedError)
-                );
-              }
-            } catch (gnome48Error) {
-              log.debug(
-                "GNOME 48+ specific removal failed:",
-                gnome48Error?.message || String(gnome48Error)
-              );
-              // Fallback to direct removal
-              try {
-                parent.remove_child(modal);
-                log.debug("Modal removed from parent directly (fallback)");
-              } catch (parentError) {
-                log.debug(
-                  "Direct parent removal also failed:",
-                  parentError?.message || String(parentError)
-                );
-              }
-            }
-          } else {
-            // Standard fallback for older GNOME versions
-            try {
-              parent.remove_child(modal);
-              log.debug("Modal removed from parent directly");
-            } catch (parentError) {
-              log.debug(
-                "Direct parent removal also failed:",
-                parentError?.message || String(parentError)
-              );
-            }
-          }
-        }
-      }
-    }
-
-    // Finally, destroy the modal
-    if (modal?.destroy) {
+  // Remove from chrome if it has a parent
+  const parent = modal.get_parent?.();
+  if (parent) {
+    try {
+      Main.layoutManager.removeChrome(modal);
+      log.debug("Modal removed from chrome successfully");
+    } catch (chromeError) {
+      log.debug(
+        "Chrome removal failed, trying direct parent removal:",
+        chromeError?.message || String(chromeError)
+      );
+      // NOTE: keep fallback removal; GNOME Shell behavior can vary across versions.
+      if (isGNOME48Plus) modal.hide?.();
       try {
-        modal.destroy();
-        log.debug("Modal destroyed successfully");
-      } catch (destroyError) {
+        parent.remove_child(modal);
+        log.debug("Modal removed from parent directly");
+      } catch (parentError) {
         log.debug(
-          "Modal destruction failed:",
-          destroyError?.message || String(destroyError)
+          "Direct parent removal also failed:",
+          parentError?.message || String(parentError)
         );
       }
     }
-  } catch (e) {
-    log.warn("Delayed cleanup failed:", e?.message || String(e));
+  }
+
+  // Finally, destroy the modal
+  try {
+    modal.destroy?.();
+    log.debug("Modal destroyed successfully");
+  } catch (destroyError) {
+    log.debug(
+      "Modal destruction failed:",
+      destroyError?.message || String(destroyError)
+    );
   }
 }

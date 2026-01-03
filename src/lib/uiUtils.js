@@ -27,7 +27,7 @@ export function addHandCursorToButton(button) {
       const version = Config.PACKAGE_VERSION;
       const major = parseInt(version.split(".")[0], 10);
       return major >= 48;
-    } catch {
+    } catch (_e) {
       return true; // Assume newer version if detection fails
     }
   })();

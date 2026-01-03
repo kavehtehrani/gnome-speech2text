@@ -78,15 +78,9 @@ export class RecordingController {
         );
         recordingDialog.open();
       } else {
-        // If the user selected a non-default model/device, a common cause is an older
-        // service version that doesn't support SetWhisperConfig yet.
-        const selectedModel = settings.get_string("whisper-model") || "base";
-        const selectedDevice = settings.get_string("whisper-device") || "cpu";
-        if (selectedModel !== "base" || selectedDevice !== "cpu") {
-          this.uiManager.showServiceSetupDialog(
-            "Your installed Speech2Text service is outdated and doesn't support model/device selection yet. Reinstall/upgrade the service using the options below."
-          );
-        }
+        this.uiManager.showServiceSetupDialog(
+          "Failed to start recording. Please verify the Speech2Text service is installed and up to date."
+        );
       }
     }
   }
@@ -234,14 +228,10 @@ export class RecordingController {
   }
 
   async _typeText(text) {
-    try {
-      await this.serviceManager.typeText(
-        text,
-        this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard")
-      );
-    } catch (e) {
-      console.error(`Error typing text: ${e}`);
-    }
+    await this.serviceManager.typeText(
+      text,
+      this.uiManager.extensionCore.settings.get_boolean("copy-to-clipboard")
+    );
   }
 
   _beginTranscriptionUi() {
@@ -255,7 +245,10 @@ export class RecordingController {
         try {
           dialog.close();
         } catch (e) {
-          // Non-fatal.
+          log.debug(
+            "RecordingController: failed to close dialog (non-fatal):",
+            e?.message || String(e)
+          );
         } finally {
           this.recordingStateManager.setRecordingDialog(null);
         }

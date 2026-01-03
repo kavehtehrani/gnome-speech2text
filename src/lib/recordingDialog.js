@@ -610,10 +610,14 @@ export class RecordingDialog {
       this.modalBarrier.set_size(monitor.width, monitor.height);
 
       // Center the dialog container
+      // This function can be called multiple times; clear any existing center timeout first.
+      if (this.centerTimeoutId) {
+        GLib.Source.remove(this.centerTimeoutId);
+        this.centerTimeoutId = null;
+      }
       this.centerTimeoutId = centerWidgetOnMonitor(this.container, monitor, {
         fallbackWidth: 450,
         fallbackHeight: 300,
-        existingTimeoutId: this.centerTimeoutId,
         onComplete: () => (this.centerTimeoutId = null),
       });
 
@@ -751,7 +755,7 @@ export class RecordingDialog {
             const version = Config.PACKAGE_VERSION;
             const major = parseInt(version.split(".")[0], 10);
             return major >= 48;
-          } catch {
+          } catch (_e) {
             return true; // Assume newer version if detection fails
           }
         })();

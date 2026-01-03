@@ -1,7 +1,7 @@
 import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { COLORS } from "./constants.js";
-import { log } from "./resourceUtils.js";
+import { log, readInstalledServiceConfig } from "./resourceUtils.js";
 
 export class RecordingStateManager {
   constructor(icon, dbusManager) {
@@ -30,8 +30,13 @@ export class RecordingStateManager {
       const recordingDuration = settings.get_int("recording-duration");
       const copyToClipboard = settings.get_boolean("copy-to-clipboard");
       const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
-      const whisperModel = settings.get_string("whisper-model") || "base";
-      const whisperDevice = settings.get_string("whisper-device") || "cpu";
+      const installed = readInstalledServiceConfig();
+      if (!installed.known) {
+        return false;
+      }
+
+      const whisperModel = installed.model || "base";
+      const whisperDevice = installed.device || "cpu";
 
       // Always use preview mode for D-Bus service (it just controls service behavior)
       // We'll handle the skip-preview logic in the extension when we get the transcription

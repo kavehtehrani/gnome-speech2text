@@ -491,15 +491,11 @@ export class SettingsDialog {
     this.clickHandler = this.overlay.connect(
       "button-press-event",
       (actor, event) => {
-        try {
-          if (event.get_source() === this.overlay) {
-            this.close();
-            return Clutter.EVENT_STOP;
-          }
-          return Clutter.EVENT_PROPAGATE;
-        } catch {
+        if (event.get_source() === this.overlay) {
+          this.close();
           return Clutter.EVENT_STOP;
         }
+        return Clutter.EVENT_PROPAGATE;
       }
     );
 

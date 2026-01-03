@@ -1,9 +1,23 @@
 import { DBusManager } from "./dbusManager.js";
+import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import { log } from "./resourceUtils.js";
 
 export class ServiceManager {
   constructor() {
     this.dbusManager = null;
+  }
+
+  _hasInstallerMarker() {
+    // Enforce: service must be installed via our installer, which writes install-state.conf.
+    try {
+      const home = GLib.get_home_dir();
+      const path = `${home}/.local/share/speech2text-extension-service/install-state.conf`;
+      const file = Gio.File.new_for_path(path);
+      return file.query_exists(null);
+    } catch (_e) {
+      return false;
+    }
   }
 
   async initialize() {
@@ -56,6 +70,17 @@ export class ServiceManager {
     if (!serviceStatus.available) {
       log.warn("Service not available:", serviceStatus.error);
       return { available: false, error: serviceStatus.error };
+    }
+
+    // Service is reachable, but we require installation via our installer.
+    if (!this._hasInstallerMarker()) {
+      return {
+        available: false,
+        error:
+          "Speech2Text service installation is incomplete.\n" +
+          "Please install (or reinstall) the service using the official installer so the marker file is created:\n" +
+          "  ~/.local/share/speech2text-extension-service/install-state.conf",
+      };
     }
 
     return { available: true };

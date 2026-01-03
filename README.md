@@ -31,14 +31,11 @@ The extension consists of two components:
 1. **GNOME Extension** (lightweight UI) - Provides the panel button, keyboard shortcuts, and settings
 2. **D-Bus Service** (separate package) - Handles audio recording, speech transcription, and text insertion
 
-This separation ensures the extension follows GNOME's best practices and security guidelines.
-
 **Important for GNOME Extensions Store**: This extension follows GNOME's architectural guidelines by using a separate
 D-Bus service for speech processing. The extension itself is lightweight and communicates with the external service over
 D-Bus using the `org.gnome.Shell.Extensions.Speech2Text` interface. The service is **not bundled** with the extension
 and must be installed separately as a dependency. This extension requires the external background
-service [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/) to be installed. The first time
-you run the extension you will get a popup to guide you through this setup.
+service [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/) to be installed.
 
 ## Requirements
 
@@ -65,7 +62,7 @@ If you are missing any of the required dependencies the installation script will
 3. Follow the setup dialog to install the required D-Bus service (automatically downloads from PyPI)
 4. Restart GNOME Shell to complete the installation
 
-### Manual Installation
+### 1- Manual Installation
 
 For the manual installation experience, use the repository installer script:
 
@@ -74,34 +71,6 @@ git clone https://github.com/kavehtehrani/speech2text-extension.git
 cd speech2text-extension
 make install
 ```
-
-### First Time Setup
-
-The extension automatically detects if the required service is missing and provides a user-friendly setup dialog with
-automatic or manual installation options.
-
-### Whisper model & CPU/GPU settings
-
-Speech2Text uses OpenAI Whisper locally. You can configure:
-
-- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants (including `*.en`, `large-v2`, `large-v3`). See [here](https://github.com/openai/whisper) for more info.
-- **Device**:
-  - **CPU (default)**: recommended for most users; easier install and compatibility.
-  - **GPU**: attempts to use an accelerator backend via PyTorch. On Linux this usually means **NVIDIA CUDA**.
-    (Advanced users may be able to use other backends depending on their PyTorch build.)
-
-Important: switching CPU/GPU will require reinstalling the background service so the correct ML dependencies are installed.
-
-Notes about installers and distributions:
-
-- This repository includes `service/install-service.sh`, a distro-agnostic service installer that only verifies system
-  dependencies and installs the Python D-Bus service into `~/.local/share/speech2text-extension-service`.
-- You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
-  packages.
-  - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
-    use `./service/install-service.sh --local` instead.
-  - Note: the installer supports **GPU mode** via `--gpu`. If you are in GPU mode in the extension settings, the setup
-    dialog will run the installer with `--gpu`.
 
 #### IMPORTANT: Restart GNOME Shell After Installation
 
@@ -116,20 +85,41 @@ Notes about installers and distributions:
 1. Log out of your current session
 2. Log back in
 
-### Alternative: Service-Only Installation
+### Service Installation
 
-If you only want to manually install the D-Bus service (for development or advanced users):
+The D-Bus service has to be manually installed per GNOME's guidelines. For most people, the 'base' model and 'cpu' processing is sufficient and most compatible across platforms.
 
 ```bash
-# Install just the service from local source
-./service/install-service.sh --local
-
-# Or install from PyPI
-./service/install-service.sh --pypi
-
-# Install with GPU-enabled ML dependencies (advanced)
-./service/install-service.sh --pypi --gpu
+curl -sSL https://raw.githubusercontent.com/kavehtehrani/speech2text-extension/refs/heads/main/service/install-service.sh | bash -s -- --pypi --non-interactive --service-version 1.2.0 --whisper-model base
 ```
+
+## Whisper model & CPU/GPU settings
+
+Speech2Text uses OpenAI Whisper locally. You configure model/device by (re)installing the D-Bus service with the appropriate installer flags:
+
+- **Whisper model**: `tiny`, `base`, `small`, `medium`, `large`, and variants (including `*.en`, `large-v2`, `large-v3`). See [here](https://github.com/openai/whisper) for more info.
+- **Device**:
+  - **CPU (default)**: recommended for most users; easier install and compatibility.
+  - **GPU**: attempts to use an accelerator backend via PyTorch. On Linux this usually means **NVIDIA CUDA**.
+    (Advanced users may be able to use other backends depending on their PyTorch build.)
+
+Important: switching CPU/GPU will require reinstalling the background service so the correct ML dependencies are installed.
+
+For instance if you wanted to run the whisper model 'medium' and use 'gpu' processing, then install the service with:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/kavehtehrani/speech2text-extension/refs/heads/main/service/install-service.sh | bash -s -- --pypi --non-interactive --service-version 1.2.0 --gpu --whisper-model medium
+```
+
+Notes about installers and distributions:
+
+- This repository includes `service/install-service.sh`, a distro-agnostic service installer that only verifies system
+  dependencies and installs the Python D-Bus service into `~/.local/share/speech2text-extension-service`.
+- You must install system packages yourself using your distro’s package manager. The setup dialog will list any missing
+  packages.
+  - Note: the setup dialog’s **Automatic Install** uses `--pypi` (PyPI). If you are developing locally from a git clone,
+    use `./service/install-service.sh --local` instead.
+  - Note: the installer supports **GPU mode** via `--gpu`.
 
 The service is available as a Python package on
 PyPI: [speech2text-extension-service](https://pypi.org/project/speech2text-extension-service/)
@@ -161,18 +151,6 @@ With non-blocking transcription enabled:
 2. The modal closes immediately when recording stops
 3. A "..." appears next to the microphone icon while processing
 4. Click the notification when transcription is ready to review/copy
-
-### Settings
-
-Right-click the microphone icon to access:
-
-- **Settings**: Configure extension preferences
-  - **Keyboard Shortcuts**: Customize the recording hotkey
-  - **Recording Duration**: Set maximum recording time (10-300 seconds)
-  - **Copy to Clipboard**: Automatically copy transcribed text
-  - **Non-blocking Transcription**: Process audio in the background while you continue working. When enabled, the recording modal closes immediately after you stop recording, and a clickable notification appears when transcription is ready
-  - **Skip Preview (X11 only)**: Instantly insert text without preview (not available with non-blocking mode)
-- **Setup Guide**: View service installation instructions anytime
 
 ## Troubleshooting
 
