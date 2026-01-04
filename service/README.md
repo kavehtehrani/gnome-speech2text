@@ -40,28 +40,79 @@ pip install .
 
 ### D-Bus Registration
 
-After installation, you need to register the D-Bus service and desktop entry. Recommended options:
+After installation, you need to register the D-Bus service and desktop entry. The installer script (`install-service.sh`) handles this automatically.
 
-1. Using the repository (local source install)
+#### Basic Installation
+
+1. **Using the repository (local source install)**
 
 ```bash
 # From the repo root
 ./service/install-service.sh --local
 ```
 
-2. Using the bundled installer (PyPI install)
+2. **Using the bundled installer (PyPI install)**
 
 ```bash
 # From the repo root
 ./service/install-service.sh --pypi
 ```
 
+#### Configuration Options
+
+The installer supports several options to configure the Whisper model and processing device:
+
+**Whisper Model Selection**
+
+Use `--whisper-model <name>` to specify which Whisper model to use. Available models:
+- `tiny` - Fastest, least accurate 
+- `base` - Good balance (default)
+- `small` - Better accuracy 
+- `medium` - High accuracy 
+- `large` - Best accuracy
+- Variants: `tiny.en`, `base.en`, `small.en`, `medium.en` (English-only, faster)
+
+The model name is recorded for UI display purposes. The actual model files are downloaded automatically by Whisper when first used.
+
+**Device Selection (CPU/GPU)**
+
+- **CPU mode (default)**: Recommended for most users. Easier installation and better compatibility across systems.
+- **GPU mode**: Use `--gpu` flag to install GPU-enabled ML dependencies. On Linux, this typically requires NVIDIA CUDA support.
+
+**Example Installations**
+
+```bash
+# Default: base model, CPU mode
+./service/install-service.sh --pypi
+
+# Medium model with GPU support
+./service/install-service.sh --pypi --gpu --whisper-model medium
+
+# Small English-only model, CPU mode
+./service/install-service.sh --pypi --whisper-model small.en
+
+# Large model with GPU (requires significant VRAM)
+./service/install-service.sh --pypi --gpu --whisper-model large
+```
+
+**Other Options**
+
+- `--python <cmd>`: Use a specific Python interpreter (e.g., `--python python3.12`)
+- `--non-interactive`: Run without user prompts (auto-accept defaults)
+- `--service-version <version>`: Install a specific service package version from PyPI
+- `--help`: Show all available options
+
+**What the Installer Does**
+
 The installer will:
 
 - Create a per-user virtual environment under `~/.local/share/speech2text-extension-service/venv`
-- Install the `speech2text-extension-service` package
+- Install the `speech2text-extension-service` package with appropriate ML dependencies
 - Register the D-Bus service at `~/.local/share/dbus-1/services/org.gnome.Shell.Extensions.Speech2Text.service`
 - Create a desktop entry at `~/.local/share/applications/speech2text-extension-service.desktop`
+- Record installation metadata in `~/.local/share/speech2text-extension-service/install-state.conf` (model, device, timestamp)
+
+**Note**: To change the model or device after installation, you must re-run the installer with the new options. The installer rebuilds the virtual environment from scratch, ensuring clean dependency management.
 
 ## Usage
 
@@ -80,6 +131,12 @@ speech2text-extension-service
 ### Configuration
 
 The service uses OpenAI's Whisper model locally for speech recognition. No API key is required. All processing happens on your local machine for complete privacy.
+
+**Model and Device Configuration**
+
+The Whisper model and processing device (CPU/GPU) are configured during service installation using the installer flags (see [D-Bus Registration](#d-bus-registration) above). The extension reads this configuration from `~/.local/share/speech2text-extension-service/install-state.conf` to display the current settings in the setup dialog.
+
+To change the model or device, reinstall the service with the desired options. The installer will rebuild the virtual environment with the appropriate dependencies.
 
 ### D-Bus Interface
 
