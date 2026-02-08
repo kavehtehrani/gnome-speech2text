@@ -85,10 +85,14 @@ export class ShortcutCapture {
 
     this.overlay.add_child(this.captureWindow);
 
+    // Clear any existing centering timeout
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+    }
+    // showModalDialog returns a timeout ID for widget centering
     this.centerTimeoutId = showModalDialog(this.overlay, this.captureWindow, {
       fallbackWidth: 400,
       fallbackHeight: 250,
-      existingTimeoutId: this.centerTimeoutId,
       onComplete: () => (this.centerTimeoutId = null),
     });
 

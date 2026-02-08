@@ -253,10 +253,14 @@ Installation instructions are maintained in the project repository.`;
     if (!this.overlay) return;
     this._refreshStatusLabel();
 
+    // Clear any existing centering timeout
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+    }
+    // showModalDialog returns a timeout ID for widget centering
     this.centerTimeoutId = showModalDialog(this.overlay, this.dialogContainer, {
       fallbackWidth: 700,
       fallbackHeight: 500,
-      existingTimeoutId: this.centerTimeoutId,
       onComplete: () => (this.centerTimeoutId = null),
     });
   }

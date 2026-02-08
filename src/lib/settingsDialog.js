@@ -495,10 +495,14 @@ export class SettingsDialog {
   }
 
   _showDialog() {
+    // Clear any existing centering timeout
+    if (this.centerTimeoutId) {
+      GLib.Source.remove(this.centerTimeoutId);
+    }
+    // showModalDialog returns a timeout ID for widget centering
     this.centerTimeoutId = showModalDialog(this.overlay, this.settingsWindow, {
       fallbackWidth: 550,
       fallbackHeight: 500,
-      existingTimeoutId: this.centerTimeoutId,
       onComplete: () => (this.centerTimeoutId = null),
     });
   }

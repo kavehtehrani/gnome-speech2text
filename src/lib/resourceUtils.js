@@ -78,7 +78,6 @@ export function readInstalledServiceConfig() {
  * @param {Object} options - Options
  * @param {number} options.fallbackWidth - Fallback width if widget reports 0
  * @param {number} options.fallbackHeight - Fallback height if widget reports 0
- * @param {number|null} options.existingTimeoutId - Existing timeout to clear first
  * @param {function} options.onComplete - Optional callback when centering is done
  * @returns {number} The timeout ID (store this and clean up with GLib.Source.remove)
  */
@@ -88,15 +87,10 @@ export function centerWidgetOnMonitor(
   {
     fallbackWidth = 400,
     fallbackHeight = 300,
-    existingTimeoutId = null,
     onComplete = null,
     sourceName = "speech2text-extension: centerWidgetOnMonitor",
   } = {}
 ) {
-  if (existingTimeoutId) {
-    GLib.Source.remove(existingTimeoutId);
-  }
-
   const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
     let [width, height] = widget.get_size();
     if (width === 0) width = fallbackWidth;
@@ -224,9 +218,8 @@ export function getServiceBinaryPath() {
  * @param {Object} options - Configuration options
  * @param {number} options.fallbackWidth - Fallback width if widget reports 0
  * @param {number} options.fallbackHeight - Fallback height if widget reports 0
- * @param {number|null} options.existingTimeoutId - Existing center timeout to clear first
  * @param {function} options.onComplete - Optional callback when centering completes
- * @returns {number} The center timeout ID (store for cleanup)
+ * @returns {number} GLib timeout ID; store and remove with GLib.Source.remove()
  */
 export function showModalDialog(overlay, dialogWidget, options = {}) {
   Main.layoutManager.addTopChrome(overlay);
@@ -238,7 +231,6 @@ export function showModalDialog(overlay, dialogWidget, options = {}) {
   const timeoutId = centerWidgetOnMonitor(dialogWidget, monitor, {
     fallbackWidth: options.fallbackWidth || 600,
     fallbackHeight: options.fallbackHeight || 400,
-    existingTimeoutId: options.existingTimeoutId || null,
     onComplete: () => {
       if (options.onComplete) options.onComplete();
     },
