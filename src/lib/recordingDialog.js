@@ -1,11 +1,11 @@
 import Clutter from "gi://Clutter";
 import GLib from "gi://GLib";
-import Meta from "gi://Meta";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as Config from "resource:///org/gnome/shell/misc/config.js";
 
 import { COLORS, STYLES } from "./constants.js";
+import { isWaylandCompositor } from "./compat.js";
 import { createHoverButton, createHorizontalBox } from "./uiUtils.js";
 import {
   cleanupChromeWidget,
@@ -363,7 +363,7 @@ export class RecordingDialog {
     log.debug(`Showing preview with text: "${text}"`);
 
     // Check if we're on Wayland
-    const isWayland = Meta.is_wayland_compositor();
+    const isWayland = isWaylandCompositor();
 
     // Update UI for preview mode - change icon and label
     if (this.recordingIcon) {
@@ -651,7 +651,7 @@ export class RecordingDialog {
               }
 
               // Only try global.stage.set_key_focus on X11 or as fallback
-              const isWayland = Meta.is_wayland_compositor();
+              const isWayland = isWaylandCompositor();
               if (!isWayland && global.stage?.set_key_focus) {
                 global.stage.set_key_focus(this.modalBarrier);
                 log.debug("Focus set using global.stage.set_key_focus");

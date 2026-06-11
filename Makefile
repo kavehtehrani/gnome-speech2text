@@ -1,7 +1,7 @@
 # Speech2Text Extension - Makefile
 # Automates common development and installation tasks
 
-EXTENSION_UUID = speech2text-extension@kaveh.page
+EXTENSION_UUID = gnome-speech2text@kaveh.page
 EXTENSION_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 SOURCE_DIR = src
 SCHEMAS_DIR = $(EXTENSION_DIR)/schemas

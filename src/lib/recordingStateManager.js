@@ -1,6 +1,6 @@
-import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { COLORS } from "./constants.js";
+import { isWaylandCompositor } from "./compat.js";
 import { log, readInstalledServiceConfig } from "./resourceUtils.js";
 
 export class RecordingStateManager {
@@ -235,7 +235,7 @@ export class RecordingStateManager {
 
     // Check if we should skip preview and auto-insert
     const skipPreviewX11 = settings.get_boolean("skip-preview-x11");
-    const isWayland = Meta.is_wayland_compositor();
+    const isWayland = isWaylandCompositor();
 
     log.debug(`=== SETTINGS CHECK ===`);
     log.debug(`skipPreviewX11 (auto-insert): ${skipPreviewX11}`);

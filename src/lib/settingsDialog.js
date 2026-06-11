@@ -1,10 +1,10 @@
 import Clutter from "gi://Clutter";
 import GLib from "gi://GLib";
 import St from "gi://St";
-import Meta from "gi://Meta";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 import { COLORS, STYLES, createAccentDisplayStyle } from "./constants.js";
+import { isWaylandCompositor } from "./compat.js";
 import {
   createHoverButton,
   createStyledLabel,
@@ -290,7 +290,7 @@ export class SettingsDialog {
     }
 
     // 3) auto-insert (X11 only)
-    if (!Meta.is_wayland_compositor()) {
+    if (!isWaylandCompositor()) {
       const row = createHorizontalBox("12px", "0px");
       const label = createStyledLabel(
         "Auto-insert mode at cursor (x11 only)",
