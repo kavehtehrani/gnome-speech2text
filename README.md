@@ -108,6 +108,10 @@ Speech2Text uses OpenAI Whisper locally. You configure model/device by (re)insta
 
 Important: switching CPU/GPU will require reinstalling the background service so the correct ML dependencies are installed.
 
+CPU inference uses up to four threads by default. To override this, set `SPEECH2TEXT_CPU_THREADS` in the service
+environment before it starts. Values are limited to the number of available CPUs. For example, add
+`SPEECH2TEXT_CPU_THREADS=12` to `~/.config/environment.d/90-speech2text.conf`, then log out and back in.
+
 For instance if you wanted to run the whisper model 'medium' and use 'gpu' processing, then install the service with:
 
 ```bash

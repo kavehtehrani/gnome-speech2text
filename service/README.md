@@ -79,6 +79,20 @@ The model name is recorded for UI display purposes. The actual model files are d
 - **CPU mode (default)**: Recommended for most users. Easier installation and better compatibility across systems.
 - **GPU mode**: Use `--gpu` flag to install GPU-enabled ML dependencies. On Linux, this typically requires NVIDIA CUDA support.
 
+**CPU Thread Count**
+
+CPU inference uses up to four threads by default. Set `SPEECH2TEXT_CPU_THREADS` before the service starts to override
+the default. The value is clamped between one and the number of available CPUs; invalid values fall back to four.
+
+For example, with a systemd user session:
+
+```bash
+mkdir -p ~/.config/environment.d
+printf 'SPEECH2TEXT_CPU_THREADS=12\n' > ~/.config/environment.d/90-speech2text.conf
+```
+
+Log out and back in after changing the file so the D-Bus-activated service inherits the new value.
+
 **Example Installations**
 
 ```bash
