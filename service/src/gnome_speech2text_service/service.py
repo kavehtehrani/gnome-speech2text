@@ -118,8 +118,13 @@ class Speech2TextService(ServiceInterface):
                 try:
                     import torch  # type: ignore
 
-                    torch.set_num_threads(_get_cpu_thread_count())
+                    cpu_threads = _get_cpu_thread_count()
+                    torch.set_num_threads(cpu_threads)
                     torch.set_num_interop_threads(1)
+                    syslog.syslog(
+                        syslog.LOG_INFO,
+                        f"Configured PyTorch CPU threads: {cpu_threads}",
+                    )
                 except Exception:
                     # If torch isn't available yet for any reason, don't fail here.
                     pass
