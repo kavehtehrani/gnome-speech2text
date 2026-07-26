@@ -23,6 +23,19 @@ from dbus_next.service import ServiceInterface, method, signal as dbus_signal
 BUS_NAME = "org.gnome.Shell.Extensions.Speech2Text"
 OBJECT_PATH = "/org/gnome/Shell/Extensions/Speech2Text"
 INTERFACE_NAME = "org.gnome.Shell.Extensions.Speech2Text"
+CPU_THREADS_ENV = "SPEECH2TEXT_CPU_THREADS"
+DEFAULT_CPU_THREADS = 4
+
+
+def _get_cpu_thread_count() -> int:
+    """Return the configured CPU thread count, bounded by available CPUs."""
+    cpu_count = os.cpu_count() or 1
+    try:
+        requested = int(os.environ.get(CPU_THREADS_ENV, str(DEFAULT_CPU_THREADS)))
+    except ValueError:
+        requested = DEFAULT_CPU_THREADS
+    return max(1, min(requested, cpu_count))
+
 
 if TYPE_CHECKING:
     # dbus-next uses D-Bus type signature strings in annotations like: param: 's' -> 'b'
@@ -105,9 +118,13 @@ class Speech2TextService(ServiceInterface):
                 try:
                     import torch  # type: ignore
 
-                    cpu_count = os.cpu_count() or 1
-                    torch.set_num_threads(max(1, min(4, cpu_count)))
+                    cpu_threads = _get_cpu_thread_count()
+                    torch.set_num_threads(cpu_threads)
                     torch.set_num_interop_threads(1)
+                    syslog.syslog(
+                        syslog.LOG_INFO,
+                        f"Configured PyTorch CPU threads: {cpu_threads}",
+                    )
                 except Exception:
                     # If torch isn't available yet for any reason, don't fail here.
                     pass
